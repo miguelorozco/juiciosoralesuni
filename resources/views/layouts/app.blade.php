@@ -54,9 +54,11 @@
                     if (token) {
                         console.log('🔄 Navegando con token:', url);
                         fetch(url, {
+                            method: 'GET',
                             headers: {
                                 'Authorization': `Bearer ${token}`,
-                                'X-Requested-With': 'XMLHttpRequest'
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
                             }
                         }).then(response => {
                             if (response.ok) {
@@ -101,7 +103,8 @@
                                 method: 'GET',
                                 headers: {
                                     'Authorization': `Bearer ${token}`,
-                                    'X-Requested-With': 'XMLHttpRequest'
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
                                 }
                             }).then(response => {
                                 if (response.ok) {

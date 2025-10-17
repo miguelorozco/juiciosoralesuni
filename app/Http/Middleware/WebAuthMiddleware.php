@@ -60,13 +60,23 @@ class WebAuthMiddleware
             }
         }
         
-        // Si es una navegación normal (no AJAX), verificar si hay token en localStorage
-        Log::info('Usuario NO autenticado, verificando token en localStorage...');
-        
-        // Para navegación normal, permitir el acceso y dejar que el frontend maneje la autenticación
-        if (!$request->ajax()) {
-            Log::info('Navegación normal detectada, permitiendo acceso para verificación del frontend');
-            return $next($request);
+        // Verificar si hay token en el header Authorization (para navegación normal con token)
+        $token = $request->header('Authorization');
+        if ($token) {
+            $token = str_replace('Bearer ', '', $token);
+            Log::info('Token encontrado en header de navegación normal');
+            
+            try {
+                $user = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->authenticate();
+                if ($user) {
+                    Log::info('Token válido, usuario: ' . $user->email);
+                    Auth::login($user);
+                    Log::info('Usuario autenticado en sesión web');
+                    return $next($request);
+                }
+            } catch (\Exception $e) {
+                Log::error('Error verificando token: ' . $e->getMessage());
+            }
         }
         
         Log::info('Usuario NO autenticado, redirigiendo a login');
