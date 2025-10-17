@@ -13,6 +13,9 @@ use App\Http\Controllers\DialogoController;
 use App\Http\Controllers\DialogoFlujoController;
 use App\Http\Controllers\UnityDialogoController;
 use App\Http\Controllers\NodoDialogoController;
+use App\Http\Controllers\EstadisticasController;
+use App\Http\Controllers\ConfiguracionController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,6 +40,7 @@ Route::group(['prefix' => 'auth'], function () {
         Route::post('refresh', [AuthController::class, 'refresh']);
         Route::get('me', [AuthController::class, 'me']);
         Route::put('profile', [AuthController::class, 'updateProfile']);
+        Route::post('cambiar-contraseña', [ProfileController::class, 'cambiarContraseña']);
     });
 });
 
@@ -140,6 +144,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{configuracionSistema}', [ConfiguracionSistemaController::class, 'show'])->middleware('user.type:admin');
         Route::put('/{configuracionSistema}', [ConfiguracionSistemaController::class, 'update'])->middleware('user.type:admin');
         Route::delete('/{configuracionSistema}', [ConfiguracionSistemaController::class, 'destroy'])->middleware('user.type:admin');
+        
+        // Nuevas rutas de configuración
+        Route::post('/limpiar-cache', [ConfiguracionController::class, 'limpiarCache'])->middleware('user.type:admin');
+        Route::post('/regenerar-logs', [ConfiguracionController::class, 'regenerarLogs'])->middleware('user.type:admin');
+        Route::post('/probar-unity', [ConfiguracionController::class, 'probarUnity'])->middleware('user.type:admin');
+        Route::post('/reiniciar-sistema', [ConfiguracionController::class, 'reiniciarSistema'])->middleware('user.type:admin');
     });
 
     // ========================================
@@ -174,27 +184,12 @@ Route::middleware('auth:api')->group(function () {
     // ========================================
     // RUTAS DE ESTADÍSTICAS Y REPORTES
     // ========================================
-    Route::group(['prefix' => 'estadisticas', 'middleware' => 'user.type:admin,instructor'], function () {
-        Route::get('/dashboard', function () {
-            return response()->json([
-                'success' => true,
-                'message' => 'Dashboard de estadísticas - En desarrollo',
-                'data' => [
-                    'total_sesiones' => 0,
-                    'sesiones_activas' => 0,
-                    'total_usuarios' => 0,
-                    'total_plantillas' => 0
-                ]
-            ]);
-        });
-        
-        Route::get('/sesiones-por-mes', function () {
-            return response()->json([
-                'success' => true,
-                'message' => 'Estadísticas de sesiones por mes - En desarrollo',
-                'data' => []
-            ]);
-        });
+    Route::group(['prefix' => 'estadisticas'], function () {
+        Route::get('/dashboard', [EstadisticasController::class, 'dashboard']);
+        Route::get('/top-instructores', [EstadisticasController::class, 'topInstructores']);
+        Route::get('/actividad-reciente', [EstadisticasController::class, 'actividadReciente']);
+        Route::get('/usuario', [EstadisticasController::class, 'usuario']);
+        Route::get('/actividad-usuario', [EstadisticasController::class, 'actividadUsuario']);
     });
 
     // ========================================
@@ -274,5 +269,16 @@ Route::middleware('auth:api')->group(function () {
             Route::post('/{sesionJuicio}/notificar-hablando', [UnityDialogoController::class, 'notificarHablando']);
             Route::get('/{sesionJuicio}/movimientos-personajes', [UnityDialogoController::class, 'obtenerMovimientosPersonajes']);
         });
+    });
+
+    // ========================================
+    // RUTAS DE PERFIL DE USUARIO
+    // ========================================
+    Route::group(['prefix' => 'profile'], function () {
+        Route::put('/', [ProfileController::class, 'update']);
+        Route::get('/estadisticas', [ProfileController::class, 'estadisticas']);
+        Route::get('/actividad', [ProfileController::class, 'actividad']);
+        Route::get('/exportar-datos', [ProfileController::class, 'exportarDatos']);
+        Route::post('/eliminar-cuenta', [ProfileController::class, 'eliminarCuenta']);
     });
 });
