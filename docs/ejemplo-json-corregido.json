@@ -1,0 +1,193 @@
+{
+    "dialogo": {
+        "nombre": "Juicio Penal Robo a Tienda (Acusatorio)",
+        "descripcion": "Simulación completa de un juicio oral penal por robo a comercio, con salidas alternas, testigos (víctima, policía, testigo presencial) y diferentes desenlaces según las decisiones del usuario.",
+        "publico": true
+    },
+    "nodos": [
+        {
+            "id": "n_inicio",
+            "titulo": "Apertura de Audiencia",
+            "contenido": "Se abre la audiencia de juicio oral en la causa penal #2025-PEN-047 por robo a tienda de conveniencia.",
+            "instrucciones": "El Juez declara abierta la audiencia, verifica identidad y presencia.",
+            "rol_nombre": "Juez",
+            "tipo": "inicio",
+            "es_inicial": true,
+            "es_final": false,
+            "posicion": {
+                "x": 0,
+                "y": 0
+            }
+        },
+        {
+            "id": "n_lectura_cargos",
+            "titulo": "Lectura de Cargos",
+            "contenido": "Se procede a la lectura de los cargos imputados al acusado por el delito de robo agravado.",
+            "instrucciones": "El Juez lee los cargos con claridad y verifica que el acusado comprende.",
+            "rol_nombre": "Juez",
+            "tipo": "desarrollo",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 200,
+                "y": 0
+            }
+        },
+        {
+            "id": "n_declaracion_fiscal",
+            "titulo": "Declaración del Fiscal",
+            "contenido": "El fiscal presenta su alegato de apertura, exponiendo los hechos y la teoría del caso.",
+            "instrucciones": "El fiscal debe ser claro y convincente en su presentación.",
+            "rol_nombre": "Fiscal",
+            "tipo": "desarrollo",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 400,
+                "y": 0
+            }
+        },
+        {
+            "id": "n_declaracion_defensa",
+            "titulo": "Declaración de la Defensa",
+            "contenido": "El abogado defensor presenta su alegato de apertura, cuestionando la teoría del fiscal.",
+            "instrucciones": "La defensa debe ser estratégica y defender los derechos del acusado.",
+            "rol_nombre": "Defensor",
+            "tipo": "desarrollo",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 600,
+                "y": 0
+            }
+        },
+        {
+            "id": "n_testigo_victima",
+            "titulo": "Declaración de la Víctima",
+            "contenido": "La víctima declara sobre los hechos ocurridos el día del robo.",
+            "instrucciones": "La víctima debe ser clara y precisa en su testimonio.",
+            "rol_nombre": "Testigo",
+            "tipo": "desarrollo",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 200,
+                "y": 200
+            }
+        },
+        {
+            "id": "n_testigo_policia",
+            "titulo": "Declaración del Policía",
+            "contenido": "El oficial de policía declara sobre la investigación y arresto del sospechoso.",
+            "instrucciones": "El policía debe ser objetivo y detallado en su testimonio.",
+            "rol_nombre": "Testigo",
+            "tipo": "desarrollo",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 400,
+                "y": 200
+            }
+        },
+        {
+            "id": "n_decision_veredicto",
+            "titulo": "Decisión del Jurado",
+            "contenido": "El jurado debe decidir si el acusado es culpable o inocente.",
+            "instrucciones": "El jurado debe deliberar basándose en las pruebas presentadas.",
+            "rol_nombre": "Sistema",
+            "tipo": "decision",
+            "es_inicial": false,
+            "es_final": false,
+            "posicion": {
+                "x": 400,
+                "y": 400
+            }
+        },
+        {
+            "id": "n_veredicto_culpable",
+            "titulo": "Veredicto: Culpable",
+            "contenido": "El jurado declara al acusado culpable. Se procede a la sentencia.",
+            "instrucciones": "El juez debe proceder con la sentencia según la ley.",
+            "rol_nombre": "Juez",
+            "tipo": "final",
+            "es_inicial": false,
+            "es_final": true,
+            "posicion": {
+                "x": 200,
+                "y": 600
+            }
+        },
+        {
+            "id": "n_veredicto_inocente",
+            "titulo": "Veredicto: Inocente",
+            "contenido": "El jurado declara al acusado inocente. Se ordena su liberación inmediata.",
+            "instrucciones": "El juez debe ordenar la liberación del acusado.",
+            "rol_nombre": "Juez",
+            "tipo": "final",
+            "es_inicial": false,
+            "es_final": true,
+            "posicion": {
+                "x": 600,
+                "y": 600
+            }
+        }
+    ],
+    "conexiones": [
+        {
+            "desde": "n_inicio",
+            "hacia": "n_lectura_cargos",
+            "texto": "Proceder con la lectura de cargos",
+            "color": "#007bff",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_lectura_cargos",
+            "hacia": "n_declaracion_fiscal",
+            "texto": "Iniciar declaraciones",
+            "color": "#28a745",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_declaracion_fiscal",
+            "hacia": "n_declaracion_defensa",
+            "texto": "Continuar con la defensa",
+            "color": "#007bff",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_declaracion_defensa",
+            "hacia": "n_testigo_victima",
+            "texto": "Llamar a declarar a la víctima",
+            "color": "#dc3545",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_testigo_victima",
+            "hacia": "n_testigo_policia",
+            "texto": "Llamar a declarar al policía",
+            "color": "#ffc107",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_testigo_policia",
+            "hacia": "n_decision_veredicto",
+            "texto": "Proceder a la deliberación",
+            "color": "#6f42c1",
+            "puntuacion": 0
+        },
+        {
+            "desde": "n_decision_veredicto",
+            "hacia": "n_veredicto_culpable",
+            "texto": "Declarar culpable",
+            "color": "#dc3545",
+            "puntuacion": 10
+        },
+        {
+            "desde": "n_decision_veredicto",
+            "hacia": "n_veredicto_inocente",
+            "texto": "Declarar inocente",
+            "color": "#28a745",
+            "puntuacion": 15
+        }
+    ]
+}

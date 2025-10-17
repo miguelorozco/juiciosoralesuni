@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Directo - Simulador de Juicios Orales</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 10px;
+            margin: 10px;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .credentials {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .credentials h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .credential-item {
+            margin: 10px 0;
+            font-family: monospace;
+        }
+
+        .status {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">⚖️</div>
+        <h1>Simulador de Juicios Orales</h1>
+
+        <div class="status">
+            ✅ <strong>Sistema funcionando correctamente</strong><br>
+            El login está operativo en las siguientes URLs:
+        </div>
+
+        <div style="margin: 20px 0;">
+            <a href="http://localhost/login" class="btn">🚀 Acceder (Localhost)</a>
+            <a href="http://127.0.0.1/login" class="btn">🌐 Acceder (IP Local)</a>
+        </div>
+
+        <div class="credentials">
+            <h3>🔐 Credenciales de Acceso:</h3>
+            <div class="credential-item"><strong>Email:</strong> miguel.orozco@me.com</div>
+            <div class="credential-item"><strong>Contraseña:</strong> password123</div>
+            <div class="credential-item"><strong>Tipo:</strong> instructor</div>
+        </div>
+
+        <div class="credentials">
+            <h3>🎓 Usuario Alumno:</h3>
+            <div class="credential-item"><strong>Email:</strong> newuser@test.com</div>
+            <div class="credential-item"><strong>Contraseña:</strong> password123</div>
+            <div class="credential-item"><strong>Tipo:</strong> alumno</div>
+        </div>
+
+        <div style="margin-top: 30px; font-size: 0.9em; color: #666;">
+            <p><strong>Nota:</strong> Si el dominio juiciosorales.site no funciona, usa las URLs de localhost.</p>
+            <p>El sistema está completamente operativo y listo para usar.</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-redirect después de 5 segundos
+        setTimeout(() => {
+            window.location.href = 'http://localhost/login';
+        }, 5000);
+    </script>
+</body>
+
+</html>
