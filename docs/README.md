@@ -184,4 +184,4 @@ code plantilla-basica.json
 ---
 
 **Desarrollado con ❤️ para la educación legal**  
-**Sistema de Diálogos v2.0** | **Enero 2025**
+**Sistema de Diálogos v2.0** | **Septiembre 2025**

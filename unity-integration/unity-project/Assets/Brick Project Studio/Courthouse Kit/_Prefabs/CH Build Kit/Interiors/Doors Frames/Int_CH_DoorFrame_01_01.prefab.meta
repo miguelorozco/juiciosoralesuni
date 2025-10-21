@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d301292a19df42d4e99bcdc5be91fdfa
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141299
+  packageName: Courthouse Kit
+  packageVersion: 2.4
+  assetPath: Assets/Brick Project Studio/Courthouse Kit/_Prefabs/CH Build Kit/Interiors/Doors
+    Frames/Int_CH_DoorFrame_01_01.prefab
+  uploadId: 538298

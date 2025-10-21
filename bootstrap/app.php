@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'prevent.user.enumeration' => \App\Http\Middleware\PreventUserEnumeration::class,
             'check.user.registration' => \App\Http\Middleware\CheckUserRegistration::class,
             'web.auth' => \App\Http\Middleware\WebAuthMiddleware::class,
+            'unity.auth' => \App\Http\Middleware\UnityAuthMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

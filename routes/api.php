@@ -12,6 +12,9 @@ use App\Http\Controllers\ConfiguracionSistemaController;
 use App\Http\Controllers\DialogoController;
 use App\Http\Controllers\DialogoFlujoController;
 use App\Http\Controllers\UnityDialogoController;
+use App\Http\Controllers\UnityAuthController;
+use App\Http\Controllers\UnityRealtimeController;
+use App\Http\Controllers\UnityRoomController;
 use App\Http\Controllers\NodoDialogoController;
 use App\Http\Controllers\EstadisticasController;
 use App\Http\Controllers\ConfiguracionController;
@@ -244,6 +247,18 @@ Route::middleware('auth:api')->group(function () {
     // RUTAS DE INTEGRACIÓN CON UNITY
     // ========================================
     Route::group(['prefix' => 'unity'], function () {
+        
+        // Rutas de autenticación Unity (sin middleware de auth)
+        Route::group(['prefix' => 'auth'], function () {
+            Route::post('login', [UnityAuthController::class, 'login']);
+            Route::get('status', [UnityAuthController::class, 'status']);
+            
+            Route::middleware('unity.auth')->group(function () {
+                Route::post('refresh', [UnityAuthController::class, 'refresh']);
+                Route::post('logout', [UnityAuthController::class, 'logout']);
+                Route::get('me', [UnityAuthController::class, 'me']);
+            });
+        });
         // Endpoints legacy (mantener compatibilidad)
         Route::get('/room-status/{roomId}', function ($roomId) {
             return response()->json([
@@ -261,13 +276,32 @@ Route::middleware('auth:api')->group(function () {
             ]);
         });
 
-        // Nuevos endpoints para diálogos Unity
-        Route::group(['prefix' => 'sesion'], function () {
-            Route::get('/{sesionJuicio}/dialogo-estado', [UnityDialogoController::class, 'obtenerEstadoDialogo']);
-            Route::get('/{sesionJuicio}/respuestas-usuario/{usuario}', [UnityDialogoController::class, 'obtenerRespuestasUsuario']);
-            Route::post('/{sesionJuicio}/enviar-decision', [UnityDialogoController::class, 'enviarDecision']);
-            Route::post('/{sesionJuicio}/notificar-hablando', [UnityDialogoController::class, 'notificarHablando']);
-            Route::get('/{sesionJuicio}/movimientos-personajes', [UnityDialogoController::class, 'obtenerMovimientosPersonajes']);
+        // Nuevos endpoints para diálogos Unity (requieren autenticación)
+        Route::middleware('unity.auth')->group(function () {
+            Route::group(['prefix' => 'sesion'], function () {
+                Route::get('/{sesionJuicio}/dialogo-estado', [UnityDialogoController::class, 'obtenerEstadoDialogo']);
+                Route::get('/{sesionJuicio}/respuestas-usuario/{usuario}', [UnityDialogoController::class, 'obtenerRespuestasUsuario']);
+                Route::post('/{sesionJuicio}/enviar-decision', [UnityDialogoController::class, 'enviarDecision']);
+                Route::post('/{sesionJuicio}/notificar-hablando', [UnityDialogoController::class, 'notificarHablando']);
+                Route::get('/{sesionJuicio}/movimientos-personajes', [UnityDialogoController::class, 'obtenerMovimientosPersonajes']);
+                
+                // Rutas de comunicación en tiempo real
+                Route::get('/{sesionJuicio}/events', [UnityRealtimeController::class, 'streamEvents']);
+                Route::post('/{sesionJuicio}/broadcast', [UnityRealtimeController::class, 'broadcastEvent']);
+                Route::get('/{sesionJuicio}/events/history', [UnityRealtimeController::class, 'getEventHistory']);
+            });
+            
+            // Rutas de salas de Unity
+            Route::group(['prefix' => 'rooms'], function () {
+                Route::post('create', [UnityRoomController::class, 'createRoom']);
+                Route::get('{roomId}/join', [UnityRoomController::class, 'joinRoom']);
+                Route::post('{roomId}/leave', [UnityRoomController::class, 'leaveRoom']);
+                Route::get('{roomId}/state', [UnityRoomController::class, 'getRoomState']);
+                Route::post('{roomId}/sync-player', [UnityRoomController::class, 'syncPlayer']);
+                Route::post('{roomId}/audio-state', [UnityRoomController::class, 'updateAudioState']);
+                Route::get('{roomId}/events', [UnityRoomController::class, 'getRoomEvents']);
+                Route::post('{roomId}/close', [UnityRoomController::class, 'closeRoom']);
+            });
         });
     });
 

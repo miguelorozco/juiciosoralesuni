@@ -1,0 +1,515 @@
+fileFormatVersion: 2
+guid: fbf08209ef750024380e9c7de2baf5c1
+ModelImporter:
+  serializedVersion: 22
+  fileIDToRecycleName:
+    100000: Arm Rest
+    100002: Arm Rest Panel
+    100004: Back
+    100006: Back Panel
+    100008: Back.001
+    100010: Bar.001
+    100012: Bar.002
+    100014: Bench_CH_01_01
+    100016: Chair_CH_01_01
+    100018: Chair_CH_01_02
+    100020: //RootNode
+    100022: Door Plate
+    100024: Door Plate.001
+    100026: Door.L
+    100028: Door.R
+    100030: Gavel Hammer
+    100032: Gavel Striking Base
+    100034: Head
+    100036: head
+    100038: Head Rest
+    100040: Head.001
+    100042: Int_CH_01_WallNew_01_02
+    100044: Int_CH_Fence_01_01
+    100046: Int_CH_Fence_01_02
+    100048: Int_CH_FenceaGate_01_01
+    100050: Int_CH_FencePole_01_01
+    100052: Int_CH_Frame_01_01
+    100054: Int_CH_PlatformStaris_01_01
+    100056: Int_CH_PlatformStaris_01_02
+    100058: Int_CH_PlatformStaris_01_03
+    100060: Int_CH_PlatformStaris_01_04
+    100062: Int_CH_PlatformStaris_01_05
+    100064: Int_CH_PlatformStaris_01_06
+    100066: Int_CH_PlatformStaris_01_07
+    100068: Int_CH_PlatformStaris_01_08
+    100070: Int_CH_WallPan_01_01
+    100072: Int_CH_WallPan_01_02
+    100074: Int_CH_WallPan_DoorFrame_01_01
+    100076: Int_CH_WallPan_Edge_01_01
+    100078: Int_CH_WallPan_Edge_01_02
+    100080: Int_CH_WallPan_WindowFrame_01_01
+    100082: Int_CH_WallPan_WindowFrame_01_02
+    100084: Int_CH_WallPan_WindowFrame_01_03
+    100086: Int_CH_WallPanLarge_01_01
+    100088: Int_Door_01
+    100090: Int_WallNew_01
+    100092: JudgeBench_Style01_01_01
+    100094: JudgeBench_Style01_01_02
+    100096: JudgeChair_01_01
+    100098: Leg.003
+    100100: Loop
+    100102: Loop.001
+    100104: Mic holder
+    100106: Mic Pole
+    100108: Mic Stand_CH_01_01
+    100110: Mic Swivel
+    100112: Microphone
+    100114: Microphone.001
+    100116: Seat
+    100118: Seat Base
+    100120: Seat Cushion
+    100122: Seat Cushion.001
+    100124: Seat Cushion.002
+    100126: Seat.001
+    100128: Table_CH_01_01
+    100130: Wheel
+    100132: Wheel Cover
+    100134: Wheel Cover.001
+    100136: Wheel Cover.002
+    100138: Wheel Cover.003
+    100140: Wheel Cover.004
+    100142: Wheel Cover.005
+    100144: Wheel Cover.007
+    100146: Wheel Cover.008
+    100148: Wheel Cover.009
+    100150: Wheel Cover.010
+    100152: Wheel.001
+    100154: Wheel.002
+    100156: Wheels.000
+    100158: Wheels.001
+    100160: Wheels.002
+    100162: Wheels.003
+    100164: Wheels.004
+    100166: Wheels.005
+    100168: Wheels.015
+    400000: Arm Rest
+    400002: Arm Rest Panel
+    400004: Back
+    400006: Back Panel
+    400008: Back.001
+    400010: Bar.001
+    400012: Bar.002
+    400014: Bench_CH_01_01
+    400016: Chair_CH_01_01
+    400018: Chair_CH_01_02
+    400020: //RootNode
+    400022: Door Plate
+    400024: Door Plate.001
+    400026: Door.L
+    400028: Door.R
+    400030: Gavel Hammer
+    400032: Gavel Striking Base
+    400034: Head
+    400036: head
+    400038: Head Rest
+    400040: Head.001
+    400042: Int_CH_01_WallNew_01_02
+    400044: Int_CH_Fence_01_01
+    400046: Int_CH_Fence_01_02
+    400048: Int_CH_FenceaGate_01_01
+    400050: Int_CH_FencePole_01_01
+    400052: Int_CH_Frame_01_01
+    400054: Int_CH_PlatformStaris_01_01
+    400056: Int_CH_PlatformStaris_01_02
+    400058: Int_CH_PlatformStaris_01_03
+    400060: Int_CH_PlatformStaris_01_04
+    400062: Int_CH_PlatformStaris_01_05
+    400064: Int_CH_PlatformStaris_01_06
+    400066: Int_CH_PlatformStaris_01_07
+    400068: Int_CH_PlatformStaris_01_08
+    400070: Int_CH_WallPan_01_01
+    400072: Int_CH_WallPan_01_02
+    400074: Int_CH_WallPan_DoorFrame_01_01
+    400076: Int_CH_WallPan_Edge_01_01
+    400078: Int_CH_WallPan_Edge_01_02
+    400080: Int_CH_WallPan_WindowFrame_01_01
+    400082: Int_CH_WallPan_WindowFrame_01_02
+    400084: Int_CH_WallPan_WindowFrame_01_03
+    400086: Int_CH_WallPanLarge_01_01
+    400088: Int_Door_01
+    400090: Int_WallNew_01
+    400092: JudgeBench_Style01_01_01
+    400094: JudgeBench_Style01_01_02
+    400096: JudgeChair_01_01
+    400098: Leg.003
+    400100: Loop
+    400102: Loop.001
+    400104: Mic holder
+    400106: Mic Pole
+    400108: Mic Stand_CH_01_01
+    400110: Mic Swivel
+    400112: Microphone
+    400114: Microphone.001
+    400116: Seat
+    400118: Seat Base
+    400120: Seat Cushion
+    400122: Seat Cushion.001
+    400124: Seat Cushion.002
+    400126: Seat.001
+    400128: Table_CH_01_01
+    400130: Wheel
+    400132: Wheel Cover
+    400134: Wheel Cover.001
+    400136: Wheel Cover.002
+    400138: Wheel Cover.003
+    400140: Wheel Cover.004
+    400142: Wheel Cover.005
+    400144: Wheel Cover.007
+    400146: Wheel Cover.008
+    400148: Wheel Cover.009
+    400150: Wheel Cover.010
+    400152: Wheel.001
+    400154: Wheel.002
+    400156: Wheels.000
+    400158: Wheels.001
+    400160: Wheels.002
+    400162: Wheels.003
+    400164: Wheels.004
+    400166: Wheels.005
+    400168: Wheels.015
+    2100000: No Name
+    2300000: Arm Rest
+    2300002: Arm Rest Panel
+    2300004: Back
+    2300006: Back Panel
+    2300008: Back.001
+    2300010: Bar.001
+    2300012: Bar.002
+    2300014: Bench_CH_01_01
+    2300016: Chair_CH_01_01
+    2300018: Chair_CH_01_02
+    2300020: Door Plate
+    2300022: Door Plate.001
+    2300024: Door.L
+    2300026: Door.R
+    2300028: Gavel Hammer
+    2300030: Gavel Striking Base
+    2300032: Head
+    2300034: head
+    2300036: Head Rest
+    2300038: Head.001
+    2300040: Int_CH_01_WallNew_01_02
+    2300042: Int_CH_Fence_01_01
+    2300044: Int_CH_Fence_01_02
+    2300046: Int_CH_FenceaGate_01_01
+    2300048: Int_CH_FencePole_01_01
+    2300050: Int_CH_Frame_01_01
+    2300052: Int_CH_PlatformStaris_01_01
+    2300054: Int_CH_PlatformStaris_01_02
+    2300056: Int_CH_PlatformStaris_01_03
+    2300058: Int_CH_PlatformStaris_01_04
+    2300060: Int_CH_PlatformStaris_01_05
+    2300062: Int_CH_PlatformStaris_01_06
+    2300064: Int_CH_PlatformStaris_01_07
+    2300066: Int_CH_PlatformStaris_01_08
+    2300068: Int_CH_WallPan_01_01
+    2300070: Int_CH_WallPan_01_02
+    2300072: Int_CH_WallPan_DoorFrame_01_01
+    2300074: Int_CH_WallPan_Edge_01_01
+    2300076: Int_CH_WallPan_Edge_01_02
+    2300078: Int_CH_WallPan_WindowFrame_01_01
+    2300080: Int_CH_WallPan_WindowFrame_01_02
+    2300082: Int_CH_WallPan_WindowFrame_01_03
+    2300084: Int_CH_WallPanLarge_01_01
+    2300086: Int_Door_01
+    2300088: Int_WallNew_01
+    2300090: JudgeBench_Style01_01_01
+    2300092: JudgeBench_Style01_01_02
+    2300094: JudgeChair_01_01
+    2300096: Leg.003
+    2300098: Loop
+    2300100: Loop.001
+    2300102: Mic holder
+    2300104: Mic Pole
+    2300106: Mic Stand_CH_01_01
+    2300108: Mic Swivel
+    2300110: Microphone
+    2300112: Microphone.001
+    2300114: Seat
+    2300116: Seat Base
+    2300118: Seat Cushion
+    2300120: Seat Cushion.001
+    2300122: Seat Cushion.002
+    2300124: Seat.001
+    2300126: Table_CH_01_01
+    2300128: Wheel
+    2300130: Wheel Cover
+    2300132: Wheel Cover.001
+    2300134: Wheel Cover.002
+    2300136: Wheel Cover.003
+    2300138: Wheel Cover.004
+    2300140: Wheel Cover.005
+    2300142: Wheel Cover.007
+    2300144: Wheel Cover.008
+    2300146: Wheel Cover.009
+    2300148: Wheel Cover.010
+    2300150: Wheel.001
+    2300152: Wheel.002
+    2300154: Wheels.000
+    2300156: Wheels.001
+    2300158: Wheels.002
+    2300160: Wheels.003
+    2300162: Wheels.004
+    2300164: Wheels.005
+    2300166: Wheels.015
+    3300000: Arm Rest
+    3300002: Arm Rest Panel
+    3300004: Back
+    3300006: Back Panel
+    3300008: Back.001
+    3300010: Bar.001
+    3300012: Bar.002
+    3300014: Bench_CH_01_01
+    3300016: Chair_CH_01_01
+    3300018: Chair_CH_01_02
+    3300020: Door Plate
+    3300022: Door Plate.001
+    3300024: Door.L
+    3300026: Door.R
+    3300028: Gavel Hammer
+    3300030: Gavel Striking Base
+    3300032: Head
+    3300034: head
+    3300036: Head Rest
+    3300038: Head.001
+    3300040: Int_CH_01_WallNew_01_02
+    3300042: Int_CH_Fence_01_01
+    3300044: Int_CH_Fence_01_02
+    3300046: Int_CH_FenceaGate_01_01
+    3300048: Int_CH_FencePole_01_01
+    3300050: Int_CH_Frame_01_01
+    3300052: Int_CH_PlatformStaris_01_01
+    3300054: Int_CH_PlatformStaris_01_02
+    3300056: Int_CH_PlatformStaris_01_03
+    3300058: Int_CH_PlatformStaris_01_04
+    3300060: Int_CH_PlatformStaris_01_05
+    3300062: Int_CH_PlatformStaris_01_06
+    3300064: Int_CH_PlatformStaris_01_07
+    3300066: Int_CH_PlatformStaris_01_08
+    3300068: Int_CH_WallPan_01_01
+    3300070: Int_CH_WallPan_01_02
+    3300072: Int_CH_WallPan_DoorFrame_01_01
+    3300074: Int_CH_WallPan_Edge_01_01
+    3300076: Int_CH_WallPan_Edge_01_02
+    3300078: Int_CH_WallPan_WindowFrame_01_01
+    3300080: Int_CH_WallPan_WindowFrame_01_02
+    3300082: Int_CH_WallPan_WindowFrame_01_03
+    3300084: Int_CH_WallPanLarge_01_01
+    3300086: Int_Door_01
+    3300088: Int_WallNew_01
+    3300090: JudgeBench_Style01_01_01
+    3300092: JudgeBench_Style01_01_02
+    3300094: JudgeChair_01_01
+    3300096: Leg.003
+    3300098: Loop
+    3300100: Loop.001
+    3300102: Mic holder
+    3300104: Mic Pole
+    3300106: Mic Stand_CH_01_01
+    3300108: Mic Swivel
+    3300110: Microphone
+    3300112: Microphone.001
+    3300114: Seat
+    3300116: Seat Base
+    3300118: Seat Cushion
+    3300120: Seat Cushion.001
+    3300122: Seat Cushion.002
+    3300124: Seat.001
+    3300126: Table_CH_01_01
+    3300128: Wheel
+    3300130: Wheel Cover
+    3300132: Wheel Cover.001
+    3300134: Wheel Cover.002
+    3300136: Wheel Cover.003
+    3300138: Wheel Cover.004
+    3300140: Wheel Cover.005
+    3300142: Wheel Cover.007
+    3300144: Wheel Cover.008
+    3300146: Wheel Cover.009
+    3300148: Wheel Cover.010
+    3300150: Wheel.001
+    3300152: Wheel.002
+    3300154: Wheels.000
+    3300156: Wheels.001
+    3300158: Wheels.002
+    3300160: Wheels.003
+    3300162: Wheels.004
+    3300164: Wheels.005
+    3300166: Wheels.015
+    4300000: Int_CH_WallPan_Edge_01_01
+    4300002: Int_CH_WallPan_Edge_01_02
+    4300004: Int_CH_Fence_01_02
+    4300006: Int_CH_Fence_01_01
+    4300008: Int_CH_WallPan_DoorFrame_01_01
+    4300010: Int_CH_WallPan_WindowFrame_01_01
+    4300012: Int_CH_WallPan_WindowFrame_01_03
+    4300014: Int_CH_WallPan_WindowFrame_01_02
+    4300016: Gavel Hammer
+    4300018: head
+    4300020: Gavel Striking Base
+    4300022: Int_CH_FenceaGate_01_01
+    4300024: Door.R
+    4300026: Door.L
+    4300028: Int_CH_WallPan_01_02
+    4300030: Int_CH_WallPan_01_01
+    4300032: Int_CH_WallPanLarge_01_01
+    4300034: Int_WallNew_01
+    4300036: Int_CH_01_WallNew_01_02
+    4300038: Int_CH_PlatformStaris_01_07
+    4300040: Int_CH_PlatformStaris_01_02
+    4300042: Int_CH_PlatformStaris_01_03
+    4300044: Int_CH_PlatformStaris_01_04
+    4300046: Int_CH_PlatformStaris_01_08
+    4300048: Int_CH_PlatformStaris_01_06
+    4300050: Int_CH_PlatformStaris_01_01
+    4300052: Int_CH_PlatformStaris_01_05
+    4300054: Microphone
+    4300056: Head
+    4300058: Loop
+    4300060: Mic Stand_CH_01_01
+    4300062: Mic holder
+    4300064: Mic Pole
+    4300066: Mic Swivel
+    4300068: Microphone.001
+    4300070: Head.001
+    4300072: Loop.001
+    4300074: JudgeBench_Style01_01_01
+    4300076: JudgeBench_Style01_01_02
+    4300078: Bench_CH_01_01
+    4300080: Int_CH_FencePole_01_01
+    4300082: Chair_CH_01_01
+    4300084: Seat
+    4300086: Back.001
+    4300088: Table_CH_01_01
+    4300090: Leg.003
+    4300092: Chair_CH_01_02
+    4300094: Bar.002
+    4300096: Wheel Cover.001
+    4300098: Wheels.000
+    4300100: Wheel Cover.007
+    4300102: Wheels.001
+    4300104: Wheel Cover.008
+    4300106: Wheels.003
+    4300108: Wheel Cover.009
+    4300110: Wheels.004
+    4300112: Wheel Cover.010
+    4300114: Wheels.005
+    4300116: Seat.001
+    4300118: Back
+    4300120: JudgeChair_01_01
+    4300122: Bar.001
+    4300124: Back Panel
+    4300126: Head Rest
+    4300128: Wheel Cover.005
+    4300130: Wheels.002
+    4300132: Wheel Cover.004
+    4300134: Wheel.002
+    4300136: Wheel Cover.003
+    4300138: Wheel
+    4300140: Wheel Cover.002
+    4300142: Wheel.001
+    4300144: Wheel Cover
+    4300146: Wheels.015
+    4300148: Arm Rest
+    4300150: Arm Rest Panel
+    4300152: Seat Base
+    4300154: Seat Cushion.002
+    4300156: Seat Cushion.001
+    4300158: Seat Cushion
+    4300160: Int_CH_Frame_01_01
+    4300162: Door Plate
+    4300164: Door Plate.001
+    4300166: Int_Door_01
+  externalObjects: {}
+  materials:
+    importMaterials: 1
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleCurves: 1
+    optimizeGameObjects: 0
+    motionNodeName: 
+    rigImportErrors: 
+    rigImportWarnings: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    extraUserProperties: []
+    clipAnimations: []
+    isReadable: 1
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    importVisibility: 1
+    importBlendShapes: 1
+    importCameras: 1
+    importLights: 1
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    optimizeMeshForGPU: 1
+    keepQuads: 0
+    weldVertices: 1
+    preserveHierarchy: 0
+    indexFormat: 0
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 3
+    normalCalculationMode: 4
+  importAnimation: 1
+  copyAvatar: 0
+  humanDescription:
+    serializedVersion: 2
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    rootMotionBoneName: 
+    rootMotionBoneRotation: {x: 0, y: 0, z: 0, w: 1}
+    hasTranslationDoF: 0
+    hasExtraRoot: 0
+    skeletonHasParents: 1
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  animationType: 0
+  humanoidOversampling: 1
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 141299
+  packageName: Courthouse Kit
+  packageVersion: 2.4
+  assetPath: Assets/Brick Project Studio/Courthouse Kit/Common/Models/Courthouse_Furniture.fbx
+  uploadId: 538298

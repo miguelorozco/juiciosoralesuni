@@ -22,3 +22,24 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Unity Integration
+unity-integration/unity-project/Library/
+unity-integration/unity-project/Temp/
+unity-integration/unity-project/Logs/
+unity-integration/unity-project/UserSettings/
+unity-integration/unity-project/obj/
+unity-integration/unity-project/Build/
+unity-integration/unity-project/Builds/
+unity-integration/unity-project/*.tmp
+unity-integration/unity-project/*.user
+unity-integration/unity-project/*.pidb
+unity-integration/unity-project/*.booproj
+unity-integration/unity-project/*.svd
+unity-integration/unity-project/*.pdb
+unity-integration/unity-project/*.opendb
+unity-integration/unity-project/*.VC.db
+unity-integration/unity-project/*.suo
+unity-integration/unity-project/*.userprefs
+unity-integration/unity-project/*.unityproj
+unity-integration/unity-project/*.mdb
