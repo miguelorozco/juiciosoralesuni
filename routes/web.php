@@ -65,10 +65,12 @@ Route::middleware(['web.auth'])->group(function () {
     
     // Diálogos
     Route::get('/dialogos', [DialogoController::class, 'indexWeb'])->name('dialogos.index');
-    Route::get('/dialogos/create', [DialogoController::class, 'createWeb'])->name('dialogos.create');
+    Route::get('/dialogos/create', function() { return view('dialogos.editor-mejorado'); })->name('dialogos.create');
     Route::get('/dialogos/import', function() { return view('dialogos.import'); })->name('dialogos.import');
     Route::get('/dialogos/{dialogo}', [DialogoController::class, 'showWeb'])->name('dialogos.show');
-    Route::get('/dialogos/{dialogo}/edit', [DialogoController::class, 'editWeb'])->name('dialogos.edit');
+    Route::get('/dialogos/{dialogo}/edit', function($id) { 
+        return view('dialogos.editor-mejorado', ['dialogo' => \App\Models\Dialogo::findOrFail($id)]); 
+    })->name('dialogos.edit');
     
     // Roles
     Route::get('/roles', [RolController::class, 'index'])->name('roles.index');

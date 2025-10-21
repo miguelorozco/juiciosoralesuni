@@ -13,13 +13,13 @@
         <span class="fw-medium">Sesiones</span>
     </a>
 
-    @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-    <!-- Diálogos -->
-    <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('dialogos.*') ? 'bg-primary text-white' : 'text-dark' }}" 
-       href="/dialogos">
-        <i class="bi bi-chat-dots me-3 fs-5"></i>
-        <span class="fw-medium">Diálogos</span>
-    </a>
+           @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+           <!-- Diálogos -->
+           <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('dialogos.*') ? 'bg-primary text-white' : 'text-dark' }}" 
+              href="/dialogos">
+               <i class="bi bi-diagram-3 me-3 fs-5"></i>
+               <span class="fw-medium">Diálogos</span>
+           </a>
 
     <!-- Roles -->
     <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('roles.*') ? 'bg-primary text-white' : 'text-dark' }}" 
