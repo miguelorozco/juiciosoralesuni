@@ -18,6 +18,11 @@ class WebAuthMiddleware
      */
     public function handle(Request $request, Closure $next)
     {
+        // Excluir rutas de Unity de este middleware
+        if (str_starts_with($request->path(), 'api/unity/')) {
+            return $next($request);
+        }
+        
         Log::info('=== MIDDLEWARE WEB AUTH ===');
         Log::info('URL: ' . $request->url());
         Log::info('Method: ' . $request->method());

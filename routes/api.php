@@ -242,11 +242,21 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{sesionJuicio}/finalizar-dialogo', [DialogoFlujoController::class, 'finalizarDialogo'])->middleware('user.type:admin,instructor');
         Route::get('/{sesionJuicio}/historial-decisiones', [DialogoFlujoController::class, 'obtenerHistorialDecisiones']);
     });
+});
 
-    // ========================================
-    // RUTAS DE INTEGRACIÓN CON UNITY
-    // ========================================
-    Route::group(['prefix' => 'unity'], function () {
+// ========================================
+// RUTAS DE INTEGRACIÓN CON UNITY (SIN AUTENTICACIÓN GLOBAL)
+// ========================================
+Route::group(['prefix' => 'unity'], function () {
+        
+        // Endpoint de prueba simple
+        Route::get('/test', function () {
+            return response()->json([
+                'success' => true,
+                'message' => 'Unity API funcionando correctamente',
+                'timestamp' => now()->toISOString()
+            ]);
+        });
         
         // Rutas de autenticación Unity (sin middleware de auth)
         Route::group(['prefix' => 'auth'], function () {
@@ -315,4 +325,3 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/exportar-datos', [ProfileController::class, 'exportarDatos']);
         Route::post('/eliminar-cuenta', [ProfileController::class, 'eliminarCuenta']);
     });
-});

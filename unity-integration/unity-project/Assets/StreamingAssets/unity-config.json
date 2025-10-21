@@ -1,0 +1,61 @@
+{
+    "api": {
+        "baseURL": "http://localhost:8000/api",
+        "timeout": 30,
+        "retryAttempts": 3
+    },
+    "photon": {
+        "appId": "YOUR_PHOTON_APP_ID",
+        "region": "us",
+        "maxPlayers": 20,
+        "connectionTimeout": 30
+    },
+    "peerjs": {
+        "servers": [
+            {
+                "host": "juiciosorales.site",
+                "port": 443,
+                "secure": true,
+                "path": "/peerjs"
+            },
+            {
+                "host": "peerjs.com",
+                "port": 443,
+                "secure": true,
+                "path": "/peerjs"
+            },
+            {
+                "host": "0.peerjs.com",
+                "port": 443,
+                "secure": true,
+                "path": "/peerjs"
+            }
+        ],
+        "stunServers": [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+            "stun:stun2.l.google.com:19302"
+        ]
+    },
+    "audio": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true,
+        "sampleRate": 44100,
+        "channelCount": 1,
+        "latency": 0.01
+    },
+    "debug": {
+        "enabled": true,
+        "logLevel": "info",
+        "showDebugPanel": true
+    },
+    "session": {
+        "defaultSesionId": 1,
+        "autoLogin": true,
+        "testCredentials": {
+            "email": "alumno@example.com",
+            "password": "password"
+        }
+    }
+}
