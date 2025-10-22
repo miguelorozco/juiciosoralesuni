@@ -139,7 +139,12 @@ Route::middleware(['web.auth'])->group(function () {
 Route::get('/unity-entry', [App\Http\Controllers\UnityEntryController::class, 'unityEntryPage'])->name('unity.entry');
 Route::get('/api/unity-entry-info', [App\Http\Controllers\UnityEntryController::class, 'getUnityEntryInfo'])->name('unity.entry-info');
 
-// Rutas protegidas para generar enlaces de Unity
-Route::middleware(['web.auth'])->group(function () {
-    Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
-});
+        // Rutas protegidas para generar enlaces de Unity
+        Route::middleware(['web.auth'])->group(function () {
+            Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
+        });
+
+        // Ruta para el juego Unity
+        Route::get('/unity-game', function () {
+            return view('unity.game');
+        })->name('unity.game');

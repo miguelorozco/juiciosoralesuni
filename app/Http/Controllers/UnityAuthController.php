@@ -96,7 +96,15 @@ class UnityAuthController extends Controller
             }
 
             // Actualizar información de Unity en el usuario
+            // Forzar a array por si viene como string JSON o texto
             $userConfig = $user->configuracion ?? [];
+            if (is_string($userConfig)) {
+                $decoded = json_decode($userConfig, true);
+                $userConfig = is_array($decoded) ? $decoded : [];
+            }
+            if (!is_array($userConfig)) {
+                $userConfig = [];
+            }
             $userConfig['unity_info'] = $unityInfo;
             $user->update(['configuracion' => $userConfig]);
 
