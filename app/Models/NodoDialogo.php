@@ -9,6 +9,8 @@ class NodoDialogo extends Model
 {
     use HasFactory;
 
+    protected $table = 'nodos_dialogo';
+
     protected $fillable = [
         'dialogo_id',
         'rol_id',

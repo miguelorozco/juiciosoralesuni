@@ -60,8 +60,13 @@ Route::middleware(['web.auth'])->group(function () {
     // Sesiones
     Route::get('/sesiones', [SesionController::class, 'index'])->name('sesiones.index');
     Route::get('/sesiones/create', [SesionController::class, 'create'])->name('sesiones.create');
+    Route::post('/sesiones', [SesionController::class, 'store'])->name('sesiones.store');
     Route::get('/sesiones/{sesion}', [SesionController::class, 'show'])->name('sesiones.show');
     Route::get('/sesiones/{sesion}/edit', [SesionController::class, 'edit'])->name('sesiones.edit');
+    Route::put('/sesiones/{sesion}', [SesionController::class, 'update'])->name('sesiones.update');
+    Route::delete('/sesiones/{sesion}', [SesionController::class, 'destroy'])->name('sesiones.destroy');
+    Route::post('/sesiones/{sesion}/iniciar', [SesionController::class, 'iniciar'])->name('sesiones.iniciar');
+    Route::post('/sesiones/{sesion}/finalizar', [SesionController::class, 'finalizar'])->name('sesiones.finalizar');
     
     // Diálogos
     Route::get('/dialogos', [DialogoController::class, 'indexWeb'])->name('dialogos.index');

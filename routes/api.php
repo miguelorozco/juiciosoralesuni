@@ -19,6 +19,7 @@ use App\Http\Controllers\NodoDialogoController;
 use App\Http\Controllers\EstadisticasController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UsuarioController;
 
 /*
 |--------------------------------------------------------------------------
@@ -158,22 +159,11 @@ Route::middleware('auth:api')->group(function () {
     // ========================================
     // RUTAS DE USUARIOS (ADMINISTRACIÓN)
     // ========================================
-    Route::group(['prefix' => 'usuarios', 'middleware' => 'user.type:admin'], function () {
-        Route::get('/', function () {
-            return response()->json([
-                'success' => true,
-                'message' => 'Endpoint de usuarios - En desarrollo',
-                'data' => []
-            ]);
-        });
-        
-        Route::get('/{id}', function ($id) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Endpoint de usuario específico - En desarrollo',
-                'data' => ['id' => $id]
-            ]);
-        });
+    Route::group(['prefix' => 'usuarios'], function () {
+        Route::get('/', [UsuarioController::class, 'index']);
+        Route::get('/estudiantes', [UsuarioController::class, 'estudiantes']);
+        Route::get('/instructores', [UsuarioController::class, 'instructores']);
+        Route::get('/{usuario}', [UsuarioController::class, 'show']);
     });
 
     // ========================================

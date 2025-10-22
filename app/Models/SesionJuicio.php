@@ -14,6 +14,7 @@ class SesionJuicio extends Model
     protected $fillable = [
         'nombre',
         'descripcion',
+        'tipo',
         'instructor_id',
         'plantilla_id',
         'estado',

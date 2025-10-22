@@ -18,6 +18,9 @@ class DatabaseSeeder extends Seeder
             ConfiguracionesSistemaSeeder::class,
             ConfiguracionRegistroSeeder::class,
             AdminUserSeeder::class,
+            EstudiantesSeeder::class,
+            InstructoresSeeder::class,
+            DialogoJuicioPenalSeeder::class,
         ]);
     }
 }

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('nombre', 200);
             $table->text('descripcion')->nullable();
+            $table->enum('tipo', ['civil', 'penal', 'laboral', 'administrativo'])->default('penal');
             $table->foreignId('instructor_id')->constrained('users');
             $table->foreignId('plantilla_id')->nullable()->constrained('plantillas_sesiones');
             $table->enum('estado', ['programada', 'en_curso', 'finalizada', 'cancelada'])->default('programada');

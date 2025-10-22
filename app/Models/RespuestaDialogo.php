@@ -9,6 +9,8 @@ class RespuestaDialogo extends Model
 {
     use HasFactory;
 
+    protected $table = 'respuestas_dialogo';
+
     protected $fillable = [
         'nodo_padre_id',
         'nodo_siguiente_id',

@@ -3,168 +3,87 @@
 @section('title', 'Gestión de Sesiones')
 
 @section('content')
-<div x-data="sesionesManager()" class="space-y-6">
+<div class="container-fluid">
     <!-- Header -->
-    <div class="md:flex md:items-center md:justify-between">
-        <div class="flex-1 min-w-0">
-            <h2 class="text-2xl font-bold leading-7 text-gray-900 dark:text-white sm:text-3xl sm:truncate">
-                Gestión de Sesiones
-            </h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Administra y participa en sesiones de juicios orales
-            </p>
-        </div>
-        <div class="mt-4 flex md:mt-0 md:ml-4">
-            @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-            <button @click="mostrarModalCrear = true" 
-                    class="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Nueva Sesión
-            </button>
-            @endif
-        </div>
-    </div>
-
-    <!-- Filtros -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Estado</label>
-                <select x-model="filtros.estado" @change="filtrarSesiones()" 
-                        class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">Todos</option>
-                    <option value="programada">Programada</option>
-                    <option value="en_curso">En Curso</option>
-                    <option value="finalizada">Finalizada</option>
-                    <option value="cancelada">Cancelada</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Tipo</label>
-                <select x-model="filtros.tipo" @change="filtrarSesiones()" 
-                        class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
-                    <option value="">Todos</option>
-                    <option value="civil">Civil</option>
-                    <option value="penal">Penal</option>
-                    <option value="laboral">Laboral</option>
-                    <option value="administrativo">Administrativo</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Buscar</label>
-                <input type="text" x-model="filtros.buscar" @input="filtrarSesiones()" 
-                       placeholder="Nombre o descripción..."
-                       class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
-            </div>
-            
-            <div class="flex items-end">
-                <button @click="limpiarFiltros()" 
-                        class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <svg class="-ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Limpiar
-                </button>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">
+                        <i class="bi bi-calendar-event me-2"></i>
+                        Gestión de Sesiones
+                    </h1>
+                    <p class="text-muted mb-0">Administra y participa en sesiones de juicios orales simulados</p>
+                </div>
+                <div>
+                    @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearSesionModal">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        Nueva Sesión
+                    </button>
+                    @endif
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Lista de Sesiones -->
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
-        <div class="px-4 py-5 sm:p-6">
-            <div class="flow-root">
-                <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Sesión
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Estado
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Fecha
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Participantes
-                                        </th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Instructor
-                                        </th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Acciones
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-                                    <template x-for="sesion in sesionesFiltradas" :key="sesion.id">
-                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="flex items-center">
-                                                    <div class="flex-shrink-0 h-10 w-10">
-                                                        <div class="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                                                            <svg class="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                    <div class="ml-4">
-                                                        <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="sesion.nombre"></div>
-                                                        <div class="text-sm text-gray-500 dark:text-gray-400" x-text="sesion.descripcion"></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
-                                                      :class="{
-                                                        'bg-green-100 text-green-800': sesion.estado === 'en_curso',
-                                                        'bg-blue-100 text-blue-800': sesion.estado === 'programada',
-                                                        'bg-gray-100 text-gray-800': sesion.estado === 'finalizada',
-                                                        'bg-red-100 text-red-800': sesion.estado === 'cancelada'
-                                                      }"
-                                                      x-text="sesion.estado"></span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                <div x-text="formatDate(sesion.fecha_inicio)"></div>
-                                                <div class="text-xs" x-text="formatTime(sesion.fecha_inicio)"></div>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                <span x-text="sesion.participantes_count || 0"></span> / <span x-text="sesion.max_participantes || '∞'"></span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                <span x-text="sesion.instructor?.name || 'Sin asignar'"></span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div class="flex justify-end space-x-2">
-                                                    <button @click="verSesion(sesion)" 
-                                                            class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">
-                                                        Ver
-                                                    </button>
-                                                    
-                                                    @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-                                                    <button @click="editarSesion(sesion)" 
-                                                            class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300">
-                                                        Editar
-                                                    </button>
-                                                    
-                                                    <button @click="eliminarSesion(sesion)" 
-                                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                                                        Eliminar
-                                                    </button>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                </tbody>
-                            </table>
+    <!-- Estadísticas rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-calendar-event fs-2"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="text-white-50 small">Total Sesiones</div>
+                            <div class="h4 mb-0" id="totalSesiones">{{ $sesiones->total() }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-play-circle fs-2"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="text-white-50 small">En Curso</div>
+                            <div class="h4 mb-0" id="enCurso">{{ $sesiones->where('estado', 'en_curso')->count() }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-clock fs-2"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="text-white-50 small">Programadas</div>
+                            <div class="h4 mb-0" id="programadas">{{ $sesiones->where('estado', 'programada')->count() }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-people fs-2"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="text-white-50 small">Participantes</div>
+                            <div class="h4 mb-0" id="participantes">{{ $sesiones->sum('participantes_count') }}</div>
                         </div>
                     </div>
                 </div>
@@ -172,230 +91,405 @@
         </div>
     </div>
 
-    <!-- Modal Crear Sesión -->
-    <div x-show="mostrarModalCrear" 
-         x-transition:enter="transition ease-out duration-300" 
-         x-transition:enter-start="opacity-0" 
-         x-transition:enter-end="opacity-100" 
-         x-transition:leave="transition ease-in duration-200" 
-         x-transition:leave-start="opacity-100" 
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 overflow-y-auto" 
-         style="display: none;">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="mostrarModalCrear = false"></div>
-            
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <form @submit.prevent="crearSesion()">
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                                    Nueva Sesión de Juicio
-                                </h3>
-                                <div class="mt-4 space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre</label>
-                                        <input type="text" x-model="nuevaSesion.nombre" required
-                                               class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Descripción</label>
-                                        <textarea x-model="nuevaSesion.descripcion" rows="3"
-                                                  class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"></textarea>
-                                    </div>
-                                    
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Inicio</label>
-                                            <input type="datetime-local" x-model="nuevaSesion.fecha_inicio" required
-                                                   class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
+    <!-- Filtros -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form method="GET" action="{{ route('sesiones.index') }}" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="buscar" class="form-label">Buscar</label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="buscar" 
+                                   name="buscar" 
+                                   value="{{ request('buscar') }}" 
+                                   placeholder="Nombre, descripción o instructor...">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="estado" class="form-label">Estado</label>
+                            <select class="form-select" id="estado" name="estado">
+                                <option value="">Todos</option>
+                                <option value="programada" {{ request('estado') === 'programada' ? 'selected' : '' }}>Programada</option>
+                                <option value="en_curso" {{ request('estado') === 'en_curso' ? 'selected' : '' }}>En Curso</option>
+                                <option value="finalizada" {{ request('estado') === 'finalizada' ? 'selected' : '' }}>Finalizada</option>
+                                <option value="cancelada" {{ request('estado') === 'cancelada' ? 'selected' : '' }}>Cancelada</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="tipo" class="form-label">Tipo</label>
+                            <select class="form-select" id="tipo" name="tipo">
+                                <option value="">Todos</option>
+                                <option value="civil" {{ request('tipo') === 'civil' ? 'selected' : '' }}>Civil</option>
+                                <option value="penal" {{ request('tipo') === 'penal' ? 'selected' : '' }}>Penal</option>
+                                <option value="laboral" {{ request('tipo') === 'laboral' ? 'selected' : '' }}>Laboral</option>
+                                <option value="administrativo" {{ request('tipo') === 'administrativo' ? 'selected' : '' }}>Administrativo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="sort_by" class="form-label">Ordenar por</label>
+                            <select class="form-select" id="sort_by" name="sort_by">
+                                <option value="fecha_inicio" {{ request('sort_by') === 'fecha_inicio' ? 'selected' : '' }}>Fecha</option>
+                                <option value="nombre" {{ request('sort_by') === 'nombre' ? 'selected' : '' }}>Nombre</option>
+                                <option value="created_at" {{ request('sort_by') === 'created_at' ? 'selected' : '' }}>Creación</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-outline-primary me-2">
+                                <i class="bi bi-search me-1"></i>
+                                Filtrar
+                            </button>
+                            <a href="{{ route('sesiones.index') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                                Limpiar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Sesiones -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            Sesiones de Juicio
+                            <span class="badge bg-primary ms-2">{{ $sesiones->total() }}</span>
+                        </h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleView('grid')">
+                                <i class="bi bi-grid-3x3-gap"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleView('list')">
+                                <i class="bi bi-list"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    @if($sesiones->count() > 0)
+                        <!-- Vista de Lista -->
+                        <div id="list-view" class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="5%">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="selectAll">
+                                            </div>
+                                        </th>
+                                        <th width="25%">Sesión</th>
+                                        <th width="10%">Estado</th>
+                                        <th width="15%">Fecha</th>
+                                        <th width="10%">Participantes</th>
+                                        <th width="15%">Instructor</th>
+                                        <th width="20%">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($sesiones as $sesion)
+                                    <tr>
+                                        <td>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" value="{{ $sesion->id }}">
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="flex-shrink-0 me-3">
+                                                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center" 
+                                                         style="width: 40px; height: 40px;">
+                                                        <i class="bi bi-calendar-event text-white"></i>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <strong class="d-block">{{ $sesion->nombre }}</strong>
+                                                    <small class="text-muted">{{ Str::limit($sesion->descripcion, 50) }}</small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if($sesion->estado === 'en_curso')
+                                                <span class="badge bg-success">En Curso</span>
+                                            @elseif($sesion->estado === 'programada')
+                                                <span class="badge bg-warning">Programada</span>
+                                            @elseif($sesion->estado === 'finalizada')
+                                                <span class="badge bg-secondary">Finalizada</span>
+                                            @elseif($sesion->estado === 'cancelada')
+                                                <span class="badge bg-danger">Cancelada</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <strong>{{ $sesion->fecha_inicio ? $sesion->fecha_inicio->format('d/m/Y') : '-' }}</strong>
+                                            </div>
+                                            <small class="text-muted">{{ $sesion->fecha_inicio ? $sesion->fecha_inicio->format('H:i') : '-' }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">
+                                                {{ $sesion->participantes_count ?? 0 }} / {{ $sesion->max_participantes ?? '∞' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-person-circle me-2"></i>
+                                                <span>{{ $sesion->instructor->name ?? 'Sin asignar' }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ route('sesiones.show', $sesion) }}" 
+                                                   class="btn btn-outline-info" 
+                                                   title="Ver detalles">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                                <a href="{{ route('sesiones.edit', $sesion) }}" 
+                                                   class="btn btn-outline-warning" 
+                                                   title="Editar">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <form action="{{ route('sesiones.destroy', $sesion) }}" 
+                                                      method="POST" 
+                                                      class="d-inline"
+                                                      onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta sesión?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" 
+                                                            class="btn btn-outline-danger" 
+                                                            title="Eliminar">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Vista de Grid -->
+                        <div id="grid-view" class="d-none p-4">
+                            <div class="row">
+                                @foreach($sesiones as $sesion)
+                                <div class="col-md-6 col-lg-4 mb-4">
+                                    <div class="card h-100 shadow-sm">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-calendar-event me-2"></i>
+                                                <h6 class="mb-0">{{ Str::limit($sesion->nombre, 20) }}</h6>
+                                            </div>
+                                            <div>
+                                                @if($sesion->estado === 'en_curso')
+                                                    <span class="badge bg-success">En Curso</span>
+                                                @elseif($sesion->estado === 'programada')
+                                                    <span class="badge bg-warning">Programada</span>
+                                                @elseif($sesion->estado === 'finalizada')
+                                                    <span class="badge bg-secondary">Finalizada</span>
+                                                @elseif($sesion->estado === 'cancelada')
+                                                    <span class="badge bg-danger">Cancelada</span>
+                                                @endif
+                                            </div>
                                         </div>
-                                        
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Máx. Participantes</label>
-                                            <input type="number" x-model="nuevaSesion.max_participantes" min="1" max="20"
-                                                   class="mt-1 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white">
+                                        <div class="card-body">
+                                            <p class="card-text text-muted">{{ Str::limit($sesion->descripcion, 80) }}</p>
+                                            <div class="row text-center">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Fecha</small>
+                                                    <strong>{{ $sesion->fecha_inicio ? $sesion->fecha_inicio->format('d/m/Y') : '-' }}</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Participantes</small>
+                                                    <strong>{{ $sesion->participantes_count ?? 0 }}/{{ $sesion->max_participantes ?? '∞' }}</strong>
+                                                </div>
+                                            </div>
+                                            <hr>
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-person-circle me-2"></i>
+                                                <small class="text-muted">{{ $sesion->instructor->name ?? 'Sin asignar' }}</small>
+                                            </div>
+                                        </div>
+                                        <div class="card-footer bg-transparent">
+                                            <div class="btn-group w-100" role="group">
+                                                <a href="{{ route('sesiones.show', $sesion) }}" 
+                                                   class="btn btn-outline-info btn-sm">
+                                                    <i class="bi bi-eye me-1"></i>
+                                                    Ver
+                                                </a>
+                                                @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                                <a href="{{ route('sesiones.edit', $sesion) }}" 
+                                                   class="btn btn-outline-warning btn-sm">
+                                                    <i class="bi bi-pencil me-1"></i>
+                                                    Editar
+                                                </a>
+                                                @endif
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                                @endforeach
                             </div>
                         </div>
+                    @else
+                        <div class="text-center py-5">
+                            <i class="bi bi-calendar-event display-1 text-muted"></i>
+                            <h4 class="text-muted mt-3">No hay sesiones disponibles</h4>
+                            <p class="text-muted">Crea tu primera sesión para comenzar a organizar los simulacros de juicios.</p>
+                            @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearSesionModal">
+                                <i class="bi bi-plus-circle me-2"></i>
+                                Crear Primera Sesión
+                            </button>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+                
+                @if($sesiones->hasPages())
+                <div class="card-footer bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            Mostrando {{ $sesiones->firstItem() }} a {{ $sesiones->lastItem() }} de {{ $sesiones->total() }} resultados
+                        </div>
+                        <div>
+                            {{ $sesiones->appends(request()->query())->links() }}
+                        </div>
                     </div>
-                    
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button type="submit" :disabled="creando"
-                                :class="creando ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
-                            <span x-text="creando ? 'Creando...' : 'Crear Sesión'"></span>
-                        </button>
-                        <button type="button" @click="mostrarModalCrear = false"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancelar
-                        </button>
-                    </div>
-                </form>
+                </div>
+                @endif
             </div>
         </div>
     </div>
 </div>
 
+<!-- Modal Crear Sesión -->
+<div class="modal fade" id="crearSesionModal" tabindex="-1" aria-labelledby="crearSesionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('sesiones.store') }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="crearSesionModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        Nueva Sesión de Juicio
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="nombre" class="form-label">Nombre <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                   class="form-control @error('nombre') is-invalid @enderror" 
+                                   id="nombre" 
+                                   name="nombre" 
+                                   value="{{ old('nombre') }}" 
+                                   placeholder="Ej: Juicio Penal - Robo"
+                                   required>
+                            @error('nombre')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="tipo" class="form-label">Tipo <span class="text-danger">*</span></label>
+                            <select class="form-select @error('tipo') is-invalid @enderror" 
+                                    id="tipo" 
+                                    name="tipo" 
+                                    required>
+                                <option value="">Seleccionar tipo</option>
+                                <option value="civil" {{ old('tipo') === 'civil' ? 'selected' : '' }}>Civil</option>
+                                <option value="penal" {{ old('tipo') === 'penal' ? 'selected' : '' }}>Penal</option>
+                                <option value="laboral" {{ old('tipo') === 'laboral' ? 'selected' : '' }}>Laboral</option>
+                                <option value="administrativo" {{ old('tipo') === 'administrativo' ? 'selected' : '' }}>Administrativo</option>
+                            </select>
+                            @error('tipo')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        
+                        <div class="col-12">
+                            <label for="descripcion" class="form-label">Descripción</label>
+                            <textarea class="form-control @error('descripcion') is-invalid @enderror" 
+                                      id="descripcion" 
+                                      name="descripcion" 
+                                      rows="3" 
+                                      placeholder="Describe el caso y los objetivos de la sesión...">{{ old('descripcion') }}</textarea>
+                            @error('descripcion')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="fecha_inicio" class="form-label">Fecha de Inicio <span class="text-danger">*</span></label>
+                            <input type="datetime-local" 
+                                   class="form-control @error('fecha_inicio') is-invalid @enderror" 
+                                   id="fecha_inicio" 
+                                   name="fecha_inicio" 
+                                   value="{{ old('fecha_inicio') }}" 
+                                   required>
+                            @error('fecha_inicio')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="max_participantes" class="form-label">Máx. Participantes</label>
+                            <input type="number" 
+                                   class="form-control @error('max_participantes') is-invalid @enderror" 
+                                   id="max_participantes" 
+                                   name="max_participantes" 
+                                   value="{{ old('max_participantes', 10) }}" 
+                                   min="1" 
+                                   max="20">
+                            @error('max_participantes')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Crear Sesión
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
 <script>
-function sesionesManager() {
-    return {
-        sesiones: [],
-        sesionesFiltradas: [],
-        filtros: {
-            estado: '',
-            tipo: '',
-            buscar: ''
-        },
-        mostrarModalCrear: false,
-        creando: false,
-        nuevaSesion: {
-            nombre: '',
-            descripcion: '',
-            fecha_inicio: '',
-            max_participantes: 10
-        },
-        
-        init() {
-            this.cargarSesiones();
-        },
-        
-        async cargarSesiones() {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch('/api/sesiones', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.sesiones = data.data.data;
-                    this.sesionesFiltradas = [...this.sesiones];
-                }
-            } catch (error) {
-                console.error('Error cargando sesiones:', error);
-            }
-        },
-        
-        filtrarSesiones() {
-            this.sesionesFiltradas = this.sesiones.filter(sesion => {
-                const cumpleEstado = !this.filtros.estado || sesion.estado === this.filtros.estado;
-                const cumpleTipo = !this.filtros.tipo || sesion.tipo === this.filtros.tipo;
-                const cumpleBusqueda = !this.filtros.buscar || 
-                    sesion.nombre.toLowerCase().includes(this.filtros.buscar.toLowerCase()) ||
-                    sesion.descripcion.toLowerCase().includes(this.filtros.buscar.toLowerCase());
-                
-                return cumpleEstado && cumpleTipo && cumpleBusqueda;
-            });
-        },
-        
-        limpiarFiltros() {
-            this.filtros = { estado: '', tipo: '', buscar: '' };
-            this.sesionesFiltradas = [...this.sesiones];
-        },
-        
-        async crearSesion() {
-            this.creando = true;
-            
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch('/api/sesiones', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(this.nuevaSesion)
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.sesiones.unshift(data.data);
-                    this.sesionesFiltradas = [...this.sesiones];
-                    this.mostrarModalCrear = false;
-                    this.nuevaSesion = { nombre: '', descripcion: '', fecha_inicio: '', max_participantes: 10 };
-                    this.showToast('Sesión creada exitosamente', 'success');
-                } else {
-                    const error = await response.json();
-                    this.showToast(error.message || 'Error al crear la sesión', 'error');
-                }
-            } catch (error) {
-                this.showToast('Error de conexión', 'error');
-            } finally {
-                this.creando = false;
-            }
-        },
-        
-        verSesion(sesion) {
-            window.location.href = `/sesiones/${sesion.id}`;
-        },
-        
-        editarSesion(sesion) {
-            window.location.href = `/sesiones/${sesion.id}/edit`;
-        },
-        
-        async eliminarSesion(sesion) {
-            if (confirm('¿Estás seguro de que quieres eliminar esta sesión?')) {
-                try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch(`/api/sesiones/${sesion.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        this.sesiones = this.sesiones.filter(s => s.id !== sesion.id);
-                        this.sesionesFiltradas = [...this.sesiones];
-                        this.showToast('Sesión eliminada exitosamente', 'success');
-                    } else {
-                        const error = await response.json();
-                        this.showToast(error.message || 'Error al eliminar la sesión', 'error');
-                    }
-                } catch (error) {
-                    this.showToast('Error de conexión', 'error');
-                }
-            }
-        },
-        
-        formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('es-ES');
-        },
-        
-        formatTime(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        },
-        
-        showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `fixed top-4 right-4 z-50 p-4 rounded-md shadow-lg ${
-                type === 'success' ? 'bg-green-500' : 
-                type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-            } text-white`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.remove();
-            }, 3000);
-        }
+function toggleView(view) {
+    const listView = document.getElementById('list-view');
+    const gridView = document.getElementById('grid-view');
+    
+    if (view === 'list') {
+        listView.classList.remove('d-none');
+        gridView.classList.add('d-none');
+    } else {
+        listView.classList.add('d-none');
+        gridView.classList.remove('d-none');
     }
 }
+
+// Select all functionality
+document.getElementById('selectAll').addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+});
 </script>
 @endsection
