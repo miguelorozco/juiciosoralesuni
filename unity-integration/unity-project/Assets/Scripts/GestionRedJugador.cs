@@ -13,7 +13,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     public GameInitializer gameInitializer;
 
     [Header("Configuración de Sala")]
-    public string sessionRoomName = "SalaOXXO"; // Nombre fijo para la sesión OXXO
+    public string sessionRoomName = "SalaPrincipal"; // Nombre fijo para la sesión OXXO
 
     private bool hasAssignedRole = false;
     private string assignedRole = "";
