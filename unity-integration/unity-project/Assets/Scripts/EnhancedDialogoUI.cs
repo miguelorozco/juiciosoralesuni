@@ -339,7 +339,7 @@ namespace JuiciosSimulator.UI
                 buttonText.text = respuesta.texto;
 
                 int index = i;
-                button.onClick.AddListener(() => OnResponseSelected(index));
+                button.onClick.AddListener(() => OnResponseButtonClicked(index));
 
                 responseButtons.Add(buttonObj);
             }
@@ -348,7 +348,7 @@ namespace JuiciosSimulator.UI
             enviarDecisionButton.interactable = false;
         }
 
-        private void OnResponseSelected(int index)
+        private void OnResponseButtonClicked(int index)
         {
             selectedResponseIndex = index;
             OnResponseSelected?.Invoke(currentResponses[index]);
@@ -403,7 +403,7 @@ namespace JuiciosSimulator.UI
                 currentRole.usuario_id,
                 respuesta.id,
                 respuesta.texto,
-                CalculateResponseTime()
+                (int)CalculateResponseTime()
             );
 
             // Add to dialog history
@@ -424,7 +424,7 @@ namespace JuiciosSimulator.UI
                 currentRole.usuario_id,
                 0, // Skip response ID
                 "Paso mi turno",
-                CalculateResponseTime()
+                (int)CalculateResponseTime()
             );
 
             AddToDialogHistory("Tú: Pasé mi turno");
@@ -504,7 +504,7 @@ namespace JuiciosSimulator.UI
                 TextMeshProUGUI participantText = participantItem.GetComponent<TextMeshProUGUI>();
 
                 string status = participante.es_turno ? " (Su turno)" : "";
-                participantText.text = $"{participante.rol.nombre}: {participante.usuario.nombre}{status}";
+                participantText.text = $"{participante.rol.nombre}: {participante.nombre}{status}";
 
                 // Set color based on role
                 if (ColorUtility.TryParseHtmlString($"#{participante.rol.color}", out Color roleColor))

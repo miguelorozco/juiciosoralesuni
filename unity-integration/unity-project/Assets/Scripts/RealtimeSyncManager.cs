@@ -111,34 +111,25 @@ namespace JuiciosSimulator.Realtime
         {
             isSyncing = true;
 
-            try
+            // Sync dialog state
+            yield return StartCoroutine(SyncDialogState());
+
+            // Sync participants
+            yield return StartCoroutine(SyncParticipants());
+
+            // Sync session data
+            yield return StartCoroutine(SyncSessionData());
+
+            // Reset retry counter on success
+            currentRetries = 0;
+            lastSyncTime = Time.time;
+
+            if (enableDebugLogs)
             {
-                // Sync dialog state
-                yield return StartCoroutine(SyncDialogState());
-
-                // Sync participants
-                yield return StartCoroutine(SyncParticipants());
-
-                // Sync session data
-                yield return StartCoroutine(SyncSessionData());
-
-                // Reset retry counter on success
-                currentRetries = 0;
-                lastSyncTime = Time.time;
-
-                if (enableDebugLogs)
-                {
-                    Debug.Log("Sync completed successfully");
-                }
+                Debug.Log("Sync completed successfully");
             }
-            catch (System.Exception e)
-            {
-                HandleSyncError($"Sync failed: {e.Message}");
-            }
-            finally
-            {
-                isSyncing = false;
-            }
+
+            isSyncing = false;
         }
 
         #endregion

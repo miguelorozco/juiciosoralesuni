@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using System.Text;
-using Newtonsoft.Json;
 
 namespace JuiciosSimulator.API
 {
@@ -18,25 +17,26 @@ namespace JuiciosSimulator.API
         public string unityVersion = "2022.3.15f1";
         public string unityPlatform = "WebGL";
         public string deviceId = "UNITY_DEVICE_001";
-        
+
         [Header("Autenticación")]
         public string authToken = "";
         public UserData currentUser;
-        
+
         [Header("Sesión Actual")]
         public int currentSesionId = 0;
         public bool isConnected = false;
-        
+
         // Eventos
         public static event Action<bool> OnConnectionStatusChanged;
         public static event Action<UserData> OnUserLoggedIn;
+        public static event Action OnLogout;
         public static event Action<string> OnError;
         public static event Action<DialogoEstado> OnDialogoUpdated;
         public static event Action<List<RespuestaUsuario>> OnRespuestasReceived;
-        
+
         // Singleton
         public static LaravelAPI Instance { get; private set; }
-        
+
         private void Awake()
         {
             if (Instance == null)
@@ -49,15 +49,15 @@ namespace JuiciosSimulator.API
                 Destroy(gameObject);
             }
         }
-        
+
         private void Start()
         {
             // Verificar estado del servidor al iniciar
             StartCoroutine(CheckServerStatus());
         }
-        
+
         #region Autenticación
-        
+
         /// <summary>
         /// Login del usuario en la API
         /// </summary>
@@ -65,7 +65,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(LoginCoroutine(email, password));
         }
-        
+
         private IEnumerator LoginCoroutine(string email, string password)
         {
             var loginData = new LoginRequest
@@ -83,9 +83,9 @@ namespace JuiciosSimulator.API
                     {"device_name", SystemInfo.deviceName}
                 }
             };
-            
-            string jsonData = JsonConvert.SerializeObject(loginData);
-            
+
+            string jsonData = JsonUtility.ToJson(loginData);
+
             using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/auth/login", "POST"))
             {
                 byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
@@ -94,22 +94,22 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Content-Type", "application/json");
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<LoginResponse>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<LoginResponse>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         authToken = response.data.token;
                         currentUser = response.data.user;
                         isConnected = true;
-                        
+
                         OnUserLoggedIn?.Invoke(currentUser);
                         OnConnectionStatusChanged?.Invoke(true);
-                        
+
                         Debug.Log($"Login exitoso: {currentUser.name}");
                     }
                     else
@@ -125,19 +125,30 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
+        /// <summary>
+        /// Cerrar sesión del usuario
+        /// </summary>
+        public void Logout()
+        {
+            authToken = null;
+            currentUser = null;
+            OnLogout?.Invoke();
+            Debug.Log("Usuario deslogueado");
+        }
+
         /// <summary>
         /// Verificar estado del servidor
         /// </summary>
-        private IEnumerator CheckServerStatus()
+        public IEnumerator CheckServerStatus()
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/status"))
             {
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<ServerStatus>>(request.downloadHandler.text);
+                    var response = JsonUtility.FromJson<APIResponse<ServerStatus>>(request.downloadHandler.text);
                     if (response.success)
                     {
                         Debug.Log($"Servidor Unity disponible: {response.data.server_status}");
@@ -149,11 +160,11 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         #endregion
-        
+
         #region Diálogos
-        
+
         /// <summary>
         /// Obtener estado actual del diálogo
         /// </summary>
@@ -162,7 +173,7 @@ namespace JuiciosSimulator.API
             currentSesionId = sesionId;
             StartCoroutine(GetDialogoEstadoCoroutine(sesionId));
         }
-        
+
         private IEnumerator GetDialogoEstadoCoroutine(int sesionId)
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/dialogo-estado"))
@@ -170,13 +181,13 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Authorization", $"Bearer {authToken}");
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<DialogoEstado>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<DialogoEstado>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         OnDialogoUpdated?.Invoke(response.data);
@@ -192,7 +203,7 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         /// <summary>
         /// Obtener respuestas disponibles para el usuario
         /// </summary>
@@ -200,7 +211,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(GetRespuestasUsuarioCoroutine(sesionId, usuarioId));
         }
-        
+
         private IEnumerator GetRespuestasUsuarioCoroutine(int sesionId, int usuarioId)
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/respuestas-usuario/{usuarioId}"))
@@ -208,13 +219,13 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Authorization", $"Bearer {authToken}");
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<List<RespuestaUsuario>>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<List<RespuestaUsuario>>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         OnRespuestasReceived?.Invoke(response.data);
@@ -230,7 +241,7 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         /// <summary>
         /// Enviar decisión del usuario
         /// </summary>
@@ -238,7 +249,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(EnviarDecisionCoroutine(sesionId, usuarioId, respuestaId, decisionTexto, tiempoRespuesta));
         }
-        
+
         private IEnumerator EnviarDecisionCoroutine(int sesionId, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta)
         {
             var decisionData = new DecisionRequest
@@ -248,9 +259,9 @@ namespace JuiciosSimulator.API
                 texto_decision = decisionTexto,
                 tiempo_respuesta = tiempoRespuesta
             };
-            
-            string jsonData = JsonConvert.SerializeObject(decisionData);
-            
+
+            string jsonData = JsonUtility.ToJson(decisionData);
+
             using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/{sesionId}/enviar-decision", "POST"))
             {
                 byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
@@ -260,13 +271,13 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Authorization", $"Bearer {authToken}");
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<object>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<object>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         Debug.Log("Decisión enviada exitosamente");
@@ -284,11 +295,11 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         #endregion
-        
+
         #region Tiempo Real
-        
+
         /// <summary>
         /// Iniciar escucha de eventos en tiempo real
         /// </summary>
@@ -296,7 +307,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(RealtimeEventsCoroutine(sesionId));
         }
-        
+
         private IEnumerator RealtimeEventsCoroutine(int sesionId)
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/events"))
@@ -304,9 +315,9 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Authorization", $"Bearer {authToken}");
                 request.SetRequestHeader("Accept", "text/event-stream");
                 request.SetRequestHeader("Cache-Control", "no-cache");
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
                     ProcessSSEEvents(request.downloadHandler.text);
@@ -317,14 +328,14 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         /// <summary>
         /// Procesar eventos Server-Sent Events
         /// </summary>
         private void ProcessSSEEvents(string sseData)
         {
             string[] lines = sseData.Split('\n');
-            
+
             foreach (string line in lines)
             {
                 if (line.StartsWith("data: "))
@@ -332,7 +343,7 @@ namespace JuiciosSimulator.API
                     string jsonData = line.Substring(6);
                     try
                     {
-                        var eventData = JsonConvert.DeserializeObject<UnityEvent>(jsonData);
+                        var eventData = JsonUtility.FromJson<UnityEvent>(jsonData);
                         HandleUnityEvent(eventData);
                     }
                     catch (Exception e)
@@ -342,7 +353,7 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         /// <summary>
         /// Manejar eventos de Unity
         /// </summary>
@@ -354,28 +365,28 @@ namespace JuiciosSimulator.API
                     // Actualizar estado del diálogo
                     GetDialogoEstado(currentSesionId);
                     break;
-                    
+
                 case "usuario_hablando":
                     // Manejar cambio de estado de habla
                     Debug.Log($"Usuario {eventData.data.usuario_id} está hablando: {eventData.data.estado}");
                     break;
-                    
+
                 case "decision_procesada":
                     // Actualizar UI después de procesar decisión
                     GetDialogoEstado(currentSesionId);
                     break;
-                    
+
                 case "sesion_finalizada":
                     // Manejar finalización de sesión
                     Debug.Log("Sesión finalizada");
                     break;
             }
         }
-        
+
         #endregion
-        
+
         #region Salas Unity
-        
+
         /// <summary>
         /// Crear sala de Unity
         /// </summary>
@@ -383,7 +394,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(CreateRoomCoroutine(nombre, sesionJuicioId, maxParticipantes));
         }
-        
+
         private IEnumerator CreateRoomCoroutine(string nombre, int sesionJuicioId, int maxParticipantes)
         {
             var roomData = new CreateRoomRequest
@@ -394,9 +405,9 @@ namespace JuiciosSimulator.API
                 configuracion = new Dictionary<string, object>(),
                 audio_config = new Dictionary<string, object>()
             };
-            
-            string jsonData = JsonConvert.SerializeObject(roomData);
-            
+
+            string jsonData = JsonUtility.ToJson(roomData);
+
             using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/rooms/create", "POST"))
             {
                 byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
@@ -406,13 +417,13 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("Authorization", $"Bearer {authToken}");
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<RoomData>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<RoomData>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         Debug.Log($"Sala creada: {response.data.room_id}");
@@ -428,7 +439,7 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         /// <summary>
         /// Unirse a sala de Unity
         /// </summary>
@@ -436,7 +447,7 @@ namespace JuiciosSimulator.API
         {
             StartCoroutine(JoinRoomCoroutine(roomId));
         }
-        
+
         private IEnumerator JoinRoomCoroutine(string roomId)
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/rooms/{roomId}/join"))
@@ -445,13 +456,13 @@ namespace JuiciosSimulator.API
                 request.SetRequestHeader("X-Unity-Version", unityVersion);
                 request.SetRequestHeader("X-Unity-Platform", unityPlatform);
                 request.SetRequestHeader("X-Unity-Device-Id", deviceId);
-                
+
                 yield return request.SendWebRequest();
-                
+
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonConvert.DeserializeObject<APIResponse<RoomData>>(request.downloadHandler.text);
-                    
+                    var response = JsonUtility.FromJson<APIResponse<RoomData>>(request.downloadHandler.text);
+
                     if (response.success)
                     {
                         Debug.Log($"Unido a sala: {response.data.room_id}");
@@ -467,12 +478,12 @@ namespace JuiciosSimulator.API
                 }
             }
         }
-        
+
         #endregion
     }
-    
+
     #region Clases de Datos
-    
+
     [Serializable]
     public class APIResponse<T>
     {
@@ -480,7 +491,7 @@ namespace JuiciosSimulator.API
         public string message;
         public T data;
     }
-    
+
     [Serializable]
     public class LoginRequest
     {
@@ -491,7 +502,7 @@ namespace JuiciosSimulator.API
         public string device_id;
         public Dictionary<string, object> session_data;
     }
-    
+
     [Serializable]
     public class LoginResponse
     {
@@ -502,7 +513,7 @@ namespace JuiciosSimulator.API
         public Dictionary<string, object> unity_info;
         public string server_time;
     }
-    
+
     [Serializable]
     public class UserData
     {
@@ -514,7 +525,7 @@ namespace JuiciosSimulator.API
         public bool activo;
         public Dictionary<string, object> configuracion;
     }
-    
+
     [Serializable]
     public class ServerStatus
     {
@@ -525,19 +536,19 @@ namespace JuiciosSimulator.API
         public string timezone;
         public Dictionary<string, bool> features;
     }
-    
+
     [Serializable]
     public class DialogoEstado
     {
         public bool dialogo_activo;
         public string estado;
         public NodoActual nodo_actual;
-        public List<Participante> participantes;
+        public List<JuiciosSimulator.API.Participante> participantes;
         public float progreso;
         public int tiempo_transcurrido;
         public Dictionary<string, object> variables;
     }
-    
+
     [Serializable]
     public class NodoActual
     {
@@ -548,7 +559,7 @@ namespace JuiciosSimulator.API
         public string tipo;
         public bool es_final;
     }
-    
+
     [Serializable]
     public class RolHablando
     {
@@ -557,7 +568,7 @@ namespace JuiciosSimulator.API
         public string color;
         public string icono;
     }
-    
+
     [Serializable]
     public class Participante
     {
@@ -566,7 +577,7 @@ namespace JuiciosSimulator.API
         public RolParticipante rol;
         public bool es_turno;
     }
-    
+
     [Serializable]
     public class RolParticipante
     {
@@ -575,7 +586,7 @@ namespace JuiciosSimulator.API
         public string color;
         public string icono;
     }
-    
+
     [Serializable]
     public class RespuestaUsuario
     {
@@ -584,7 +595,7 @@ namespace JuiciosSimulator.API
         public int nodo_dialogo_id;
         public int orden;
     }
-    
+
     [Serializable]
     public class DecisionRequest
     {
@@ -593,7 +604,7 @@ namespace JuiciosSimulator.API
         public string texto_decision;
         public int tiempo_respuesta;
     }
-    
+
     [Serializable]
     public class UnityEvent
     {
@@ -604,7 +615,7 @@ namespace JuiciosSimulator.API
         public string timestamp;
         public string priority;
     }
-    
+
     [Serializable]
     public class EventData
     {
@@ -613,7 +624,7 @@ namespace JuiciosSimulator.API
         public Dictionary<string, object> decision;
         public string tipo;
     }
-    
+
     [Serializable]
     public class CreateRoomRequest
     {
@@ -623,7 +634,7 @@ namespace JuiciosSimulator.API
         public Dictionary<string, object> configuracion;
         public Dictionary<string, object> audio_config;
     }
-    
+
     [Serializable]
     public class RoomData
     {
@@ -635,8 +646,8 @@ namespace JuiciosSimulator.API
         public Dictionary<string, object> audio_config;
         public string fecha_creacion;
         public int participantes_conectados;
-        public List<Participante> participantes;
+        public List<JuiciosSimulator.API.Participante> participantes;
     }
-    
+
     #endregion
 }

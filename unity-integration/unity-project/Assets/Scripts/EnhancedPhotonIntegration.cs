@@ -173,7 +173,7 @@ namespace JuiciosSimulator.Network
         {
             if (!isInRoom) return;
 
-            Hashtable customProperties = new Hashtable
+            ExitGames.Client.Photon.Hashtable customProperties = new ExitGames.Client.Photon.Hashtable
             {
                 { "user_id", data.userId },
                 { "role_id", data.roleId },
@@ -217,7 +217,7 @@ namespace JuiciosSimulator.Network
         {
             if (!isInRoom) return;
 
-            Hashtable audioProperties = new Hashtable
+            ExitGames.Client.Photon.Hashtable audioProperties = new ExitGames.Client.Photon.Hashtable
             {
                 { "microphone_enabled", microphoneEnabled },
                 { "audio_enabled", audioEnabled },
@@ -231,7 +231,7 @@ namespace JuiciosSimulator.Network
         {
             if (!isInRoom) return;
 
-            Hashtable speakingProperties = new Hashtable
+            ExitGames.Client.Photon.Hashtable speakingProperties = new ExitGames.Client.Photon.Hashtable
             {
                 { "is_speaking", isSpeaking }
             };
@@ -368,7 +368,7 @@ namespace JuiciosSimulator.Network
             }
         }
 
-        public override void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+        public override void OnPlayerPropertiesUpdate(Player targetPlayer, ExitGames.Client.Photon.Hashtable changedProps)
         {
             if (enableDebugLogs)
             {
@@ -433,7 +433,7 @@ namespace JuiciosSimulator.Network
             OnPlayerJoined?.Invoke(playerData);
         }
 
-        private void UpdatePlayerDataFromProperties(Player player, Hashtable properties)
+        private void UpdatePlayerDataFromProperties(Player player, ExitGames.Client.Photon.Hashtable properties)
         {
             if (!playersData.ContainsKey(player.ActorNumber)) return;
 

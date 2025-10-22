@@ -74,41 +74,30 @@ namespace JuiciosSimulator.Core
 
             Debug.Log("=== ENHANCED GAME MANAGER INITIALIZATION ===");
 
-            try
-            {
-                // Step 1: Initialize Laravel API
-                yield return StartCoroutine(InitializeLaravelAPI());
+            // Step 1: Initialize Laravel API
+            yield return StartCoroutine(InitializeLaravelAPI());
 
-                // Step 2: Initialize Session Manager
-                yield return StartCoroutine(InitializeSessionManager());
+            // Step 2: Initialize Session Manager
+            yield return StartCoroutine(InitializeSessionManager());
 
-                // Step 3: Initialize UI Components
-                yield return StartCoroutine(InitializeUIComponents());
+            // Step 3: Initialize UI Components
+            yield return StartCoroutine(InitializeUIComponents());
 
-                // Step 4: Initialize Realtime Sync
-                yield return StartCoroutine(InitializeRealtimeSync());
+            // Step 4: Initialize Realtime Sync
+            yield return StartCoroutine(InitializeRealtimeSync());
 
-                // Step 5: Initialize Photon Integration
-                yield return StartCoroutine(InitializePhotonIntegration());
+            // Step 5: Initialize Photon Integration
+            yield return StartCoroutine(InitializePhotonIntegration());
 
-                // Step 6: Setup Event Subscriptions
-                SetupEventSubscriptions();
+            // Step 6: Setup Event Subscriptions
+            SetupEventSubscriptions();
 
-                // Step 7: Finalize Initialization
-                FinalizeInitialization();
+            // Step 7: Finalize Initialization
+            FinalizeInitialization();
 
-                Debug.Log("=== INITIALIZATION COMPLETE ===");
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"Initialization failed: {e.Message}");
-                OnSystemError?.Invoke($"Initialization failed: {e.Message}");
-                SetGameState(GameState.Error);
-            }
-            finally
-            {
-                isInitializing = false;
-            }
+            Debug.Log("=== INITIALIZATION COMPLETE ===");
+
+            isInitializing = false;
         }
 
         private IEnumerator InitializeLaravelAPI()
@@ -367,7 +356,7 @@ namespace JuiciosSimulator.Core
             Debug.Log($"Realtime dialog state changed: {dialogState.estado}");
         }
 
-        private void OnParticipantsChanged(List<Participante> participants)
+        private void OnParticipantsChanged(List<JuiciosSimulator.Realtime.Participante> participants)
         {
             Debug.Log($"Participants changed: {participants.Count} participants");
         }

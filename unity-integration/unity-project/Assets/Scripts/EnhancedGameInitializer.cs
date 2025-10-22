@@ -2,6 +2,8 @@ using UnityEngine;
 using JuiciosSimulator.API;
 using JuiciosSimulator.Core;
 using JuiciosSimulator.Config;
+using JuiciosSimulator.UI;
+using JuiciosSimulator.Integration;
 
 namespace JuiciosSimulator
 {

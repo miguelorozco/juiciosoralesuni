@@ -4,6 +4,7 @@ using Photon.Pun;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
 using JuiciosSimulator.API;
+using JuiciosSimulator.UI;
 
 namespace JuiciosSimulator.Integration
 {
@@ -16,58 +17,58 @@ namespace JuiciosSimulator.Integration
         public int sesionId = 1;
         public string roomName = "SalaJuicio";
         public int maxPlayers = 10;
-        
+
         [Header("Referencias")]
         public LaravelAPI laravelAPI;
         public DialogoUI dialogoUI;
-        
+
         private bool isPhotonConnected = false;
         private bool isLaravelConnected = false;
         private string currentRoomId;
-        
+
         // Eventos
         public static event System.Action<bool> OnIntegrationReady;
         public static event System.Action<string> OnIntegrationError;
-        
+
         private void Start()
         {
             // Suscribirse a eventos de Laravel
             LaravelAPI.OnUserLoggedIn += OnLaravelUserLoggedIn;
             LaravelAPI.OnError += OnLaravelError;
-            
+
             // Inicializar integración
             StartCoroutine(InitializeIntegration());
         }
-        
+
         private void OnDestroy()
         {
             // Desuscribirse de eventos
             LaravelAPI.OnUserLoggedIn -= OnLaravelUserLoggedIn;
             LaravelAPI.OnError -= OnLaravelError;
         }
-        
+
         #region Inicialización
-        
+
         private IEnumerator InitializeIntegration()
         {
             Debug.Log("Iniciando integración Unity + Laravel + Photon...");
-            
+
             // Paso 1: Conectar a Photon
             yield return StartCoroutine(ConnectToPhoton());
-            
+
             // Paso 2: Esperar a que Laravel esté conectado
             yield return new WaitUntil(() => isLaravelConnected);
-            
+
             // Paso 3: Crear o unirse a sala
             yield return StartCoroutine(SetupRoom());
-            
+
             // Paso 4: Inicializar PeerJS (se hace desde JavaScript)
             InitializePeerJS();
-            
+
             Debug.Log("Integración completada exitosamente");
             OnIntegrationReady?.Invoke(true);
         }
-        
+
         private IEnumerator ConnectToPhoton()
         {
             if (!PhotonNetwork.IsConnected)
@@ -75,19 +76,19 @@ namespace JuiciosSimulator.Integration
                 PhotonNetwork.ConnectUsingSettings();
                 yield return new WaitUntil(() => PhotonNetwork.IsConnected);
             }
-            
+
             isPhotonConnected = true;
             Debug.Log("Conectado a Photon");
         }
-        
+
         private IEnumerator SetupRoom()
         {
             // Intentar unirse a sala existente
             if (PhotonNetwork.InLobby)
             {
                 PhotonNetwork.JoinRoom(roomName);
-                yield return new WaitUntil(() => PhotonNetwork.InRoom || PhotonNetwork.JoinRoomFailed);
-                
+                yield return new WaitUntil(() => PhotonNetwork.InRoom || !PhotonNetwork.InLobby);
+
                 if (!PhotonNetwork.InRoom)
                 {
                     // Crear nueva sala si no existe
@@ -97,120 +98,120 @@ namespace JuiciosSimulator.Integration
                         IsOpen = true,
                         IsVisible = true
                     };
-                    
+
                     PhotonNetwork.CreateRoom(roomName, roomOptions);
                     yield return new WaitUntil(() => PhotonNetwork.InRoom);
                 }
             }
-            
+
             currentRoomId = PhotonNetwork.CurrentRoom.Name;
             Debug.Log($"En sala: {currentRoomId}");
         }
-        
+
         #endregion
-        
+
         #region Callbacks de Photon
-        
+
         public override void OnJoinedRoom()
         {
             Debug.Log($"Unido a sala: {PhotonNetwork.CurrentRoom.Name}");
-            
+
             // Notificar a Laravel que estamos en la sala
             if (laravelAPI != null)
             {
                 laravelAPI.JoinRoom(PhotonNetwork.CurrentRoom.Name);
             }
-            
+
             // Inicializar PeerJS desde JavaScript
-            #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
             string roomId = PhotonNetwork.CurrentRoom.Name;
             int actorId = PhotonNetwork.LocalPlayer.ActorNumber;
             Application.ExternalCall("initVoiceCall", roomId, actorId);
-            #endif
+#endif
         }
-        
+
         public override void OnPlayerEnteredRoom(Player newPlayer)
         {
             Debug.Log($"Jugador entró: {newPlayer.NickName}");
-            
+
             // Notificar a PeerJS sobre nuevo jugador
-            #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
             Application.ExternalCall("onPlayerJoined", newPlayer.ActorNumber);
-            #endif
+#endif
         }
-        
+
         public override void OnPlayerLeftRoom(Player otherPlayer)
         {
             Debug.Log($"Jugador salió: {otherPlayer.NickName}");
-            
+
             // Notificar a PeerJS sobre jugador que salió
-            #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
             Application.ExternalCall("onPlayerLeft", otherPlayer.ActorNumber);
-            #endif
+#endif
         }
-        
+
         #endregion
-        
+
         #region Callbacks de Laravel
-        
+
         private void OnLaravelUserLoggedIn(UserData user)
         {
             isLaravelConnected = true;
             Debug.Log($"Laravel conectado: {user.name}");
-            
+
             // Configurar sesión en Laravel
             if (laravelAPI != null)
             {
                 laravelAPI.GetDialogoEstado(sesionId);
             }
         }
-        
+
         private void OnLaravelError(string error)
         {
             Debug.LogError($"Error de Laravel: {error}");
             OnIntegrationError?.Invoke(error);
         }
-        
+
         #endregion
-        
+
         #region PeerJS Integration
-        
+
         private void InitializePeerJS()
         {
-            #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
             // PeerJS se inicializa desde JavaScript en el HTML template
             Debug.Log("PeerJS se inicializará desde JavaScript");
-            #else
+#else
             Debug.Log("PeerJS solo funciona en WebGL builds");
-            #endif
+#endif
         }
-        
+
         /// <summary>
         /// Llamado desde JavaScript cuando PeerJS está listo
         /// </summary>
         public void OnVoiceReady(string myPeerId)
         {
             Debug.Log($"PeerJS listo: {myPeerId}");
-            
+
             // Compartir PeerID con otros jugadores vía Photon RPC
             photonView.RPC("RecibirPeerId", RpcTarget.Others, myPeerId);
         }
-        
+
         [PunRPC]
         public void RecibirPeerId(string peerId)
         {
             Debug.Log($"Recibido PeerID: {peerId}");
-            
+
             // Llamar a JavaScript para conectar con este peer
-            #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
             Application.ExternalCall("callPeer", peerId);
-            #endif
+#endif
         }
-        
+
         #endregion
-        
+
         #region Sincronización de Datos
-        
+
         /// <summary>
         /// Sincronizar posición del jugador con Laravel
         /// </summary>
@@ -223,7 +224,7 @@ namespace JuiciosSimulator.Integration
                 Debug.Log($"Sincronizando posición: {position}");
             }
         }
-        
+
         /// <summary>
         /// Sincronizar estado de audio con Laravel
         /// </summary>
@@ -235,11 +236,11 @@ namespace JuiciosSimulator.Integration
                 Debug.Log($"Sincronizando audio: mic={microfonoActivo}, audio={audioEnabled}, vol={volumen}");
             }
         }
-        
+
         #endregion
-        
+
         #region Métodos Públicos
-        
+
         /// <summary>
         /// Obtener estado de la integración
         /// </summary>
@@ -247,7 +248,7 @@ namespace JuiciosSimulator.Integration
         {
             return isPhotonConnected && isLaravelConnected && PhotonNetwork.InRoom;
         }
-        
+
         /// <summary>
         /// Obtener información de la sala actual
         /// </summary>
@@ -259,7 +260,7 @@ namespace JuiciosSimulator.Integration
             }
             return "No en sala";
         }
-        
+
         /// <summary>
         /// Forzar reconexión
         /// </summary>
@@ -267,11 +268,11 @@ namespace JuiciosSimulator.Integration
         {
             StartCoroutine(InitializeIntegration());
         }
-        
+
         #endregion
-        
+
         #region Debug
-        
+
         private void OnGUI()
         {
             if (Application.isEditor || Debug.isDebugBuild)
@@ -282,16 +283,16 @@ namespace JuiciosSimulator.Integration
                 GUILayout.Label($"Laravel: {(isLaravelConnected ? "Conectado" : "Desconectado")}");
                 GUILayout.Label($"Sala: {(PhotonNetwork.InRoom ? PhotonNetwork.CurrentRoom.Name : "No en sala")}");
                 GUILayout.Label($"Jugadores: {(PhotonNetwork.InRoom ? PhotonNetwork.CurrentRoom.PlayerCount : 0)}");
-                
+
                 if (GUILayout.Button("Reconectar"))
                 {
                     Reconnect();
                 }
-                
+
                 GUILayout.EndArea();
             }
         }
-        
+
         #endregion
     }
 }
