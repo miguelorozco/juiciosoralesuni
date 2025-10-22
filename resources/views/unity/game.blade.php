@@ -180,6 +180,9 @@
         <div class="error-message" id="error-message">
             <h3>Error al cargar el juego</h3>
             <p id="error-text">Por favor, recarga la página e intenta nuevamente.</p>
+            <button id="retry-button" onclick="retryUnityLoad()" style="margin-top: 15px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Reintentar
+            </button>
         </div>
     </div>
 
@@ -208,6 +211,12 @@
             companyName: "JuiciosSimulator",
             productName: "JuiciosSimulator",
             productVersion: "1.0.0",
+            // Configuraciones adicionales para prevenir errores
+            matchWebGLToCanvasSize: true,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            // Prevenir múltiples inicializaciones
+            preserveDrawingBuffer: false,
+            powerPreference: "default"
         };
 
         // Configurar canvas
@@ -224,6 +233,7 @@
             loadingBar.style.display = "none";
             errorMessage.style.display = "block";
             errorText.textContent = message;
+            isInitializing = false;
         };
 
         // Configurar eventos de éxito
@@ -235,22 +245,60 @@
             setupLaravelCommunication();
         };
 
+        // Variable global para la instancia de Unity
+        var unityInstance = null;
+        var isInitializing = false;
+
+        // Función para limpiar recursos antes de reinicializar
+        function cleanupUnityInstance() {
+            if (unityInstance) {
+                try {
+                    if (unityInstance.Module && unityInstance.Module.destroy) {
+                        unityInstance.Module.destroy();
+                    }
+                } catch (error) {
+                    console.warn("Error al limpiar instancia de Unity:", error);
+                }
+                unityInstance = null;
+            }
+        }
+
         // Crear instancia de Unity
-        var unityInstance = createUnityInstance(canvas, config, function (progress) {
-            config.onProgress(progress);
-        }).then(function (unityInstance) {
-            config.onSuccess();
-            return unityInstance;
-        }).catch(function (message) {
-            config.onError(message);
-        });
+        function initializeUnity() {
+            if (isInitializing) {
+                console.warn("Unity ya se está inicializando");
+                return;
+            }
+            
+            isInitializing = true;
+            cleanupUnityInstance();
+
+            createUnityInstance(canvas, config, function (progress) {
+                config.onProgress(progress);
+            }).then(function (instance) {
+                unityInstance = instance;
+                isInitializing = false;
+                config.onSuccess();
+                setupLaravelCommunication();
+            }).catch(function (message) {
+                isInitializing = false;
+                config.onError(message);
+            });
+        }
+
+        // Inicializar Unity
+        initializeUnity();
 
         // Configurar comunicación con Laravel
         function setupLaravelCommunication() {
             // Función para enviar datos a Unity
             window.sendToUnity = function(data) {
-                if (unityInstance) {
-                    unityInstance.SendMessage('LaravelUnityEntryManager', 'ReceiveLaravelData', JSON.stringify(data));
+                if (unityInstance && unityInstance.SendMessage) {
+                    try {
+                        unityInstance.SendMessage('LaravelUnityEntryManager', 'ReceiveLaravelData', JSON.stringify(data));
+                    } catch (error) {
+                        console.error("Error enviando datos a Unity:", error);
+                    }
                 }
             };
 
@@ -260,33 +308,51 @@
                 // Aquí puedes procesar los datos recibidos de Unity
             };
 
-            // Configurar comunicación bidireccional
-            if (unityInstance) {
+            // Configurar comunicación bidireccional cuando la instancia esté lista
+            if (unityInstance && unityInstance.Module) {
                 unityInstance.Module.onRuntimeInitialized = function() {
                     console.log("Runtime de Unity inicializado");
                     
                     // Enviar información de la sesión si está disponible
                     @if(isset($sessionData))
-                        window.sendToUnity(@json($sessionData));
+                        setTimeout(function() {
+                            window.sendToUnity(@json($sessionData));
+                        }, 1000); // Esperar un poco para asegurar que Unity esté completamente listo
                     @endif
                 };
+            } else {
+                console.warn("Unity instance no está disponible para configuración de comunicación");
             }
         }
 
         // Manejar errores de WebGL
         window.addEventListener('error', function(e) {
             console.error("Error global:", e);
-            if (e.message.includes('WebGL') || e.message.includes('Unity')) {
+            if (e.message.includes('WebGL') || e.message.includes('Unity') || e.message.includes('unityInstance')) {
                 errorMessage.style.display = "block";
                 errorText.textContent = "Error de WebGL: " + e.message;
                 loadingBar.style.display = "none";
             }
         });
 
+        // Manejar errores no capturados
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error("Promise rechazada:", e.reason);
+            if (e.reason && e.reason.toString().includes('Unity')) {
+                errorMessage.style.display = "block";
+                errorText.textContent = "Error de Unity: " + e.reason.toString();
+                loadingBar.style.display = "none";
+            }
+        });
+
         // Manejar resize de ventana
         window.addEventListener('resize', function() {
-            if (unityInstance) {
-                unityInstance.Module.setCanvasSize(window.innerWidth, window.innerHeight);
+            if (unityInstance && unityInstance.Module && unityInstance.Module.setCanvasSize) {
+                try {
+                    unityInstance.Module.setCanvasSize(window.innerWidth, window.innerHeight);
+                } catch (error) {
+                    console.warn("Error al redimensionar canvas:", error);
+                }
             }
         });
     </script>
