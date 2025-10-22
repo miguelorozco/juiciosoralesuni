@@ -46,9 +46,14 @@ class Dialogo extends Model
         return $this->hasMany(NodoDialogo::class)->orderBy('orden');
     }
 
-    public function sesiones()
+    public function roles()
     {
-        return $this->hasMany(SesionDialogo::class);
+        return $this->hasMany(RolDialogo::class)->orderBy('orden');
+    }
+
+    public function rolesActivos()
+    {
+        return $this->hasMany(RolDialogo::class)->where('activo', true)->orderBy('orden');
     }
 
     /**

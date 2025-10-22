@@ -14,7 +14,7 @@ class AsignacionRol extends Model
     protected $fillable = [
         'sesion_id',
         'usuario_id',
-        'rol_id',
+        'rol_dialogo_id',
         'asignado_por',
         'fecha_asignacion',
         'confirmado',
@@ -44,7 +44,7 @@ class AsignacionRol extends Model
 
     public function rol()
     {
-        return $this->belongsTo(RolDisponible::class, 'rol_id');
+        return $this->belongsTo(RolDialogo::class, 'rol_dialogo_id');
     }
 
     public function asignadoPor()
@@ -131,7 +131,7 @@ class AsignacionRol extends Model
     public function cambiarRol($nuevoRolId, $asignadoPor)
     {
         return $this->update([
-            'rol_id' => $nuevoRolId,
+            'rol_dialogo_id' => $nuevoRolId,
             'asignado_por' => $asignadoPor,
             'fecha_asignacion' => now(),
             'confirmado' => false, // Requiere nueva confirmación

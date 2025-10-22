@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    <form action="{{ route('sesiones.store') }}" method="POST" id="crearSesionForm">
+    <form action="{{ route('sesiones.store') }}" method="POST">
         @csrf
         
         <!-- Paso 1: Información Básica -->
@@ -35,7 +35,7 @@
                     <div class="card-header bg-primary text-white">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-info-circle me-2"></i>
-                            Paso 1: Información Básica
+                            Información Básica
                         </h5>
                     </div>
                     <div class="card-body">
@@ -122,7 +122,7 @@
                     <div class="card-header bg-success text-white">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-chat-dots me-2"></i>
-                            Paso 2: Seleccionar Diálogo
+                            Seleccionar Diálogo
                         </h5>
                     </div>
                     <div class="card-body">
@@ -157,69 +157,53 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Vista previa del diálogo -->
-                        <div id="dialogoPreview" class="mt-3" style="display: none;">
-                            <div class="alert alert-info">
-                                <h6><i class="bi bi-info-circle me-1"></i> Vista Previa del Diálogo</h6>
-                                <div id="dialogoContent"></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Paso 3: Asignación de Roles -->
+        <!-- Paso 3: Asignación de Roles (Simplificado) -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-people me-2"></i>
-                            Paso 3: Asignación de Roles a Estudiantes
+                            Asignación de Roles
                         </h5>
                     </div>
                     <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="buscarEstudiante" class="form-label">Buscar Estudiante</label>
-                                <input type="text" 
-                                       class="form-control" 
-                                       id="buscarEstudiante" 
-                                       placeholder="Nombre o email del estudiante...">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">&nbsp;</label>
-                                <div>
-                                    <button type="button" class="btn btn-outline-primary" onclick="cargarEstudiantes()">
-                                        <i class="bi bi-arrow-clockwise me-1"></i>
-                                        Actualizar Lista
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Procesamiento Automático:</strong> Todos los roles se asignarán automáticamente a estudiantes disponibles. 
+                            Los roles vacíos tomarán decisiones aleatorias durante el diálogo.
                         </div>
-
-                        <!-- Lista de estudiantes disponibles -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <h6>Estudiantes Disponibles:</h6>
-                                <div id="estudiantesDisponibles" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-                                    <div class="text-center text-muted">
-                                        <i class="bi bi-hourglass-split"></i>
-                                        Cargando estudiantes...
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Roles disponibles -->
+                        
                         <div class="row">
-                            <div class="col-12">
-                                <h6>Roles Disponibles:</h6>
-                                <div id="rolesContainer" class="row">
-                                    <!-- Los roles se cargarán dinámicamente -->
-                                </div>
+                            <div class="col-md-6">
+                                <h6>Roles que se asignarán automáticamente:</h6>
+                                <ul class="list-group">
+                                    @foreach(\App\Models\RolDisponible::where('activo', true)->get() as $rol)
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="bi bi-{{ $rol->icono ?? 'person' }} me-2"></i>
+                                                <strong>{{ $rol->nombre }}</strong>
+                                            </div>
+                                            <span class="badge bg-primary rounded-pill">🤖 Auto</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Estudiantes disponibles:</h6>
+                                <ul class="list-group">
+                                    @foreach(\App\Models\User::where('tipo', 'alumno')->where('activo', true)->get() as $estudiante)
+                                        <li class="list-group-item">
+                                            <i class="bi bi-person-circle me-2"></i>
+                                            {{ $estudiante->name }} - {{ $estudiante->email }}
+                                        </li>
+                                    @endforeach
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -237,7 +221,7 @@
                                 <i class="bi bi-x-circle me-2"></i>
                                 Cancelar
                             </a>
-                            <button type="submit" class="btn btn-primary" id="crearSesionBtn">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-circle me-2"></i>
                                 Crear Sesión
                             </button>
@@ -268,143 +252,6 @@
 </div>
 
 <script>
-let estudiantes = [];
-let roles = [];
-let asignaciones = {};
-
-document.addEventListener('DOMContentLoaded', function() {
-    cargarEstudiantes();
-    cargarRoles();
-});
-
-async function cargarEstudiantes() {
-    try {
-        const response = await fetch('/api/usuarios?tipo=alumno');
-        const data = await response.json();
-        estudiantes = data.data || [];
-        mostrarEstudiantes();
-    } catch (error) {
-        console.error('Error cargando estudiantes:', error);
-        document.getElementById('estudiantesDisponibles').innerHTML = 
-            '<div class="text-center text-danger"><i class="bi bi-exclamation-triangle"></i> Error cargando estudiantes</div>';
-    }
-}
-
-async function cargarRoles() {
-    try {
-        const response = await fetch('/api/roles');
-        const data = await response.json();
-        roles = data.data || [];
-        mostrarRoles();
-    } catch (error) {
-        console.error('Error cargando roles:', error);
-    }
-}
-
-function mostrarEstudiantes() {
-    const container = document.getElementById('estudiantesDisponibles');
-    const buscar = document.getElementById('buscarEstudiante').value.toLowerCase();
-    
-    const estudiantesFiltrados = estudiantes.filter(estudiante => 
-        estudiante.name.toLowerCase().includes(buscar) ||
-        estudiante.email.toLowerCase().includes(buscar)
-    );
-    
-    if (estudiantesFiltrados.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted">No hay estudiantes disponibles</div>';
-        return;
-    }
-    
-    container.innerHTML = estudiantesFiltrados.map(estudiante => `
-        <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" 
-                   id="estudiante_${estudiante.id}" 
-                   value="${estudiante.id}"
-                   onchange="toggleEstudiante(${estudiante.id})">
-            <label class="form-check-label" for="estudiante_${estudiante.id}">
-                <strong>${estudiante.name}</strong> - ${estudiante.email}
-            </label>
-        </div>
-    `).join('');
-}
-
-function mostrarRoles() {
-    const container = document.getElementById('rolesContainer');
-    
-    container.innerHTML = roles.map(rol => `
-        <div class="col-md-6 col-lg-4 mb-3">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-${rol.icono || 'person'} me-2"></i>
-                        <strong>${rol.nombre}</strong>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p class="card-text small">${rol.descripcion || 'Sin descripción'}</p>
-                    <select class="form-select form-select-sm" 
-                            id="rol_${rol.id}" 
-                            onchange="asignarRol(${rol.id}, this.value)">
-                        <option value="">Seleccionar estudiante...</option>
-                        <option value="auto">🤖 Procesamiento Automático</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    `).join('');
-}
-
-function toggleEstudiante(estudianteId) {
-    const checkbox = document.getElementById(`estudiante_${estudianteId}`);
-    const estudiante = estudiantes.find(e => e.id === estudianteId);
-    
-    if (checkbox.checked) {
-        // Agregar estudiante a todos los selects de roles
-        roles.forEach(rol => {
-            const select = document.getElementById(`rol_${rol.id}`);
-            const option = document.createElement('option');
-            option.value = estudianteId;
-            option.textContent = `${estudiante.name} (${estudiante.email})`;
-            select.appendChild(option);
-        });
-    } else {
-        // Remover estudiante de todos los selects de roles
-        roles.forEach(rol => {
-            const select = document.getElementById(`rol_${rol.id}`);
-            const option = select.querySelector(`option[value="${estudianteId}"]`);
-            if (option) {
-                option.remove();
-            }
-            // Si este rol estaba asignado a este estudiante, limpiarlo
-            if (asignaciones[rol.id] === estudianteId) {
-                select.value = '';
-                delete asignaciones[rol.id];
-            }
-        });
-    }
-}
-
-function asignarRol(rolId, estudianteId) {
-    asignaciones[rolId] = estudianteId;
-    
-    // Remover este estudiante de otros roles
-    if (estudianteId && estudianteId !== 'auto') {
-        roles.forEach(rol => {
-            if (rol.id !== rolId) {
-                const select = document.getElementById(`rol_${rol.id}`);
-                const option = select.querySelector(`option[value="${estudianteId}"]`);
-                if (option) {
-                    option.remove();
-                }
-                if (asignaciones[rol.id] === estudianteId) {
-                    select.value = '';
-                    delete asignaciones[rol.id];
-                }
-            }
-        });
-    }
-}
-
 async function previewDialogo() {
     const dialogoId = document.getElementById('dialogo_id').value;
     if (!dialogoId) {
@@ -436,32 +283,5 @@ async function previewDialogo() {
         alert('Error al cargar la vista previa del diálogo');
     }
 }
-
-// Filtrar estudiantes en tiempo real
-document.getElementById('buscarEstudiante').addEventListener('input', mostrarEstudiantes);
-
-// Validación del formulario
-document.getElementById('crearSesionForm').addEventListener('submit', function(e) {
-    const dialogoId = document.getElementById('dialogo_id').value;
-    if (!dialogoId) {
-        e.preventDefault();
-        alert('Por favor selecciona un diálogo');
-        return;
-    }
-    
-    // Agregar asignaciones al formulario
-    const formData = new FormData(this);
-    formData.append('asignaciones', JSON.stringify(asignaciones));
-    
-    // Reemplazar el formulario con los datos actualizados
-    this.innerHTML = '';
-    for (let [key, value] of formData.entries()) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = value;
-        this.appendChild(input);
-    }
-});
 </script>
 @endsection

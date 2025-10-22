@@ -177,11 +177,63 @@ class ProcesamientoAutomaticoService
                 $this->procesarDecisionesAutomaticas($sesion);
             }
 
-            return true;
-
         } catch (\Exception $e) {
             Log::error('Error simulando participación automática: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Procesa asignaciones automáticas para roles de un diálogo específico
+     */
+    public function procesarAsignacionesAutomaticasDialogo(SesionJuicio $sesion, $rolesDialogo)
+    {
+        $asignacionesRealizadas = [];
+
+        foreach ($rolesDialogo as $rolDialogo) {
+            // Solo procesar roles requeridos automáticamente
+            if ($rolDialogo->requerido) {
+                $asignacion = $this->asignarEstudianteAutomaticoDialogo($sesion, $rolDialogo);
+                if ($asignacion) {
+                    $asignacionesRealizadas[] = $asignacion;
+                }
+            }
+        }
+
+        return $asignacionesRealizadas;
+    }
+
+    /**
+     * Asigna un estudiante aleatorio disponible a un rol de diálogo en una sesión
+     */
+    public function asignarEstudianteAutomaticoDialogo(SesionJuicio $sesion, $rolDialogo): ?\App\Models\AsignacionRol
+    {
+        // Obtener estudiantes ya asignados en esta sesión
+        $estudiantesAsignadosIds = \App\Models\AsignacionRol::where('sesion_id', $sesion->id)
+            ->pluck('usuario_id')
+            ->toArray();
+
+        // Obtener un estudiante de tipo 'alumno' que esté activo y no esté ya asignado
+        $estudianteDisponible = User::where('tipo', 'alumno')
+            ->where('activo', true)
+            ->whereNotIn('id', $estudiantesAsignadosIds)
+            ->inRandomOrder()
+            ->first();
+
+        if ($estudianteDisponible) {
+            $asignacion = \App\Models\AsignacionRol::create([
+                'sesion_id' => $sesion->id,
+                'usuario_id' => $estudianteDisponible->id,
+                'rol_dialogo_id' => $rolDialogo->id,
+                'asignado_por' => auth()->id() ?? $sesion->instructor_id,
+                'confirmado' => false,
+                'notas' => 'Asignación automática del sistema'
+            ]);
+            Log::info("Asignación automática: Estudiante {$estudianteDisponible->name} ({$estudianteDisponible->email}) asignado al rol {$rolDialogo->nombre} en la sesión {$sesion->nombre}.");
+            return $asignacion;
+        }
+
+        Log::warning("Asignación automática: No se encontró estudiante disponible para el rol {$rolDialogo->nombre} en la sesión {$sesion->nombre}. El rol queda sin asignar.");
+        return null;
     }
 }

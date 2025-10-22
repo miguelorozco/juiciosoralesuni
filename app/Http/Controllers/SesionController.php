@@ -73,7 +73,6 @@ class SesionController extends Controller
             'fecha_inicio' => 'required|date|after:now',
             'max_participantes' => 'nullable|integer|min:1|max:20',
             'dialogo_id' => 'required|exists:dialogos,id',
-            'asignaciones' => 'nullable|string',
         ]);
 
         try {
@@ -90,36 +89,31 @@ class SesionController extends Controller
                 'estado' => 'programada',
             ]);
 
-            // Procesar asignaciones de roles
-            $asignaciones = json_decode($request->asignaciones, true) ?? [];
+            // Obtener roles del diálogo seleccionado
+            $dialogo = \App\Models\Dialogo::with('rolesActivos')->find($request->dialogo_id);
+            $rolesDialogo = $dialogo->rolesActivos;
+
+            // Procesar asignaciones automáticas de roles del diálogo
             $procesamientoService = new ProcesamientoAutomaticoService();
-            
-            // Obtener todos los roles disponibles para este tipo de juicio
-            $rolesDisponibles = \App\Models\RolDisponible::where('activo', true)->get();
-            
-            foreach ($rolesDisponibles as $rol) {
-                $estudianteId = $asignaciones[$rol->id] ?? null;
-                
-                if ($estudianteId && $estudianteId !== 'auto') {
-                    // Asignar rol a estudiante específico
-                    $this->asignarRolAEstudiante($sesion, $rol, $estudianteId);
-                } else {
-                    // Procesamiento automático - asignar a estudiante aleatorio disponible
-                    $procesamientoService->asignarEstudianteAutomatico($sesion, $rol);
-                }
-            }
+            $asignacionesRealizadas = $procesamientoService->procesarAsignacionesAutomaticasDialogo($sesion, $rolesDialogo);
 
             // Crear sesión de diálogo
             $this->crearSesionDialogo($sesion, $request->dialogo_id);
 
             \DB::commit();
 
+            $mensaje = 'Sesión creada exitosamente. ';
+            if (count($asignacionesRealizadas) > 0) {
+                $mensaje .= 'Asignaciones automáticas realizadas: ' . count($asignacionesRealizadas) . ' roles asignados.';
+            }
+
             return redirect()
                 ->route('sesiones.show', $sesion)
-                ->with('success', 'Sesión creada exitosamente con todas las asignaciones');
+                ->with('success', $mensaje);
 
         } catch (\Exception $e) {
             \DB::rollback();
+            \Log::error('Error creando sesión: ' . $e->getMessage());
             return redirect()
                 ->back()
                 ->withInput()
@@ -176,8 +170,8 @@ class SesionController extends Controller
      */
     public function show(SesionJuicio $sesion)
     {
-        $sesion->load(['instructor', 'plantilla', 'asignaciones.participante']);
-        return view('sesiones.activa', compact('sesion'));
+        $sesion->load(['instructor', 'asignaciones.usuario', 'asignaciones.rol']);
+        return view('sesiones.show', compact('sesion'));
     }
     
     /**

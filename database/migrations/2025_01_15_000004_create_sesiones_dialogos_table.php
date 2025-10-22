@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('sesion_id');
             $table->unsignedBigInteger('dialogo_id');
             $table->unsignedBigInteger('nodo_actual_id')->nullable();
-            $table->enum('estado', ['iniciado', 'en_curso', 'pausado', 'finalizado'])->default('iniciado');
+            $table->enum('estado', ['programada', 'iniciado', 'en_curso', 'pausado', 'finalizado'])->default('programada');
             $table->timestamp('fecha_inicio')->nullable();
             $table->timestamp('fecha_fin')->nullable();
             $table->json('configuracion')->nullable(); // Configuración específica de la sesión
