@@ -412,8 +412,19 @@ function selectUserForUnity(userId, userName, roleName) {
             session_id: sessionId
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
+        
         if (data.success) {
             // Cerrar modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('unityUserModal'));
@@ -422,13 +433,94 @@ function selectUserForUnity(userId, userName, roleName) {
             // Mostrar enlace de Unity
             showUnityLink(data.data);
         } else {
-            alert('Error generando enlace: ' + data.message);
+            console.error('API Error:', data);
+            let errorMessage = 'Error generando enlace: ' + data.message;
+            
+            // Mostrar mensajes más específicos según el código de error
+            if (data.error_code) {
+                switch(data.error_code) {
+                    case 'NO_ASSIGNMENT':
+                        errorMessage = 'El usuario seleccionado no tiene una asignación en esta sesión.';
+                        break;
+                    case 'SESSION_NOT_FOUND':
+                        errorMessage = 'La sesión no existe o ha sido eliminada.';
+                        break;
+                    case 'USER_NOT_FOUND':
+                        errorMessage = 'El usuario no existe en el sistema.';
+                        break;
+                    case 'ROLE_NOT_FOUND':
+                        errorMessage = 'El rol asignado no existe.';
+                        break;
+                    case 'SESSION_NOT_ACTIVE':
+                        errorMessage = 'La sesión no está activa. Debe estar programada o en curso.';
+                        break;
+                    case 'INTERNAL_ERROR':
+                        errorMessage = 'Error interno del servidor. Por favor, intenta nuevamente.';
+                        break;
+                    default:
+                        errorMessage = data.message || 'Error desconocido al generar el enlace.';
+                }
+            }
+            
+            showErrorModal(errorMessage);
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('Error generando enlace de Unity');
+        console.error('Fetch Error:', error);
+        showErrorModal('Error generando enlace de Unity: ' + error.message);
     });
+}
+
+function showErrorModal(message) {
+    // Crear modal de error
+    const errorModalHtml = `
+        <div class="modal fade" id="errorModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Error generando enlace de Unity
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <p class="mb-0">${message}</p>
+                        </div>
+                        <p>Por favor, intenta nuevamente o contacta al administrador si el problema persiste.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-primary" onclick="retryUnityLinkGeneration()">Reintentar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal de error existente si existe
+    const existingErrorModal = document.getElementById('errorModal');
+    if (existingErrorModal) {
+        existingErrorModal.remove();
+    }
+    
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML('beforeend', errorModalHtml);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('errorModal'));
+    modal.show();
+}
+
+function retryUnityLinkGeneration() {
+    // Cerrar modal de error
+    const errorModal = bootstrap.Modal.getInstance(document.getElementById('errorModal'));
+    errorModal.hide();
+    
+    // Reabrir modal de selección de usuario
+    const userModal = new bootstrap.Modal(document.getElementById('unityUserModal'));
+    userModal.show();
 }
 
 function showUnityLink(data) {

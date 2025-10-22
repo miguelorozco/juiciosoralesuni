@@ -40,6 +40,31 @@ class UnityEntryController extends Controller
                 ], 404);
             }
 
+            // Verificar que la asignación tiene todos los datos necesarios
+            if (!$assignment->sesion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La sesión asociada no existe',
+                    'error_code' => 'SESSION_NOT_FOUND'
+                ], 404);
+            }
+
+            if (!$assignment->usuario) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El usuario asociado no existe',
+                    'error_code' => 'USER_NOT_FOUND'
+                ], 404);
+            }
+
+            if (!$assignment->rolDisponible) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El rol asignado no existe',
+                    'error_code' => 'ROLE_NOT_FOUND'
+                ], 404);
+            }
+
             // Verificar que la sesión está activa
             if (!in_array($assignment->sesion->estado, ['programada', 'en_curso'])) {
                 return response()->json([
@@ -58,7 +83,7 @@ class UnityEntryController extends Controller
             Log::info("Enlace de entrada a Unity generado", [
                 'user_id' => $userId,
                 'session_id' => $sessionId,
-                'role' => $assignment->rolDisponible->nombre
+                'role' => $assignment->rolDisponible ? $assignment->rolDisponible->nombre : 'Sin rol'
             ]);
 
             return response()->json([
