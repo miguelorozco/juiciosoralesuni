@@ -205,10 +205,9 @@ class UnityEntryController extends Controller
      */
     private function generateUnityWebGLUrl(string $token, int $sessionId): string
     {
-        // URL base de Unity WebGL (ajustar según configuración)
-        $unityBaseUrl = config('app.unity_url', 'http://localhost:8080');
-        
-        return $unityBaseUrl . '/index.html?token=' . urlencode($token) . '&session=' . $sessionId;
+        // Servir el build desde Laravel en /unity-game para simplificar
+        $unityGameUrl = url('/unity-game');
+        return $unityGameUrl . '?token=' . urlencode($token) . '&session=' . $sessionId;
     }
 
     /**

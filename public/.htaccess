@@ -23,3 +23,39 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# --- Unity WebGL Brotli/Compressed assets support ---
+<IfModule mod_mime.c>
+    # Tipos MIME para Unity WebGL
+    AddType application/wasm .wasm
+    AddType application/octet-stream .data
+    AddType application/javascript .js
+    AddType application/json .json
+
+    # Archivos comprimidos con Brotli (.br)
+    AddType application/wasm .wasm.br
+    AddType application/javascript .js.br
+    AddType application/octet-stream .data.br
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Enviar Content-Encoding para archivos .br
+    <FilesMatch "\.(js|data|wasm)\.br$">
+        Header set Content-Encoding br
+        Header set Content-Type "application/octet-stream"
+    </FilesMatch>
+    <FilesMatch "\.js\.br$">
+        Header set Content-Type "application/javascript"
+    </FilesMatch>
+    <FilesMatch "\.wasm\.br$">
+        Header set Content-Type "application/wasm"
+    </FilesMatch>
+
+    # Deshabilitar transformación de proxies
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>
+
+# Evitar que Apache intente recomprimir
+<IfModule mod_deflate.c>
+    SetEnvIfNoCase Request_URI "\.(?:js|data|wasm)\.br$" no-gzip
+</IfModule>

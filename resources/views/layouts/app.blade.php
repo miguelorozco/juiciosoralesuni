@@ -222,6 +222,9 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    {{-- Sección de scripts específica por vista --}}
+    @yield('scripts')
+
     <style>
         body {
             font-family: 'Inter', sans-serif;

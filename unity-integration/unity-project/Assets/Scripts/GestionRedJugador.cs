@@ -145,21 +145,26 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     private Vector3 GetSpawnPositionForRole(string role)
     {
-        // Posiciones específicas para cada rol en la sala
+        // Posición de spawn por defecto (SpawnPoint_Default)
+        Vector3 defaultSpawnPosition = new Vector3(0f, 4.40f, -15.27f);
+
+        // Posiciones específicas para cada rol en la sala (coordenadas reales de Unity)
         switch (role.ToLower())
         {
             case "juez":
-                return new Vector3(0, 1, 0);
+                return new Vector3(0.0240f, 4.9600f, -21.97f); // SpawnPoint_Juez
             case "fiscal":
-                return new Vector3(-3, 1, 0);
+                return new Vector3(2.544f, 4.05f, -15.77f); // SpawnPoint_Fiscal
             case "defensor":
-                return new Vector3(3, 1, 0);
+                return new Vector3(-1.48f, 4.05f, -15.77f); // SpawnPoint_Defensor
             case "testigo":
-                return new Vector3(0, 1, 3);
+                return new Vector3(3.561f, 4.05f, -15.77f); // SpawnPoint_Testigo
             case "acusado":
-                return new Vector3(0, 1, -3);
+                return new Vector3(-2.393f, 4.0500f, -15.77f); // SpawnPoint_Acusado
             default:
-                return new Vector3(Random.Range(-5, 5), 1, Random.Range(-5, 5));
+                // Usar la posición de SpawnPoint_Default como fallback
+                Debug.LogWarning($"No se encontró posición específica para el rol '{role}', usando posición por defecto: {defaultSpawnPosition}");
+                return defaultSpawnPosition;
         }
     }
 

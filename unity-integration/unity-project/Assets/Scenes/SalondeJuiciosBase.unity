@@ -3185,7 +3185,7 @@ Transform:
   m_GameObject: {fileID: 111270283}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -0.491, y: 4.209, z: -32.752}
+  m_LocalPosition: {x: 3.5609996, y: 4.05, z: -15.77}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3322,7 +3322,7 @@ Transform:
   m_GameObject: {fileID: 142389352}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3.53038, y: 0, z: 17.41608}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -4280,7 +4280,7 @@ Transform:
   m_GameObject: {fileID: 482950761}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -5.532, y: 4.209, z: -32.752}
+  m_LocalPosition: {x: -1.48, y: 4.05, z: -15.77}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4311,7 +4311,7 @@ Transform:
   m_GameObject: {fileID: 493767880}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -3.59, y: 4.209, z: -32.752}
+  m_LocalPosition: {x: 0.0940004, y: 9.578001, z: -24.330002}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4458,7 +4458,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &537291556
 Transform:
   m_ObjectHideFlags: 0
@@ -6207,7 +6207,7 @@ Transform:
   m_GameObject: {fileID: 1076842938}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -1.508, y: 4.209, z: -32.752}
+  m_LocalPosition: {x: 2.5440004, y: 4.05, z: -15.77}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7449,7 +7449,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ce03ca48d79947e2bf5b4907dec8a02, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::JuiciosSimulator.API.LaravelAPI
-  baseURL: http://localhost:8000/api
+  baseURL: https://juiciosorales.site/api
   unityVersion: 2022.3.15f1
   unityPlatform: WebGL
   deviceId: UNITY_DEVICE_001
@@ -7723,7 +7723,7 @@ Transform:
   m_GameObject: {fileID: 1362392531}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.518, y: 4.89, z: -39.019}
+  m_LocalPosition: {x: 0.024000406, y: 4.9600005, z: -21.970001}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -9730,7 +9730,7 @@ Transform:
   m_GameObject: {fileID: 1792622356}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: -6.445, y: 4.209, z: -32.752}
+  m_LocalPosition: {x: -2.3930004, y: 4.0500007, z: -15.770001}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

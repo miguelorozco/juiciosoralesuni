@@ -4,8 +4,80 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>JuiciosSimulator - Sala Principal</title>
-    <link rel="shortcut icon" href="{{ asset('unity-build/TemplateData/favicon.ico') }}">
-    <link rel="stylesheet" href="{{ asset('unity-build/TemplateData/style.css') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+    <style>
+        /* Estilos básicos para Unity WebGL */
+        #unity-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        #unity-loading-bar {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        
+        #unity-logo {
+            width: 154px;
+            height: 130px;
+            background: #007bff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        #unity-logo::before {
+            content: "⚖️";
+            font-size: 48px;
+        }
+        
+        #unity-progress-bar-empty {
+            width: 141px;
+            height: 18px;
+            margin-top: 10px;
+            background: #333;
+            border-radius: 9px;
+        }
+        
+        #unity-progress-bar-full {
+            width: 0%;
+            height: 18px;
+            background: #007bff;
+            border-radius: 9px;
+        }
+        
+        .loading-text {
+            color: #fff;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            text-align: center;
+            display: none;
+        }
+    </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Simulador de Juicios Orales - Sala Principal">
     
@@ -112,7 +184,7 @@
     </div>
 
     <!-- Scripts de Unity -->
-    <script src="{{ asset('unity-build/Build/JuiciosSimulator.loader.js') }}"></script>
+    <script src="{{ asset('unity-build/Build/juicio.loader.js') }}"></script>
     <script>
         // Configuración de Unity
         var container = document.querySelector("#unity-container");
@@ -129,9 +201,9 @@
         // Configuración del módulo Unity
         var buildUrl = "{{ asset('unity-build/Build') }}";
         var config = {
-            dataUrl: buildUrl + "/JuiciosSimulator.data",
-            frameworkUrl: buildUrl + "/JuiciosSimulator.framework.js",
-            codeUrl: buildUrl + "/JuiciosSimulator.wasm",
+            dataUrl: buildUrl + "/juicio.data.br",
+            frameworkUrl: buildUrl + "/juicio.framework.js.br",
+            codeUrl: buildUrl + "/juicio.wasm.br",
             streamingAssetsUrl: "StreamingAssets",
             companyName: "JuiciosSimulator",
             productName: "JuiciosSimulator",
