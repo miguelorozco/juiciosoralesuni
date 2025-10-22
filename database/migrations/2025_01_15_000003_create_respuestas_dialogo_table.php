@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('respuestas_dialogo', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('nodo_padre_id')->constrained('nodos_dialogo')->onDelete('cascade');
-            $table->foreignId('nodo_siguiente_id')->nullable()->constrained('nodos_dialogo')->onDelete('set null');
+            $table->unsignedBigInteger('nodo_padre_id');
+            $table->unsignedBigInteger('nodo_siguiente_id')->nullable();
             $table->string('texto', 500); // Texto de la opción de respuesta
             $table->text('descripcion')->nullable(); // Descripción adicional de la respuesta
             $table->integer('orden')->default(0); // Orden de las opciones

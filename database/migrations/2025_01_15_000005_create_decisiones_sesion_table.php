@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('decisiones_sesion', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sesion_id')->constrained('sesiones_juicios')->onDelete('cascade');
-            $table->foreignId('usuario_id')->constrained('users');
-            $table->foreignId('rol_id')->constrained('roles_disponibles');
-            $table->foreignId('nodo_dialogo_id')->constrained('nodos_dialogo');
-            $table->foreignId('respuesta_id')->nullable()->constrained('respuestas_dialogo');
+            $table->unsignedBigInteger('sesion_id');
+            $table->unsignedBigInteger('usuario_id');
+            $table->unsignedBigInteger('rol_id');
+            $table->unsignedBigInteger('nodo_dialogo_id');
+            $table->unsignedBigInteger('respuesta_id')->nullable();
             $table->text('decision_texto')->nullable(); // Texto de la decisión tomada
             $table->json('metadata')->nullable(); // Datos adicionales de la decisión
             $table->integer('tiempo_respuesta')->nullable(); // Tiempo en segundos para responder

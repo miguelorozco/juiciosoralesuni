@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('sesiones_dialogos', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sesion_id')->constrained('sesiones_juicios')->onDelete('cascade');
-            $table->foreignId('dialogo_id')->constrained('dialogos')->onDelete('cascade');
-            $table->foreignId('nodo_actual_id')->nullable()->constrained('nodos_dialogo')->onDelete('set null');
+            $table->unsignedBigInteger('sesion_id');
+            $table->unsignedBigInteger('dialogo_id');
+            $table->unsignedBigInteger('nodo_actual_id')->nullable();
             $table->enum('estado', ['iniciado', 'en_curso', 'pausado', 'finalizado'])->default('iniciado');
             $table->timestamp('fecha_inicio')->nullable();
             $table->timestamp('fecha_fin')->nullable();

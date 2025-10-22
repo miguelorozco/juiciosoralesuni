@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('nombre', 200);
             $table->text('descripcion')->nullable();
             $table->foreignId('creado_por')->constrained('users');
-            $table->foreignId('plantilla_id')->nullable()->constrained('plantillas_sesiones');
+            $table->unsignedBigInteger('plantilla_id')->nullable();
             $table->boolean('publico')->default(false);
             $table->enum('estado', ['borrador', 'activo', 'archivado'])->default('borrador');
             $table->json('configuracion')->nullable(); // Configuraciones específicas del diálogo
