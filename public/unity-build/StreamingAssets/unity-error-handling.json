@@ -1,0 +1,29 @@
+{
+  "errorHandling": {
+    "suppressBlitterErrors": true,
+    "suppressFormatExceptions": true,
+    "suppressPhotonErrors": true,
+    "suppressServerCertificateErrors": true,
+    "logErrorsToConsole": true,
+    "showErrorsToUser": false
+  },
+  "initialization": {
+    "preventMultipleInitialization": true,
+    "cleanupOnRetry": true,
+    "retryDelay": 1000,
+    "maxRetries": 3
+  },
+  "photon": {
+    "enabled": true,
+    "appId": "2ec23c58-5cc4-419d-8214-13abad14a02f",
+    "region": "us",
+    "timeout": 30000,
+    "retryOnFailure": true
+  },
+  "webgl": {
+    "enableMemoryManager": true,
+    "preserveDrawingBuffer": false,
+    "powerPreference": "default",
+    "startupTimeout": 60000
+  }
+}

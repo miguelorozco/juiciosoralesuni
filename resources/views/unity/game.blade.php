@@ -216,7 +216,14 @@
             devicePixelRatio: window.devicePixelRatio || 1,
             // Prevenir múltiples inicializaciones
             preserveDrawingBuffer: false,
-            powerPreference: "default"
+            powerPreference: "default",
+            // Configuraciones para prevenir errores de Blitter y Photon
+            enableWebGLMemoryManager: true,
+            enableWebGLMemoryManagerJS: true,
+            // Deshabilitar características problemáticas temporalmente
+            disableWebGLMemoryManager: false,
+            // Configuración de timeout más largo
+            startupTimeout: 60000
         };
 
         // Configurar canvas
@@ -248,6 +255,33 @@
         // Variable global para la instancia de Unity
         var unityInstance = null;
         var isInitializing = false;
+        var errorHandlingConfig = null;
+
+        // Cargar configuración de manejo de errores
+        function loadErrorHandlingConfig() {
+            fetch('{{ asset('unity-build/StreamingAssets/unity-error-handling.json') }}')
+                .then(response => response.json())
+                .then(config => {
+                    errorHandlingConfig = config;
+                    console.log("Configuración de manejo de errores cargada:", config);
+                })
+                .catch(error => {
+                    console.warn("No se pudo cargar la configuración de errores, usando configuración por defecto");
+                    errorHandlingConfig = {
+                        errorHandling: {
+                            suppressBlitterErrors: true,
+                            suppressFormatExceptions: true,
+                            suppressPhotonErrors: true,
+                            suppressServerCertificateErrors: true,
+                            logErrorsToConsole: true,
+                            showErrorsToUser: false
+                        }
+                    };
+                });
+        }
+
+        // Cargar configuración al inicio
+        loadErrorHandlingConfig();
 
         // Función para limpiar recursos antes de reinicializar
         function cleanupUnityInstance() {
@@ -285,6 +319,22 @@
                 config.onError(message);
             });
         }
+
+        // Función de reintento mejorada
+        window.retryUnityLoad = function() {
+            console.log("Reintentando carga de Unity...");
+            errorMessage.style.display = "none";
+            loadingBar.style.display = "block";
+            progressBarFull.style.width = "0%";
+            
+            // Limpiar completamente antes de reintentar
+            cleanupUnityInstance();
+            
+            // Esperar un poco antes de reinicializar
+            setTimeout(function() {
+                initializeUnity();
+            }, 1000);
+        };
 
         // Inicializar Unity
         initializeUnity();
@@ -328,6 +378,67 @@
         // Manejar errores de WebGL
         window.addEventListener('error', function(e) {
             console.error("Error global:", e);
+            
+            // Usar configuración de manejo de errores
+            var config = errorHandlingConfig ? errorHandlingConfig.errorHandling : {
+                suppressBlitterErrors: true,
+                suppressFormatExceptions: true,
+                suppressPhotonErrors: true,
+                suppressServerCertificateErrors: true,
+                logErrorsToConsole: true,
+                showErrorsToUser: false
+            };
+            
+            // Detectar errores específicos de Unity
+            if (e.message.includes('Blitter is already initialized')) {
+                if (config.logErrorsToConsole) {
+                    console.warn("Error de Blitter detectado - Unity se está reinicializando");
+                }
+                if (!config.suppressBlitterErrors && config.showErrorsToUser) {
+                    errorMessage.style.display = "block";
+                    errorText.textContent = "Error de renderizado: " + e.message;
+                    loadingBar.style.display = "none";
+                }
+                return;
+            }
+            
+            if (e.message.includes('FormatException') || e.message.includes('StringBuilder')) {
+                if (config.logErrorsToConsole) {
+                    console.warn("Error de formato detectado - posible problema de datos");
+                }
+                if (!config.suppressFormatExceptions && config.showErrorsToUser) {
+                    errorMessage.style.display = "block";
+                    errorText.textContent = "Error de datos: " + e.message;
+                    loadingBar.style.display = "none";
+                }
+                return;
+            }
+            
+            if (e.message.includes('PhotonNetwork') || e.message.includes('Photon')) {
+                if (config.logErrorsToConsole) {
+                    console.warn("Error de Photon detectado - problemas de red");
+                }
+                if (!config.suppressPhotonErrors && config.showErrorsToUser) {
+                    errorMessage.style.display = "block";
+                    errorText.textContent = "Error de red: " + e.message;
+                    loadingBar.style.display = "none";
+                }
+                return;
+            }
+            
+            if (e.message.includes('ServerCertificate')) {
+                if (config.logErrorsToConsole) {
+                    console.warn("Error de ServerCertificate detectado - script faltante");
+                }
+                if (!config.suppressServerCertificateErrors && config.showErrorsToUser) {
+                    errorMessage.style.display = "block";
+                    errorText.textContent = "Error de certificado: " + e.message;
+                    loadingBar.style.display = "none";
+                }
+                return;
+            }
+            
+            // Solo mostrar errores críticos al usuario
             if (e.message.includes('WebGL') || e.message.includes('Unity') || e.message.includes('unityInstance')) {
                 errorMessage.style.display = "block";
                 errorText.textContent = "Error de WebGL: " + e.message;
