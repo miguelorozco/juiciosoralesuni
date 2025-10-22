@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\SesionJuicio;
+use App\Models\AsignacionRol;
 use Illuminate\Http\JsonResponse;
 use App\Services\ProcesamientoAutomaticoService;
+use Illuminate\Support\Facades\Log;
 
 class SesionController extends Controller
 {
@@ -170,8 +172,59 @@ class SesionController extends Controller
      */
     public function show(SesionJuicio $sesion)
     {
-        $sesion->load(['instructor', 'asignaciones.usuario', 'asignaciones.rol']);
+        $sesion->load(['instructor', 'asignaciones.usuario', 'asignaciones.rolDisponible']);
         return view('sesiones.show', compact('sesion'));
+    }
+    
+    /**
+     * Obtener usuarios asignados a una sesión
+     */
+    public function getUsuariosAsignados(SesionJuicio $sesion)
+    {
+        try {
+            $asignaciones = AsignacionRol::with(['usuario', 'rolDisponible'])
+                ->where('sesion_id', $sesion->id)
+                ->get();
+
+            $usuarios = $asignaciones->map(function ($asignacion) {
+                return [
+                    'usuario_id' => $asignacion->usuario_id,
+                    'usuario' => [
+                        'id' => $asignacion->usuario->id,
+                        'name' => $asignacion->usuario->name,
+                        'email' => $asignacion->usuario->email,
+                    ],
+                    'rol' => [
+                        'id' => $asignacion->rolDisponible->id,
+                        'nombre' => $asignacion->rolDisponible->nombre,
+                        'descripcion' => $asignacion->rolDisponible->descripcion,
+                        'color' => $asignacion->rolDisponible->color,
+                        'icono' => $asignacion->rolDisponible->icono,
+                    ],
+                    'asignacion' => [
+                        'id' => $asignacion->id,
+                        'confirmado' => $asignacion->confirmado,
+                        'fecha_asignacion' => $asignacion->fecha_asignacion,
+                    ]
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $usuarios
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo usuarios asignados', [
+                'sesion_id' => $sesion->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error obteniendo usuarios asignados'
+            ], 500);
+        }
     }
     
     /**

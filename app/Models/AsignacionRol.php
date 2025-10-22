@@ -15,6 +15,7 @@ class AsignacionRol extends Model
         'sesion_id',
         'usuario_id',
         'rol_dialogo_id',
+        'rol_id',
         'asignado_por',
         'fecha_asignacion',
         'confirmado',
@@ -45,6 +46,11 @@ class AsignacionRol extends Model
     public function rol()
     {
         return $this->belongsTo(RolDialogo::class, 'rol_dialogo_id');
+    }
+
+    public function rolDisponible()
+    {
+        return $this->belongsTo(RolDisponible::class, 'rol_id');
     }
 
     public function asignadoPor()

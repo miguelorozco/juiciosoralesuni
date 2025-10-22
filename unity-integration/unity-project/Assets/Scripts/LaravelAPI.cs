@@ -21,6 +21,7 @@ namespace JuiciosSimulator.API
         [Header("Autenticación")]
         public string authToken = "";
         public UserData currentUser;
+        public SessionData currentSessionData;
 
         [Header("Sesión Actual")]
         public int currentSesionId = 0;
@@ -157,6 +158,101 @@ namespace JuiciosSimulator.API
                 else
                 {
                     Debug.LogError($"Servidor no disponible: {request.error}");
+                }
+            }
+        }
+
+        #endregion
+
+        #region Sesiones Activas
+
+        // Eventos para sesiones activas
+        public static event Action<SessionData> OnActiveSessionReceived;
+        public static event Action<DialogueData> OnDialogueDataReceived;
+
+        /// <summary>
+        /// Obtener sesión activa del usuario autenticado
+        /// </summary>
+        public void GetActiveSession()
+        {
+            StartCoroutine(GetActiveSessionCoroutine());
+        }
+
+        private IEnumerator GetActiveSessionCoroutine()
+        {
+            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/session/active"))
+            {
+                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                request.SetRequestHeader("X-Unity-Version", unityVersion);
+                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
+
+                yield return request.SendWebRequest();
+
+                if (request.result == UnityWebRequest.Result.Success)
+                {
+                    var response = JsonUtility.FromJson<APIResponse<SessionData>>(request.downloadHandler.text);
+
+                    if (response.success)
+                    {
+                        currentSesionId = response.data.session.id;
+                        currentSessionData = response.data;
+                        OnActiveSessionReceived?.Invoke(response.data);
+                        Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
+
+                        // Automáticamente cargar el diálogo de la sesión
+                        GetSessionDialogue(response.data.session.id);
+                    }
+                    else
+                    {
+                        OnError?.Invoke(response.message);
+                        Debug.LogError($"Error obteniendo sesión activa: {response.message}");
+                    }
+                }
+                else
+                {
+                    OnError?.Invoke($"Error obteniendo sesión activa: {request.error}");
+                    Debug.LogError($"Error obteniendo sesión activa: {request.error}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Obtener diálogo específico de una sesión
+        /// </summary>
+        public void GetSessionDialogue(int sessionId)
+        {
+            StartCoroutine(GetSessionDialogueCoroutine(sessionId));
+        }
+
+        private IEnumerator GetSessionDialogueCoroutine(int sessionId)
+        {
+            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/session/{sessionId}/dialogue"))
+            {
+                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                request.SetRequestHeader("X-Unity-Version", unityVersion);
+                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
+
+                yield return request.SendWebRequest();
+
+                if (request.result == UnityWebRequest.Result.Success)
+                {
+                    var response = JsonUtility.FromJson<APIResponse<DialogueData>>(request.downloadHandler.text);
+
+                    if (response.success)
+                    {
+                        OnDialogueDataReceived?.Invoke(response.data);
+                        Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre}");
+                    }
+                    else
+                    {
+                        OnError?.Invoke(response.message);
+                        Debug.LogError($"Error obteniendo diálogo de sesión: {response.message}");
+                    }
+                }
+                else
+                {
+                    OnError?.Invoke($"Error obteniendo diálogo de sesión: {request.error}");
+                    Debug.LogError($"Error obteniendo diálogo de sesión: {request.error}");
                 }
             }
         }
@@ -647,6 +743,120 @@ namespace JuiciosSimulator.API
         public string fecha_creacion;
         public int participantes_conectados;
         public List<JuiciosSimulator.API.Participante> participantes;
+    }
+
+    [Serializable]
+    public class SessionData
+    {
+        public SessionInfo session;
+        public RoleInfo role;
+        public AssignmentInfo assignment;
+        public string server_time;
+    }
+
+    [Serializable]
+    public class SessionInfo
+    {
+        public int id;
+        public string nombre;
+        public string descripcion;
+        public string estado;
+        public string fecha_inicio;
+        public string fecha_fin;
+        public Dictionary<string, object> configuracion;
+        public InstructorInfo instructor;
+    }
+
+    [Serializable]
+    public class InstructorInfo
+    {
+        public int id;
+        public string name;
+        public string email;
+    }
+
+    [Serializable]
+    public class RoleInfo
+    {
+        public int id;
+        public string nombre;
+        public string descripcion;
+        public string color;
+        public string icono;
+    }
+
+    [Serializable]
+    public class AssignmentInfo
+    {
+        public int id;
+        public bool confirmado;
+        public string notas;
+        public string fecha_asignacion;
+    }
+
+    [Serializable]
+    public class DialogueData
+    {
+        public DialogueInfo dialogue;
+        public SessionInfo session_info;
+        public UserRoleInfo user_role;
+        public string server_time;
+    }
+
+    [Serializable]
+    public class DialogueInfo
+    {
+        public int id;
+        public string nombre;
+        public string descripcion;
+        public List<RoleFlow> roles;
+    }
+
+    [Serializable]
+    public class RoleFlow
+    {
+        public int id;
+        public string nombre;
+        public string descripcion;
+        public string color;
+        public string icono;
+        public bool requerido;
+        public List<FlowInfo> flujos;
+    }
+
+    [Serializable]
+    public class FlowInfo
+    {
+        public int id;
+        public List<DialogueNode> dialogos;
+    }
+
+    [Serializable]
+    public class DialogueNode
+    {
+        public int id;
+        public string titulo;
+        public string contenido;
+        public string tipo;
+        public int posicion;
+        public List<DialogueOption> opciones;
+    }
+
+    [Serializable]
+    public class DialogueOption
+    {
+        public int id;
+        public string letra;
+        public string texto;
+        public int puntuacion;
+        public Dictionary<string, object> consecuencias;
+    }
+
+    [Serializable]
+    public class UserRoleInfo
+    {
+        public int id;
+        public string nombre;
     }
 
     #endregion

@@ -470,16 +470,23 @@
                                     <div class="punto-conexion punto-entrada" 
                                          :style="{ left: '50%', top: '-8px', transform: 'translateX(-50%)' }"
                                          @click.stop="seleccionarPuntoConexion(nodo.id, 'entrada', 0)"
-                                         title="Punto de entrada">
+                                         title="Punto de entrada - Todas las conexiones hacia este nodo">
+                                        <div class="punto-conexion-indicador">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </div>
                                     </div>
                                     
-                                    <!-- Puntos de salida (abajo) - A, B, C, D -->
+                                    <!-- Puntos de salida (abajo) - A, B, C -->
                                     <template x-for="(punto, index) in obtenerPuntosConexion(nodo).filter(p => p.tipo === 'salida')" :key="'salida-' + index">
                                         <div class="punto-conexion punto-salida" 
                                              :style="{ left: (punto.x - nodo.x - 8) + 'px', bottom: '-8px' }"
                                              :class="{ 'punto-ocupado': esPuntoOcupado(nodo.id, 'salida', index) }"
                                              @click.stop="seleccionarPuntoConexion(nodo.id, 'salida', index)"
-                                             :title="'Opción ' + String.fromCharCode(65 + index)">
+                                             :title="'Opción ' + String.fromCharCode(65 + index) + ' - ' + (nodo.respuestas[index]?.texto || 'Sin texto')">
+                                            <div class="punto-conexion-indicador" 
+                                                 :style="{ backgroundColor: nodo.respuestas[index]?.color || '#007bff' }"
+                                                 x-text="String.fromCharCode(65 + index)">
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -1199,7 +1206,7 @@ function dialogoEditorMejorado() {
         },
 
         obtenerColorOpcion(indice) {
-            const colores = ['#28a745', '#ffc107', '#fd7e14', '#6f42c1'];
+            const colores = ['#28a745', '#ffc107', '#fd7e14']; // Verde, Amarillo, Naranja para A, B, C
             return colores[indice] || '#007bff';
         },
 
@@ -1693,8 +1700,101 @@ function dialogoEditorMejorado() {
         },
 
         exportarImagen() {
-            // Implementar exportación a imagen
-            console.log('Exportar imagen - en desarrollo');
+            try {
+                // Crear un canvas temporal para capturar la imagen
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Calcular las dimensiones necesarias
+                const bounds = this.calcularBounds();
+                const padding = 50;
+                canvas.width = bounds.width + (padding * 2);
+                canvas.height = bounds.height + (padding * 2);
+                
+                // Configurar el contexto
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Dibujar las conexiones primero
+                this.conexiones.forEach(conexion => {
+                    ctx.strokeStyle = conexion.color || '#007bff';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(conexion.x1 - bounds.x + padding, conexion.y1 - bounds.y + padding);
+                    ctx.lineTo(conexion.x2 - bounds.x + padding, conexion.y2 - bounds.y + padding);
+                    ctx.stroke();
+                    
+                    // Dibujar texto de la conexión
+                    if (conexion.texto) {
+                        ctx.fillStyle = conexion.color || '#007bff';
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(conexion.texto, 
+                            (conexion.x1 + conexion.x2) / 2 - bounds.x + padding,
+                            (conexion.y1 + conexion.y2) / 2 - bounds.y + padding - 5);
+                    }
+                });
+                
+                // Dibujar los nodos
+                this.nodos.forEach(nodo => {
+                    const x = nodo.x - bounds.x + padding;
+                    const y = nodo.y - bounds.y + padding;
+                    
+                    // Dibujar rectángulo del nodo
+                    ctx.fillStyle = nodo.tieneError ? '#ffebee' : '#f8f9fa';
+                    ctx.strokeStyle = nodo.tieneError ? '#dc3545' : '#007bff';
+                    ctx.lineWidth = 2;
+                    ctx.fillRect(x, y, 250, 120);
+                    ctx.strokeRect(x, y, 250, 120);
+                    
+                    // Dibujar título
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(nodo.titulo, x + 10, y + 25);
+                    
+                    // Dibujar rol
+                    if (nodo.rol) {
+                        ctx.fillStyle = '#6c757d';
+                        ctx.font = '12px Arial';
+                        ctx.fillText(nodo.rol.nombre, x + 10, y + 45);
+                    }
+                    
+                    // Dibujar contenido
+                    if (nodo.contenido) {
+                        ctx.fillStyle = '#495057';
+                        ctx.font = '11px Arial';
+                        const contenido = nodo.contenido.substring(0, 80) + (nodo.contenido.length > 80 ? '...' : '');
+                        ctx.fillText(contenido, x + 10, y + 65);
+                    }
+                    
+                    // Dibujar opciones
+                    nodo.respuestas.slice(0, 3).forEach((respuesta, index) => {
+                        const opcionX = x + (index * 80) + 10;
+                        const opcionY = y + 85;
+                        
+                        ctx.fillStyle = respuesta.color || '#007bff';
+                        ctx.fillRect(opcionX, opcionY, 70, 25);
+                        
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(String.fromCharCode(65 + index), opcionX + 10, opcionY + 17);
+                        ctx.fillText(respuesta.texto.substring(0, 8), opcionX + 35, opcionY + 17);
+                    });
+                });
+                
+                // Descargar la imagen
+                const link = document.createElement('a');
+                link.download = `dialogo-${this.dialogoData.nombre || 'sin-nombre'}-${new Date().toISOString().split('T')[0]}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+                
+                this.mostrarMensaje('Imagen exportada exitosamente', 'success');
+            } catch (error) {
+                console.error('Error al exportar imagen:', error);
+                this.mostrarMensaje('Error al exportar imagen', 'error');
+            }
         },
 
         // Funciones existentes mejoradas (mantener compatibilidad)
@@ -1789,12 +1889,11 @@ function dialogoEditorMejorado() {
             // El primer nodo será automáticamente inicial
             const esPrimerNodo = this.nodos.length === 0;
             
-            // Crear opciones de respuesta automáticamente (A, B, C, D)
+            // Crear opciones de respuesta automáticamente (A, B, C)
             const opcionesRespuesta = [
                 { id: 'respuesta_A_' + Date.now(), texto: 'Opción A', color: '#28a745', puntuacion: 0, orden: 1, activo: true },
                 { id: 'respuesta_B_' + Date.now(), texto: 'Opción B', color: '#ffc107', puntuacion: 0, orden: 2, activo: true },
-                { id: 'respuesta_C_' + Date.now(), texto: 'Opción C', color: '#fd7e14', puntuacion: 0, orden: 3, activo: true },
-                { id: 'respuesta_D_' + Date.now(), texto: 'Opción D', color: '#6f42c1', puntuacion: 0, orden: 4, activo: true }
+                { id: 'respuesta_C_' + Date.now(), texto: 'Opción C', color: '#fd7e14', puntuacion: 0, orden: 3, activo: true }
             ];
 
             const nuevoNodo = {
@@ -1964,12 +2063,11 @@ function dialogoEditorMejorado() {
                     y: nodo.y - 10 // Arriba del nodo
                 };
             } else {
-                // 4 puntos de salida distribuidos horizontalmente abajo del nodo
+                // 3 puntos de salida distribuidos horizontalmente abajo del nodo (A, B, C)
                 const puntos = [
-                    { x: nodo.x + 20 },                    // Punto izquierdo
-                    { x: nodo.x + anchoNodo / 3 },         // Punto izquierdo-centro
-                    { x: nodo.x + (anchoNodo * 2) / 3 },   // Punto derecho-centro
-                    { x: nodo.x + anchoNodo - 20 }         // Punto derecho
+                    { x: nodo.x + 30 },                    // Opción A (izquierda)
+                    { x: centroX },                         // Opción B (centro)
+                    { x: nodo.x + anchoNodo - 30 }         // Opción C (derecha)
                 ];
                 
                 return {
@@ -1989,8 +2087,8 @@ function dialogoEditorMejorado() {
                 ...this.calcularPuntoConexion(nodo, 'entrada', 0)
             });
             
-            // 4 puntos de salida abajo del nodo (A, B, C, D)
-            for (let i = 0; i < 4; i++) {
+            // 3 puntos de salida abajo del nodo (A, B, C)
+            for (let i = 0; i < 3; i++) {
                 puntos.push({
                     tipo: 'salida',
                     indice: i,
@@ -2009,7 +2107,7 @@ function dialogoEditorMejorado() {
                 // Solo hay un punto de entrada, siempre está disponible
                 return puntos[0];
             } else {
-                // Para puntos de salida, buscar el primero disponible en orden A, B, C, D
+                // Para puntos de salida, buscar el primero disponible en orden A, B, C
                 const puntosOcupados = new Set();
                 this.conexiones.forEach(conexion => {
                     if (conexion.desde === nodo.id) {
@@ -2017,8 +2115,8 @@ function dialogoEditorMejorado() {
                     }
                 });
                 
-                // Buscar el primer punto disponible en orden (A=0, B=1, C=2, D=3)
-                for (let i = 0; i < 4; i++) {
+                // Buscar el primer punto disponible en orden (A=0, B=1, C=2)
+                for (let i = 0; i < 3; i++) {
                     if (!puntosOcupados.has(i)) {
                         return puntos[i];
                     }
@@ -2053,17 +2151,17 @@ function dialogoEditorMejorado() {
                         this.conectando = true;
                         this.nodoOrigenConexion = nodoId;
                         this.puntoOrigenConexion = { tipo, indice };
-                        const letraOpcion = String.fromCharCode(65 + indice);
+                        const letraOpcion = String.fromCharCode(65 + indice); // A, B, C
                         this.mostrarMensaje(`Opción ${letraOpcion} seleccionada. Haz clic en un punto de entrada para completar la conexión`, 'info');
                     } else {
-                        this.mostrarMensaje('Solo puedes iniciar conexiones desde las opciones A, B, C, D (abajo)', 'warning');
+                        this.mostrarMensaje('Solo puedes iniciar conexiones desde las opciones A, B, C (abajo)', 'warning');
                     }
                 } else {
                     // Completar conexión solo con puntos de entrada (arriba)
                     if (tipo === 'entrada' && this.puntoOrigenConexion.tipo === 'salida') {
                         this.completarConexionConPunto(nodoId, indice);
                     } else {
-                        this.mostrarMensaje('Debes conectar una opción (A, B, C, D) con un punto de entrada', 'warning');
+                        this.mostrarMensaje('Debes conectar una opción (A, B, C) con un punto de entrada', 'warning');
                     }
                 }
             }
@@ -2081,10 +2179,10 @@ function dialogoEditorMejorado() {
                 return;
             }
 
-            // Encontrar el siguiente punto de salida disponible (A, B, C, D)
+            // Encontrar el siguiente punto de salida disponible (A, B, C)
             const puntoOrigen = this.encontrarPuntoConexionDisponible(nodoOrigen, 'salida');
             if (!puntoOrigen) {
-                this.mostrarMensaje('No hay más opciones disponibles (máximo 4 conexiones)', 'warning');
+                this.mostrarMensaje('No hay más opciones disponibles (máximo 3 conexiones)', 'warning');
                 this.cancelarConexion();
                 return;
             }
@@ -2092,8 +2190,8 @@ function dialogoEditorMejorado() {
             // El punto de entrada siempre es el único disponible
             const puntoDestino = this.calcularPuntoConexion(nodoDestino, 'entrada', 0);
 
-            // Obtener la letra de la opción (A, B, C, D)
-            const letrasOpciones = ['A', 'B', 'C', 'D'];
+            // Obtener la letra de la opción (A, B, C)
+            const letrasOpciones = ['A', 'B', 'C'];
             const letraOpcion = letrasOpciones[puntoOrigen.indice];
 
             // Crear conexión
@@ -2298,7 +2396,7 @@ function dialogoEditorMejorado() {
             // Ordenar por punto de salida
             conexionesNodo.sort((a, b) => a.desdePunto - b.desdePunto);
             
-            // Reasignar puntos en orden A, B, C, D
+            // Reasignar puntos en orden A, B, C
             conexionesNodo.forEach((conexion, index) => {
                 const puntoAnterior = conexion.desdePunto;
                 const nuevoPunto = index;
@@ -2315,7 +2413,7 @@ function dialogoEditorMejorado() {
                         conexion.y1 = nuevoPuntoCoords.y;
                         
                         // Actualizar el texto de la opción
-                        const letrasOpciones = ['A', 'B', 'C', 'D'];
+                        const letrasOpciones = ['A', 'B', 'C'];
                         conexion.texto = `Opción ${letrasOpciones[nuevoPunto]}`;
                         conexion.color = this.obtenerColorOpcion(nuevoPunto);
                     }
@@ -2473,7 +2571,30 @@ function dialogoEditorMejorado() {
         },
 
         editarRespuesta(respuestaId) {
-            // Implementar edición de respuesta
+            const respuesta = this.nodos.flatMap(nodo => nodo.respuestas).find(r => r.id === respuestaId);
+            if (respuesta) {
+                this.respuestaEditando = { ...respuesta };
+                const modal = new bootstrap.Modal(document.getElementById('modalRespuesta'));
+                modal.show();
+            }
+        },
+
+        guardarRespuesta() {
+            // Encontrar el nodo que contiene esta respuesta
+            const nodoIndex = this.nodos.findIndex(nodo => 
+                nodo.respuestas.some(r => r.id === this.respuestaEditando.id)
+            );
+            
+            if (nodoIndex !== -1) {
+                const respuestaIndex = this.nodos[nodoIndex].respuestas.findIndex(r => r.id === this.respuestaEditando.id);
+                if (respuestaIndex !== -1) {
+                    this.nodos[nodoIndex].respuestas[respuestaIndex] = { ...this.respuestaEditando };
+                }
+            }
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalRespuesta'));
+            modal.hide();
+            this.guardarEstado();
         },
 
         onDrop(event) {
@@ -2484,11 +2605,90 @@ function dialogoEditorMejorado() {
         async guardar() {
             this.guardando = true;
             try {
-                // Implementar guardado
-                this.modificado = false;
-                this.mostrarMensaje('Guardado exitosamente', 'success');
+                // Validar estructura antes de guardar
+                this.validarEstructura();
+                if (this.erroresValidacionComputed.length > 0) {
+                    this.mostrarMensaje('Corrige los errores antes de guardar', 'error');
+                    return;
+                }
+
+                // Preparar datos para el servidor
+                const datosDialogo = {
+                    nombre: this.dialogoData.nombre,
+                    descripcion: this.dialogoData.descripcion,
+                    publico: this.dialogoData.publico,
+                    nodos: this.nodos.map(nodo => ({
+                        id: nodo.id.startsWith('temp_') ? null : nodo.id,
+                        titulo: nodo.titulo,
+                        contenido: nodo.contenido,
+                        tipo: nodo.tipo,
+                        rol_id: nodo.rol_id,
+                        es_inicial: nodo.es_inicial,
+                        es_final: nodo.es_final,
+                        orden: nodo.orden || 0,
+                        posicion: { x: nodo.x, y: nodo.y },
+                        respuestas: nodo.respuestas.map(respuesta => ({
+                            id: respuesta.id.startsWith('respuesta_') ? null : respuesta.id,
+                            texto: respuesta.texto,
+                            descripcion: respuesta.descripcion || '',
+                            orden: respuesta.orden,
+                            puntuacion: respuesta.puntuacion,
+                            color: respuesta.color,
+                            activo: respuesta.activo
+                        }))
+                    })),
+                    conexiones: this.conexiones.map(conexion => ({
+                        id: conexion.id.startsWith('conexion_') ? null : conexion.id,
+                        desde: conexion.desde,
+                        hacia: conexion.hacia,
+                        desde_punto: conexion.desdePunto,
+                        hacia_punto: conexion.haciaPunto,
+                        texto: conexion.texto,
+                        color: conexion.color,
+                        puntuacion: conexion.puntuacion
+                    }))
+                };
+
+                let response;
+                if (this.dialogo && this.dialogo.id) {
+                    // Actualizar diálogo existente
+                    response = await fetch(`/api/dialogos/${this.dialogo.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify(datosDialogo)
+                    });
+                } else {
+                    // Crear nuevo diálogo
+                    response = await fetch('/api/dialogos', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify(datosDialogo)
+                    });
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.modificado = false;
+                    this.mostrarMensaje('Guardado exitosamente', 'success');
+                    
+                    // Si es un nuevo diálogo, actualizar la URL
+                    if (!this.dialogo || !this.dialogo.id) {
+                        window.history.pushState({}, '', `/dialogos/${result.data.id}/editor`);
+                        this.dialogo = result.data;
+                    }
+                } else {
+                    throw new Error(result.message || 'Error al guardar');
+                }
             } catch (error) {
-                this.mostrarMensaje('Error al guardar', 'error');
+                console.error('Error al guardar:', error);
+                this.mostrarMensaje('Error al guardar: ' + error.message, 'error');
             } finally {
                 this.guardando = false;
             }
@@ -2504,11 +2704,126 @@ function dialogoEditorMejorado() {
                 this.mostrarMensaje('Corrige los errores antes de activar', 'error');
                 return;
             }
-            // Implementar activación
+
+            try {
+                // Primero guardar el diálogo
+                await this.guardar();
+
+                // Luego activarlo
+                const response = await fetch(`/api/dialogos/${this.dialogo.id}/activar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.mostrarMensaje('Diálogo activado exitosamente', 'success');
+                    // Recargar la página para reflejar el cambio de estado
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    throw new Error(result.message || 'Error al activar diálogo');
+                }
+            } catch (error) {
+                console.error('Error al activar diálogo:', error);
+                this.mostrarMensaje('Error al activar diálogo: ' + error.message, 'error');
+            }
         },
 
         previsualizar() {
-            // Implementar previsualización
+            // Validar estructura antes de previsualizar
+            this.validarEstructura();
+            if (this.erroresValidacionComputed.length > 0) {
+                this.mostrarMensaje('Corrige los errores antes de previsualizar', 'error');
+                return;
+            }
+
+            // Crear ventana de previsualización
+            const ventanaPreview = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+            
+            const htmlPreview = `
+                <!DOCTYPE html>
+                <html lang="es">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Previsualización: ${this.dialogoData.nombre}</title>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .dialogo-preview { max-width: 600px; margin: 20px auto; }
+                        .nodo-preview { 
+                            border: 2px solid #007bff; 
+                            border-radius: 8px; 
+                            padding: 15px; 
+                            margin: 10px 0; 
+                            background: #f8f9fa;
+                        }
+                        .opcion-preview { 
+                            background: #e9ecef; 
+                            border-left: 4px solid #007bff; 
+                            padding: 8px; 
+                            margin: 5px 0; 
+                            border-radius: 4px;
+                        }
+                        .nodo-inicial { border-color: #28a745; background: #d4edda; }
+                        .nodo-final { border-color: #dc3545; background: #f8d7da; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="dialogo-preview">
+                            <h2 class="text-center mb-4">${this.dialogoData.nombre}</h2>
+                            <p class="text-muted text-center mb-4">${this.dialogoData.descripcion || 'Sin descripción'}</p>
+                            
+                            ${this.nodos.map(nodo => `
+                                <div class="nodo-preview ${nodo.es_inicial ? 'nodo-inicial' : ''} ${nodo.es_final ? 'nodo-final' : ''}">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="mb-0">${nodo.titulo}</h5>
+                                        <div>
+                                            ${nodo.es_inicial ? '<span class="badge bg-success">Inicial</span>' : ''}
+                                            ${nodo.es_final ? '<span class="badge bg-danger">Final</span>' : ''}
+                                        </div>
+                                    </div>
+                                    ${nodo.rol ? `<p class="text-muted mb-2"><strong>Rol:</strong> ${nodo.rol.nombre}</p>` : ''}
+                                    ${nodo.contenido ? `<p class="mb-3">${nodo.contenido}</p>` : ''}
+                                    
+                                    ${nodo.respuestas && nodo.respuestas.length > 0 ? `
+                                        <div class="opciones-container">
+                                            <h6>Opciones de respuesta:</h6>
+                                            ${nodo.respuestas.slice(0, 3).map((respuesta, index) => `
+                                                <div class="opcion-preview">
+                                                    <strong>Opción ${String.fromCharCode(65 + index)}:</strong> ${respuesta.texto}
+                                                    ${respuesta.puntuacion ? `<span class="badge bg-secondary ms-2">+${respuesta.puntuacion}</span>` : ''}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                            
+                            <div class="text-center mt-4">
+                                <small class="text-muted">
+                                    Total de nodos: ${this.nodos.length} | 
+                                    Total de conexiones: ${this.conexiones.length} | 
+                                    Generado: ${new Date().toLocaleString()}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            ventanaPreview.document.write(htmlPreview);
+            ventanaPreview.document.close();
+            
+            this.mostrarMensaje('Previsualización abierta en nueva ventana', 'success');
         },
 
         exportar() {

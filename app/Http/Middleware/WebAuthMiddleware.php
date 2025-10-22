@@ -28,6 +28,17 @@ class WebAuthMiddleware
         Log::info('Method: ' . $request->method());
         Log::info('IP: ' . $request->ip());
         
+        // Para rutas API, usar autenticación JWT
+        if (str_starts_with($request->path(), 'api/')) {
+            return $this->handleApiAuth($request, $next);
+        }
+        
+        // Para rutas web, usar autenticación de sesión normal
+        return $this->handleWebAuth($request, $next);
+    }
+    
+    private function handleApiAuth(Request $request, Closure $next)
+    {
         // Verificar si el usuario está autenticado en la sesión web
         $isAuthenticated = Auth::check();
         $user = Auth::user();
@@ -84,7 +95,23 @@ class WebAuthMiddleware
             }
         }
         
-        Log::info('Usuario NO autenticado, redirigiendo a login');
+        Log::info('Usuario NO autenticado, devolviendo JSON 401');
+        return response()->json([
+            'success' => false,
+            'message' => 'No autorizado',
+            'error' => 'Token de autenticación requerido'
+        ], 401);
+    }
+    
+    private function handleWebAuth(Request $request, Closure $next)
+    {
+        // Para rutas web, usar autenticación de sesión normal
+        if (Auth::check()) {
+            Log::info('Usuario autenticado en sesión web, continuando...');
+            return $next($request);
+        }
+        
+        Log::info('Usuario NO autenticado en sesión web, redirigiendo a login');
         return redirect()->route('login');
     }
 }

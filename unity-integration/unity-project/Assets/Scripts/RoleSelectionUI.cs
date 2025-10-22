@@ -22,7 +22,7 @@ public class RoleSelectionUI : MonoBehaviourPunCallbacks
         // El botón de iniciar debe estar desactivado al principio
         startButton.interactable = false;
         // Asignamos la acción del botón de iniciar
-        startButton.onClick.AddListener(() => gestionRedJugador.JoinRoom());
+        startButton.onClick.AddListener(() => gestionRedJugador.JoinSessionRoom());
 
     }
 

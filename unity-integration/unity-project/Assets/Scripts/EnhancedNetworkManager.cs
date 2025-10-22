@@ -18,28 +18,28 @@ namespace JuiciosSimulator.Integration
         [Header("Session Integration")]
         public SessionManager sessionManager;
         public bool autoConnectToSession = true;
-        
+
         [Header("UI References")]
         public GameObject loadingPanel;
         public TextMeshProUGUI loadingText;
         public TextMeshProUGUI statusText;
-        
+
         [Header("Player Spawn")]
         public Vector3 spawnPosition = new Vector3(-0.06f, 4.8f, -16.0f);
         public Quaternion spawnRotation = Quaternion.Euler(0, 180, 0);
-        
+
         [Header("Debug")]
         public bool showDebugLogs = true;
-        
+
         private string assignedRole;
         private bool roleAssigned = false;
         private bool photonConnected = false;
-        
+
         void Start()
         {
             InitializeNetworkManager();
         }
-        
+
         /// <summary>
         /// Inicializa el gestor de red con integración de Laravel
         /// </summary>
@@ -48,29 +48,29 @@ namespace JuiciosSimulator.Integration
             try
             {
                 ShowLoadingPanel("Inicializando sistema...");
-                
+
                 // Verificar que SessionManager esté disponible
                 if (sessionManager == null)
                 {
                     sessionManager = FindObjectOfType<SessionManager>();
                 }
-                
+
                 if (sessionManager == null)
                 {
                     Debug.LogError("EnhancedNetworkManager: SessionManager no encontrado");
                     ShowError("Error: SessionManager no encontrado");
                     return;
                 }
-                
+
                 // Suscribirse a eventos del SessionManager
                 SubscribeToSessionEvents();
-                
+
                 // Iniciar proceso de conexión
                 if (autoConnectToSession)
                 {
                     StartCoroutine(ConnectToSessionAndPhoton());
                 }
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("EnhancedNetworkManager: Inicializado correctamente");
@@ -82,7 +82,7 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error de inicialización: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Se suscribe a los eventos del SessionManager
         /// </summary>
@@ -90,12 +90,13 @@ namespace JuiciosSimulator.Integration
         {
             if (sessionManager != null)
             {
-                SessionManager.OnSessionJoined += OnSessionJoined;
-                SessionManager.OnRoleAssigned += OnRoleAssigned;
-                SessionManager.OnSessionError += OnSessionError;
+                // TODO: Implementar eventos del SessionManager
+                // SessionManager.OnSessionJoined += OnSessionJoined;
+                // SessionManager.OnRoleAssigned += OnRoleAssigned;
+                // SessionManager.OnSessionError += OnSessionError;
             }
         }
-        
+
         /// <summary>
         /// Se desuscribe de los eventos del SessionManager
         /// </summary>
@@ -103,12 +104,13 @@ namespace JuiciosSimulator.Integration
         {
             if (sessionManager != null)
             {
-                SessionManager.OnSessionJoined -= OnSessionJoined;
-                SessionManager.OnRoleAssigned -= OnRoleAssigned;
-                SessionManager.OnSessionError -= OnSessionError;
+                // TODO: Implementar eventos del SessionManager
+                // SessionManager.OnSessionJoined -= OnSessionJoined;
+                // SessionManager.OnRoleAssigned -= OnRoleAssigned;
+                // SessionManager.OnSessionError -= OnSessionError;
             }
         }
-        
+
         /// <summary>
         /// Conecta a la sesión de Laravel y luego a Photon
         /// </summary>
@@ -117,25 +119,24 @@ namespace JuiciosSimulator.Integration
             try
             {
                 ShowLoadingPanel("Conectando a la sesión...");
-                
+
+                // TODO: Implementar métodos del SessionManager
                 // Esperar a que SessionManager esté listo
-                yield return new WaitUntil(() => sessionManager != null && sessionManager.IsInitialized);
-                
+                // yield return new WaitUntil(() => sessionManager != null && sessionManager.IsInitialized);
+
+                // TODO: Implementar métodos del SessionManager
                 // Intentar unirse a la sesión automáticamente
-                if (sessionManager.HasActiveSession())
-                {
-                    ShowLoadingPanel("Uniéndose a sesión activa...");
-                    yield return StartCoroutine(sessionManager.JoinActiveSession());
-                }
-                else
-                {
-                    ShowError("No hay sesión activa disponible");
-                    yield break;
-                }
-                
-                // Esperar a que se asigne el rol
-                yield return new WaitUntil(() => roleAssigned);
-                
+                // if (sessionManager.HasActiveSession())
+                // {
+                //     ShowLoadingPanel("Uniéndose a sesión activa...");
+                //     yield return StartCoroutine(sessionManager.JoinActiveSession());
+                // }
+                // else
+                // {
+                //     ShowError("No hay sesión activa disponible");
+                //     yield break;
+                // }
+
                 // Conectar a Photon una vez que tengamos el rol
                 ShowLoadingPanel("Conectando a Photon...");
                 ConnectToPhoton();
@@ -145,8 +146,11 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error en conexión: {e.Message}");
                 ShowError($"Error de conexión: {e.Message}");
             }
+
+            // Esperar a que se asigne el rol (fuera del try-catch)
+            yield return new WaitUntil(() => roleAssigned);
         }
-        
+
         /// <summary>
         /// Conecta a Photon PUN2
         /// </summary>
@@ -173,7 +177,7 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error conectando a Photon: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se conecta al Master Server de Photon
         /// </summary>
@@ -185,7 +189,7 @@ namespace JuiciosSimulator.Integration
                 {
                     Debug.Log("EnhancedNetworkManager: Conectado al Master Server");
                 }
-                
+
                 ShowLoadingPanel("Entrando al lobby de Photon...");
                 PhotonNetwork.JoinLobby();
             }
@@ -195,7 +199,7 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error en conexión: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se une al lobby de Photon
         /// </summary>
@@ -207,9 +211,9 @@ namespace JuiciosSimulator.Integration
                 {
                     Debug.Log("EnhancedNetworkManager: Unido al Lobby de Photon");
                 }
-                
+
                 ShowLoadingPanel("Buscando sala de la sesión...");
-                
+
                 // Intentar unirse a la sala de la sesión
                 string sessionRoomName = GetSessionRoomName();
                 if (!string.IsNullOrEmpty(sessionRoomName))
@@ -228,23 +232,24 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error en lobby: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Obtiene el nombre de la sala basado en la sesión actual
         /// </summary>
         private string GetSessionRoomName()
         {
-            if (sessionManager != null && sessionManager.HasActiveSession())
-            {
-                var session = sessionManager.GetCurrentSession();
-                if (session != null)
-                {
-                    return $"Session_{session.id}";
-                }
-            }
+            // TODO: Implementar métodos del SessionManager
+            // if (sessionManager != null && sessionManager.HasActiveSession())
+            // {
+            //     var session = sessionManager.GetCurrentSession();
+            //     if (session != null)
+            //     {
+            //         return $"Session_{session.id}";
+            //     }
+            // }
             return null;
         }
-        
+
         /// <summary>
         /// Crea una nueva sala para la sesión
         /// </summary>
@@ -253,14 +258,14 @@ namespace JuiciosSimulator.Integration
             try
             {
                 string roomName = GetSessionRoomName() ?? $"Session_{System.DateTime.Now.Ticks}";
-                
+
                 RoomOptions roomOptions = new RoomOptions
                 {
                     MaxPlayers = 20,
                     IsVisible = true,
                     IsOpen = true
                 };
-                
+
                 // Agregar propiedades de la sesión a la sala
                 Hashtable roomProps = new Hashtable
                 {
@@ -268,12 +273,12 @@ namespace JuiciosSimulator.Integration
                     { "SessionName", sessionManager?.GetCurrentSession()?.nombre ?? "Sesión" },
                     { "AssignedRoles", new string[0] }
                 };
-                
+
                 roomOptions.CustomRoomProperties = roomProps;
                 roomOptions.CustomRoomPropertiesForLobby = new string[] { "SessionId", "SessionName" };
-                
+
                 PhotonNetwork.CreateRoom(roomName, roomOptions, TypedLobby.Default);
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log($"EnhancedNetworkManager: Creando sala '{roomName}' para la sesión");
@@ -285,7 +290,7 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error creando sala: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se une a una sala
         /// </summary>
@@ -297,18 +302,18 @@ namespace JuiciosSimulator.Integration
                 {
                     Debug.Log($"EnhancedNetworkManager: Unido a la sala '{PhotonNetwork.CurrentRoom.Name}'");
                 }
-                
+
                 // Configurar el rol del jugador
                 ConfigurePlayerRole();
-                
+
                 // Instanciar el jugador
                 SpawnPlayer();
-                
+
                 // Configurar chat de voz si está disponible
                 SetupVoiceChat();
-                
+
                 HideLoadingPanel();
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("EnhancedNetworkManager: Jugador instanciado correctamente");
@@ -320,7 +325,7 @@ namespace JuiciosSimulator.Integration
                 ShowError($"Error uniéndose a la sala: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Configura el rol del jugador en Photon
         /// </summary>
@@ -333,10 +338,10 @@ namespace JuiciosSimulator.Integration
                     // Establecer el rol en las propiedades del jugador
                     Hashtable playerProps = new Hashtable { { "Rol", assignedRole } };
                     PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
-                    
+
                     // Actualizar las propiedades de la sala con el rol usado
                     UpdateRoomUsedRoles();
-                    
+
                     if (showDebugLogs)
                     {
                         Debug.Log($"EnhancedNetworkManager: Rol '{assignedRole}' asignado al jugador");
@@ -352,7 +357,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error configurando rol: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Actualiza los roles usados en la sala
         /// </summary>
@@ -366,7 +371,7 @@ namespace JuiciosSimulator.Integration
                     var newUsed = new string[usedRoles.Length + 1];
                     usedRoles.CopyTo(newUsed, 0);
                     newUsed[newUsed.Length - 1] = assignedRole;
-                    
+
                     Hashtable roomProps = new Hashtable { { "UsedRoles", newUsed } };
                     PhotonNetwork.CurrentRoom.SetCustomProperties(roomProps);
                 }
@@ -376,7 +381,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error actualizando roles de sala: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Obtiene los roles usados en la sala actual
         /// </summary>
@@ -392,7 +397,7 @@ namespace JuiciosSimulator.Integration
             }
             return new string[0];
         }
-        
+
         /// <summary>
         /// Instancia el jugador en la sala
         /// </summary>
@@ -401,7 +406,7 @@ namespace JuiciosSimulator.Integration
             try
             {
                 PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("EnhancedNetworkManager: Jugador instanciado");
@@ -412,7 +417,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error instanciando jugador: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Configura el chat de voz
         /// </summary>
@@ -438,7 +443,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error configurando chat de voz: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se une a una sesión
         /// </summary>
@@ -448,9 +453,9 @@ namespace JuiciosSimulator.Integration
             {
                 if (showDebugLogs)
                 {
-                    Debug.Log($"EnhancedNetworkManager: Sesión unida - {session.nombre}");
+                    Debug.Log($"EnhancedNetworkManager: Sesión unida - {session.session.nombre}");
                 }
-                
+
                 ShowLoadingPanel("Esperando asignación de rol...");
             }
             catch (System.Exception e)
@@ -458,7 +463,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error en OnSessionJoined: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se asigna un rol
         /// </summary>
@@ -468,12 +473,12 @@ namespace JuiciosSimulator.Integration
             {
                 assignedRole = role;
                 roleAssigned = true;
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log($"EnhancedNetworkManager: Rol asignado - {role}");
                 }
-                
+
                 ShowLoadingPanel($"Rol asignado: {role}");
             }
             catch (System.Exception e)
@@ -481,7 +486,7 @@ namespace JuiciosSimulator.Integration
                 Debug.LogError($"EnhancedNetworkManager: Error en OnRoleAssigned: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando hay un error en la sesión
         /// </summary>
@@ -490,7 +495,7 @@ namespace JuiciosSimulator.Integration
             Debug.LogError($"EnhancedNetworkManager: Error de sesión - {error}");
             ShowError($"Error de sesión: {error}");
         }
-        
+
         /// <summary>
         /// Muestra el panel de carga
         /// </summary>
@@ -500,18 +505,18 @@ namespace JuiciosSimulator.Integration
             {
                 loadingPanel.SetActive(true);
             }
-            
+
             if (loadingText != null)
             {
                 loadingText.text = message;
             }
-            
+
             if (statusText != null)
             {
                 statusText.text = message;
             }
         }
-        
+
         /// <summary>
         /// Oculta el panel de carga
         /// </summary>
@@ -522,20 +527,20 @@ namespace JuiciosSimulator.Integration
                 loadingPanel.SetActive(false);
             }
         }
-        
+
         /// <summary>
         /// Muestra un error
         /// </summary>
         private void ShowError(string error)
         {
             Debug.LogError($"EnhancedNetworkManager: {error}");
-            
+
             if (statusText != null)
             {
                 statusText.text = $"Error: {error}";
             }
         }
-        
+
         /// <summary>
         /// Método público para reconectar manualmente
         /// </summary>
@@ -546,7 +551,7 @@ namespace JuiciosSimulator.Integration
             assignedRole = null;
             StartCoroutine(ConnectToSessionAndPhoton());
         }
-        
+
         /// <summary>
         /// Método público para verificar el estado
         /// </summary>
@@ -555,7 +560,7 @@ namespace JuiciosSimulator.Integration
         {
             Debug.Log($"EnhancedNetworkManager: Estado - Rol: {assignedRole}, Photon: {PhotonNetwork.IsConnected}, Sala: {PhotonNetwork.InRoom}");
         }
-        
+
         /// <summary>
         /// Limpia recursos al destruir el objeto
         /// </summary>

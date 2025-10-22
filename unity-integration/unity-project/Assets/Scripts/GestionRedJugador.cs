@@ -2,14 +2,30 @@ using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
 using ExitGames.Client.Photon;
+using JuiciosSimulator.API;
+using JuiciosSimulator;
+using JuiciosSimulator.Dialogue;
 
 public class GestionRedJugador : MonoBehaviourPunCallbacks
 {
-    public GameObject rolSelectionPanel;
-    public Camera uiCamara;
+    [Header("Referencias del Sistema")]
+    public LaravelAPI laravelAPI;
+    public GameInitializer gameInitializer;
+
+    [Header("Configuración de Sala")]
+    public string sessionRoomName = "SalaOXXO"; // Nombre fijo para la sesión OXXO
+
+    private bool hasAssignedRole = false;
+    private string assignedRole = "";
 
     void Start()
     {
+        // Obtener referencias si no están asignadas
+        if (laravelAPI == null)
+            laravelAPI = FindObjectOfType<LaravelAPI>();
+        if (gameInitializer == null)
+            gameInitializer = FindObjectOfType<GameInitializer>();
+
         ConnectToPhoton();
     }
 
@@ -25,31 +41,60 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     public override void OnConnectedToMaster()
     {
         Debug.Log("Conectado al Master Server. Entrando al lobby...");
-        PhotonNetwork.JoinLobby(); // NECESARIO
+        PhotonNetwork.JoinLobby();
     }
 
     public override void OnJoinedLobby()
     {
-        Debug.Log("Unido al Lobby. Esperando la selección de un rol.");
+        Debug.Log("Unido al Lobby. Obteniendo rol asignado desde Laravel...");
 
-        rolSelectionPanel.SetActive(true);
-        if (uiCamara != null)
-        {
-            uiCamara.enabled = true;
-        }
-
-        // Llama al método para inicializar la UI de roles
-        if (rolSelectionPanel != null)
-        {
-            rolSelectionPanel.GetComponent<RoleSelectionUI>().InitializeUI();
-        }
-        //PhotonNetwork.JoinRandomRoom();
+        // Obtener el rol asignado desde la sesión activa
+        GetAssignedRoleFromSession();
     }
 
-    public void JoinRoom()
+    private void GetAssignedRoleFromSession()
     {
-        Debug.Log("Uniendo a la sala aleatoria...");
-        PhotonNetwork.JoinRandomRoom();
+        if (gameInitializer != null && gameInitializer.currentSessionData != null)
+        {
+            // Usar el rol de la sesión activa
+            assignedRole = gameInitializer.currentSessionData.role.nombre;
+            hasAssignedRole = true;
+
+            Debug.Log($"Rol asignado desde sesión: {assignedRole}");
+
+            // Unirse directamente a la sala de la sesión
+            JoinSessionRoom();
+        }
+        else
+        {
+            Debug.LogWarning("No hay sesión activa. Usando rol por defecto.");
+            assignedRole = "Observador"; // Rol por defecto
+            hasAssignedRole = true;
+            JoinSessionRoom();
+        }
+    }
+
+    public void JoinSessionRoom()
+    {
+        Debug.Log($"Uniéndose a la sala de sesión: {sessionRoomName}");
+
+        // Intentar unirse a la sala existente primero
+        PhotonNetwork.JoinRoom(sessionRoomName);
+    }
+
+    public override void OnJoinRoomFailed(short returnCode, string message)
+    {
+        Debug.Log($"No se pudo unir a la sala {sessionRoomName}. Creando nueva sala...");
+
+        // Crear la sala si no existe
+        RoomOptions roomOptions = new RoomOptions
+        {
+            MaxPlayers = 20,
+            IsVisible = true,
+            IsOpen = true
+        };
+
+        PhotonNetwork.CreateRoom(sessionRoomName, roomOptions, TypedLobby.Default);
     }
 
     public override void OnJoinRandomFailed(short returnCode, string message)
@@ -63,49 +108,78 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
-        Debug.Log("Unido a una sala. Instanciando jugador...");
+        Debug.Log("Unido a una sala. Configurando jugador con rol asignado...");
 
-        // Desactivar el panel de selección de rol
-        if (rolSelectionPanel != null)
+        // Configurar el rol del jugador en Photon
+        if (hasAssignedRole)
         {
-            rolSelectionPanel.SetActive(false);
+            Hashtable playerProps = new Hashtable() { { "Rol", assignedRole } };
+            PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
+
+            Debug.Log($"Jugador configurado con rol: {assignedRole}");
         }
 
-        // Desactivar la camara de UI
-        if (uiCamara != null)
-        {
-            uiCamara.enabled = false;
-        }
-
-        // 1. Obtener el rol que el jugador seleccionó en el lobby.
-        object selectedRoleObject;
-        if (PhotonNetwork.LocalPlayer.CustomProperties.TryGetValue("Rol", out selectedRoleObject))
-        {
-            string selectedRole = selectedRoleObject.ToString();
-
-            // 2. Actualizar las propiedades de la sala con el rol usado.
-            string[] usedRoles = GetUsedRoles();
-
-            var newUsed = new string[usedRoles.Length + 1];
-            usedRoles.CopyTo(newUsed, 0);
-            newUsed[newUsed.Length - 1] = selectedRole;
-
-            Hashtable roomProps = new Hashtable() { { "UsedRoles", newUsed } };
-            PhotonNetwork.CurrentRoom.SetCustomProperties(roomProps);
-        }
-
-        // Instanciar el jugador
-        Vector3 spawnPosition = new Vector3(-0.06f, 4.8f, -16.0f);
+        // Instanciar el jugador con el rol asignado
+        Vector3 spawnPosition = GetSpawnPositionForRole(assignedRole);
         Quaternion spawnRotation = Quaternion.Euler(0, 180, 0);
-        PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
 
+        // Instanciar el prefab del jugador
+        GameObject playerPrefab = PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
+
+        // Configurar el jugador con su rol
+        if (playerPrefab != null)
+        {
+            var playerController = playerPrefab.GetComponent<PlayerController>();
+            if (playerController != null)
+            {
+                playerController.SetRole(assignedRole);
+            }
+        }
+
+        // Inicializar el sistema de audio
+        InitializeAudioSystem();
+
+        // Notificar al sistema de diálogos que un jugador se unió
+        NotifyPlayerJoined(assignedRole);
+    }
+
+    private Vector3 GetSpawnPositionForRole(string role)
+    {
+        // Posiciones específicas para cada rol en la sala
+        switch (role.ToLower())
+        {
+            case "juez":
+                return new Vector3(0, 1, 0);
+            case "fiscal":
+                return new Vector3(-3, 1, 0);
+            case "defensor":
+                return new Vector3(3, 1, 0);
+            case "testigo":
+                return new Vector3(0, 1, 3);
+            case "acusado":
+                return new Vector3(0, 1, -3);
+            default:
+                return new Vector3(Random.Range(-5, 5), 1, Random.Range(-5, 5));
+        }
+    }
+
+    private void InitializeAudioSystem()
+    {
 #if UNITY_WEBGL && !UNITY_EDITOR
-    string roomId = PhotonNetwork.CurrentRoom.Name;
-    int actorId = PhotonNetwork.LocalPlayer.ActorNumber;
-
-    // Llamar a la función JavaScript con el RoomID y el número de jugador
-    Application.ExternalCall("initVoiceCall", roomId, actorId);
+        string roomId = PhotonNetwork.CurrentRoom.Name;
+        int actorId = PhotonNetwork.LocalPlayer.ActorNumber;
+        Application.ExternalCall("initVoiceCall", roomId, actorId);
 #endif
+    }
+
+    private void NotifyPlayerJoined(string role)
+    {
+        // Notificar al sistema de diálogos que un jugador se unió
+        var dialogueManager = FindObjectOfType<DialogueManager>();
+        if (dialogueManager != null)
+        {
+            dialogueManager.OnPlayerJoined(role);
+        }
     }
 
     // Obtener los roles usados en la sala

@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             EstudiantesSeeder::class,
             InstructoresSeeder::class,
             DialogoJuicioPenalSeeder::class,
+            RolesDialogoSeeder::class,
+            DialogoRoboOXXOCompletoSeeder::class, // Nuevo seeder del caso OXXO
         ]);
     }
 }

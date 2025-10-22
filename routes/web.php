@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SesionController;
 use App\Http\Controllers\DialogoController;
 use App\Http\Controllers\RolController;
+use App\Http\Controllers\PanelDialogoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,6 +52,11 @@ Route::get('/register', function () {
 Route::post('/login', [AuthController::class, 'loginWeb'])->name('login.web');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Página de información sobre la migración (pública)
+Route::get('/dialogos/migration-info', function() {
+    return view('dialogos.migration-info');
+})->name('dialogos.migration-info');
+
 // Rutas protegidas
 Route::middleware(['web.auth'])->group(function () {
     
@@ -68,14 +74,33 @@ Route::middleware(['web.auth'])->group(function () {
     Route::post('/sesiones/{sesion}/iniciar', [SesionController::class, 'iniciar'])->name('sesiones.iniciar');
     Route::post('/sesiones/{sesion}/finalizar', [SesionController::class, 'finalizar'])->name('sesiones.finalizar');
     
-    // Diálogos
-    Route::get('/dialogos', [DialogoController::class, 'indexWeb'])->name('dialogos.index');
-    Route::get('/dialogos/create', function() { return view('dialogos.editor-mejorado'); })->name('dialogos.create');
-    Route::get('/dialogos/import', function() { return view('dialogos.import'); })->name('dialogos.import');
-    Route::get('/dialogos/{dialogo}', [DialogoController::class, 'showWeb'])->name('dialogos.show');
-    Route::get('/dialogos/{dialogo}/edit', function($id) { 
+    // API endpoints para sesiones
+    Route::get('/api/sesiones/{sesion}/usuarios-asignados', [SesionController::class, 'getUsuariosAsignados'])->name('sesiones.usuarios-asignados');
+    
+    // Diálogos - Redirigir al nuevo sistema
+    Route::get('/dialogos', function() {
+        return redirect()->route('panel-dialogos.index');
+    })->name('dialogos.index');
+    
+    Route::get('/dialogos/create', function() {
+        return redirect()->route('panel-dialogos.create');
+    })->name('dialogos.create');
+    
+    // Diálogos (Sistema Legacy)
+    Route::get('/dialogos-legacy', [DialogoController::class, 'indexWeb'])->name('dialogos-legacy.index');
+    Route::get('/dialogos-legacy/create', function() { return view('dialogos.editor-mejorado'); })->name('dialogos-legacy.create');
+    Route::get('/dialogos-legacy/import', function() { return view('dialogos.import'); })->name('dialogos-legacy.import');
+    Route::get('/dialogos-legacy/{dialogo}', [DialogoController::class, 'showWeb'])->name('dialogos-legacy.show');
+    Route::get('/dialogos-legacy/{dialogo}/edit', function($id) { 
         return view('dialogos.editor-mejorado', ['dialogo' => \App\Models\Dialogo::findOrFail($id)]); 
-    })->name('dialogos.edit');
+    })->name('dialogos-legacy.edit');
+    
+    // Panel de Diálogos (Nuevo Sistema)
+    Route::get('/panel-dialogos', [PanelDialogoController::class, 'indexWeb'])->name('panel-dialogos.index');
+    Route::get('/panel-dialogos/create', [PanelDialogoController::class, 'create'])->name('panel-dialogos.create');
+    Route::get('/panel-dialogos/{escenario}', [PanelDialogoController::class, 'show'])->name('panel-dialogos.show');
+    Route::get('/panel-dialogos/{escenario}/editor', [PanelDialogoController::class, 'editor'])->name('panel-dialogos.editor');
+    Route::get('/panel-dialogos/{escenario}/edit', [PanelDialogoController::class, 'editor'])->name('panel-dialogos.edit');
     
     // Roles
     Route::get('/roles', [RolController::class, 'index'])->name('roles.index');
@@ -108,4 +133,13 @@ Route::middleware(['web.auth'])->group(function () {
     Route::get('/settings', function () {
         return view('settings.index');
     })->name('settings');
+});
+
+// Rutas de entrada a Unity (públicas)
+Route::get('/unity-entry', [App\Http\Controllers\UnityEntryController::class, 'unityEntryPage'])->name('unity.entry');
+Route::get('/api/unity-entry-info', [App\Http\Controllers\UnityEntryController::class, 'getUnityEntryInfo'])->name('unity.entry-info');
+
+// Rutas protegidas para generar enlaces de Unity
+Route::middleware(['web.auth'])->group(function () {
+    Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
 });

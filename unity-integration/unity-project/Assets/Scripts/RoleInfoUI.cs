@@ -17,31 +17,31 @@ namespace JuiciosSimulator.UI
         public TextMeshProUGUI roleDescriptionText;
         public TextMeshProUGUI sessionInfoText;
         public TextMeshProUGUI participantInfoText;
-        
+
         [Header("Visual Elements")]
         public Image roleColorIndicator;
         public GameObject roleIcon;
         public Button readyButton;
         public Button leaveSessionButton;
-        
+
         [Header("Status")]
         public TextMeshProUGUI statusText;
         public GameObject loadingIndicator;
-        
+
         [Header("Session Integration")]
         public SessionManager sessionManager;
-        
+
         [Header("Debug")]
         public bool showDebugLogs = true;
-        
+
         private string currentRole;
         private SessionData currentSession;
-        
+
         void Start()
         {
             InitializeRoleUI();
         }
-        
+
         /// <summary>
         /// Inicializa la UI de información de rol
         /// </summary>
@@ -54,23 +54,23 @@ namespace JuiciosSimulator.UI
                 {
                     sessionManager = FindObjectOfType<SessionManager>();
                 }
-                
+
                 if (sessionManager == null)
                 {
                     Debug.LogError("RoleInfoUI: SessionManager no encontrado");
                     ShowError("Error: SessionManager no encontrado");
                     return;
                 }
-                
+
                 // Suscribirse a eventos
                 SubscribeToSessionEvents();
-                
+
                 // Configurar botones
                 SetupButtons();
-                
+
                 // Mostrar estado inicial
                 ShowLoadingState("Esperando asignación de rol...");
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("RoleInfoUI: Inicializado correctamente");
@@ -82,7 +82,7 @@ namespace JuiciosSimulator.UI
                 ShowError($"Error de inicialización: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Se suscribe a los eventos del SessionManager
         /// </summary>
@@ -90,13 +90,14 @@ namespace JuiciosSimulator.UI
         {
             if (sessionManager != null)
             {
-                SessionManager.OnSessionJoined += OnSessionJoined;
-                SessionManager.OnRoleAssigned += OnRoleAssigned;
-                SessionManager.OnSessionError += OnSessionError;
-                SessionManager.OnParticipantsUpdated += OnParticipantsUpdated;
+                // TODO: Implementar eventos del SessionManager
+                // SessionManager.OnSessionJoined += OnSessionJoined;
+                // SessionManager.OnRoleAssigned += OnRoleAssigned;
+                // SessionManager.OnSessionError += OnSessionError;
+                // SessionManager.OnParticipantsUpdated += OnParticipantsUpdated;
             }
         }
-        
+
         /// <summary>
         /// Se desuscribe de los eventos del SessionManager
         /// </summary>
@@ -104,13 +105,14 @@ namespace JuiciosSimulator.UI
         {
             if (sessionManager != null)
             {
-                SessionManager.OnSessionJoined -= OnSessionJoined;
-                SessionManager.OnRoleAssigned -= OnRoleAssigned;
-                SessionManager.OnSessionError -= OnSessionError;
-                SessionManager.OnParticipantsUpdated -= OnParticipantsUpdated;
+                // TODO: Implementar eventos del SessionManager
+                // SessionManager.OnSessionJoined -= OnSessionJoined;
+                // SessionManager.OnRoleAssigned -= OnRoleAssigned;
+                // SessionManager.OnSessionError -= OnSessionError;
+                // SessionManager.OnParticipantsUpdated -= OnParticipantsUpdated;
             }
         }
-        
+
         /// <summary>
         /// Configura los botones de la UI
         /// </summary>
@@ -121,13 +123,13 @@ namespace JuiciosSimulator.UI
                 readyButton.onClick.AddListener(OnReadyButtonClicked);
                 readyButton.interactable = false;
             }
-            
+
             if (leaveSessionButton != null)
             {
                 leaveSessionButton.onClick.AddListener(OnLeaveSessionButtonClicked);
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se une a una sesión
         /// </summary>
@@ -137,10 +139,10 @@ namespace JuiciosSimulator.UI
             {
                 currentSession = session;
                 UpdateSessionInfo();
-                
+
                 if (showDebugLogs)
                 {
-                    Debug.Log($"RoleInfoUI: Sesión unida - {session.nombre}");
+                    Debug.Log($"RoleInfoUI: Sesión unida - {session.session.nombre}");
                 }
             }
             catch (System.Exception e)
@@ -148,7 +150,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error en OnSessionJoined: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando se asigna un rol
         /// </summary>
@@ -158,12 +160,12 @@ namespace JuiciosSimulator.UI
             {
                 currentRole = role;
                 UpdateRoleInfo();
-                
+
                 if (readyButton != null)
                 {
                     readyButton.interactable = true;
                 }
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log($"RoleInfoUI: Rol asignado - {role}");
@@ -174,7 +176,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error en OnRoleAssigned: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback cuando hay un error en la sesión
         /// </summary>
@@ -183,7 +185,7 @@ namespace JuiciosSimulator.UI
             Debug.LogError($"RoleInfoUI: Error de sesión - {error}");
             ShowError($"Error de sesión: {error}");
         }
-        
+
         /// <summary>
         /// Callback cuando se actualizan los participantes
         /// </summary>
@@ -198,7 +200,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error actualizando participantes: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Actualiza la información de la sesión
         /// </summary>
@@ -208,9 +210,9 @@ namespace JuiciosSimulator.UI
             {
                 if (currentSession != null && sessionInfoText != null)
                 {
-                    sessionInfoText.text = $"Sesión: {currentSession.nombre}\n" +
-                                         $"Instructor: {currentSession.instructor.name}\n" +
-                                         $"Estado: {currentSession.estado}";
+                    sessionInfoText.text = $"Sesión: {currentSession.session.nombre}\n" +
+                                         $"Instructor: {currentSession.session.instructor.name}\n" +
+                                         $"Estado: {currentSession.session.estado}";
                 }
             }
             catch (System.Exception e)
@@ -218,7 +220,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error actualizando información de sesión: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Actualiza la información del rol
         /// </summary>
@@ -230,28 +232,28 @@ namespace JuiciosSimulator.UI
                 {
                     return;
                 }
-                
+
                 // Actualizar nombre del rol
                 if (roleNameText != null)
                 {
                     roleNameText.text = currentRole;
                 }
-                
+
                 // Actualizar descripción del rol
                 if (roleDescriptionText != null)
                 {
                     roleDescriptionText.text = GetRoleDescription(currentRole);
                 }
-                
+
                 // Actualizar color del rol
                 if (roleColorIndicator != null)
                 {
                     roleColorIndicator.color = GetRoleColor(currentRole);
                 }
-                
+
                 // Actualizar icono del rol
                 UpdateRoleIcon();
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log($"RoleInfoUI: Información del rol '{currentRole}' actualizada");
@@ -262,7 +264,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error actualizando información del rol: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Actualiza la información de los participantes
         /// </summary>
@@ -273,13 +275,13 @@ namespace JuiciosSimulator.UI
                 if (participantInfoText != null && participants != null)
                 {
                     string participantText = $"Participantes ({participants.Count}):\n";
-                    
+
                     foreach (var participant in participants)
                     {
-                        string status = participant.activo ? "Activo" : "Inactivo";
+                        string status = participant.es_turno ? "Activo" : "Inactivo";
                         participantText += $"• {participant.nombre} ({participant.rol}) - {status}\n";
                     }
-                    
+
                     participantInfoText.text = participantText;
                 }
             }
@@ -288,7 +290,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error actualizando información de participantes: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Obtiene la descripción de un rol
         /// </summary>
@@ -335,7 +337,7 @@ namespace JuiciosSimulator.UI
                     return "Rol asignado para participar en el juicio";
             }
         }
-        
+
         /// <summary>
         /// Obtiene el color asociado a un rol
         /// </summary>
@@ -365,7 +367,7 @@ namespace JuiciosSimulator.UI
                     return new Color(0.5f, 0.5f, 0.5f); // Gris por defecto
             }
         }
-        
+
         /// <summary>
         /// Actualiza el icono del rol
         /// </summary>
@@ -378,7 +380,7 @@ namespace JuiciosSimulator.UI
                 roleIcon.SetActive(!string.IsNullOrEmpty(currentRole));
             }
         }
-        
+
         /// <summary>
         /// Muestra el estado de carga
         /// </summary>
@@ -388,31 +390,31 @@ namespace JuiciosSimulator.UI
             {
                 statusText.text = message;
             }
-            
+
             if (loadingIndicator != null)
             {
                 loadingIndicator.SetActive(true);
             }
         }
-        
+
         /// <summary>
         /// Muestra un error
         /// </summary>
         private void ShowError(string error)
         {
             Debug.LogError($"RoleInfoUI: {error}");
-            
+
             if (statusText != null)
             {
                 statusText.text = $"Error: {error}";
             }
-            
+
             if (loadingIndicator != null)
             {
                 loadingIndicator.SetActive(false);
             }
         }
-        
+
         /// <summary>
         /// Callback del botón Ready
         /// </summary>
@@ -424,13 +426,14 @@ namespace JuiciosSimulator.UI
                 {
                     Debug.Log($"RoleInfoUI: Usuario listo con rol '{currentRole}'");
                 }
-                
+
                 // Notificar que el usuario está listo
                 if (sessionManager != null)
                 {
-                    sessionManager.NotifyUserReady();
+                    // TODO: Implementar NotifyUserReady en SessionManager
+                    // sessionManager.NotifyUserReady();
                 }
-                
+
                 // Ocultar la UI de rol
                 gameObject.SetActive(false);
             }
@@ -439,7 +442,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error en OnReadyButtonClicked: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Callback del botón Leave Session
         /// </summary>
@@ -451,7 +454,7 @@ namespace JuiciosSimulator.UI
                 {
                     Debug.Log("RoleInfoUI: Usuario abandonando sesión");
                 }
-                
+
                 // Abandonar la sesión
                 if (sessionManager != null)
                 {
@@ -463,7 +466,7 @@ namespace JuiciosSimulator.UI
                 Debug.LogError($"RoleInfoUI: Error en OnLeaveSessionButtonClicked: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Método público para actualizar manualmente la información
         /// </summary>
@@ -474,22 +477,22 @@ namespace JuiciosSimulator.UI
             {
                 UpdateSessionInfo();
             }
-            
+
             if (!string.IsNullOrEmpty(currentRole))
             {
                 UpdateRoleInfo();
             }
         }
-        
+
         /// <summary>
         /// Método público para verificar el estado
         /// </summary>
         [ContextMenu("Verificar Estado")]
         public void CheckStatus()
         {
-            Debug.Log($"RoleInfoUI: Estado - Rol: {currentRole}, Sesión: {(currentSession != null ? currentSession.nombre : "Ninguna")}");
+            Debug.Log($"RoleInfoUI: Estado - Rol: {currentRole}, Sesión: {(currentSession != null ? currentSession.session.nombre : "Ninguna")}");
         }
-        
+
         /// <summary>
         /// Limpia recursos al destruir el objeto
         /// </summary>

@@ -20,6 +20,7 @@ use App\Http\Controllers\EstadisticasController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UsuarioController;
+use App\Http\Controllers\PanelDialogoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -257,6 +258,10 @@ Route::group(['prefix' => 'unity'], function () {
                 Route::post('refresh', [UnityAuthController::class, 'refresh']);
                 Route::post('logout', [UnityAuthController::class, 'logout']);
                 Route::get('me', [UnityAuthController::class, 'me']);
+                
+                // Nuevos endpoints para sesiones activas
+                Route::get('session/active', [UnityAuthController::class, 'getActiveSession']);
+                Route::get('session/{sessionId}/dialogue', [UnityAuthController::class, 'getSessionDialogue']);
             });
         });
         // Endpoints legacy (mantener compatibilidad)
@@ -314,4 +319,61 @@ Route::group(['prefix' => 'unity'], function () {
         Route::get('/actividad', [ProfileController::class, 'actividad']);
         Route::get('/exportar-datos', [ProfileController::class, 'exportarDatos']);
         Route::post('/eliminar-cuenta', [ProfileController::class, 'eliminarCuenta']);
+    });
+
+    // ========================================
+    // PANEL DE DIÁLOGOS (NUEVO SISTEMA)
+    // ========================================
+    Route::middleware('web.auth')->group(function () {
+        Route::group(['prefix' => 'panel-dialogos'], function () {
+        // Escenarios
+        Route::get('/', [PanelDialogoController::class, 'index']);
+        Route::post('/', [PanelDialogoController::class, 'store']);
+        Route::get('/{escenario}', [PanelDialogoController::class, 'show']);
+        Route::put('/{escenario}', [PanelDialogoController::class, 'update']);
+        Route::delete('/{escenario}', [PanelDialogoController::class, 'destroy']);
+        Route::post('/{escenario}/activar', [PanelDialogoController::class, 'activar']);
+        Route::post('/{escenario}/copiar', [PanelDialogoController::class, 'copiar']);
+        Route::get('/{escenario}/estructura', [PanelDialogoController::class, 'estructura']);
+        
+        // Roles
+        Route::group(['prefix' => '{escenario}/roles'], function () {
+            Route::get('/', [PanelDialogoController::class, 'roles']);
+            Route::post('/', [PanelDialogoController::class, 'crearRol']);
+            Route::put('/{rol}', [PanelDialogoController::class, 'actualizarRol']);
+            Route::delete('/{rol}', [PanelDialogoController::class, 'eliminarRol']);
+        });
+        
+        // Flujos
+        Route::group(['prefix' => '{escenario}/flujos'], function () {
+            Route::get('/', [PanelDialogoController::class, 'flujos']);
+            Route::post('/', [PanelDialogoController::class, 'crearFlujo']);
+            Route::put('/{flujo}', [PanelDialogoController::class, 'actualizarFlujo']);
+            Route::delete('/{flujo}', [PanelDialogoController::class, 'eliminarFlujo']);
+        });
+        
+        // Diálogos
+        Route::group(['prefix' => '{escenario}/dialogos'], function () {
+            Route::get('/', [PanelDialogoController::class, 'dialogos']);
+            Route::post('/', [PanelDialogoController::class, 'crearDialogo']);
+            Route::put('/{dialogo}', [PanelDialogoController::class, 'actualizarDialogo']);
+            Route::delete('/{dialogo}', [PanelDialogoController::class, 'eliminarDialogo']);
+            Route::post('/{dialogo}/duplicar', [PanelDialogoController::class, 'duplicarDialogo']);
+        });
+        
+        // Opciones
+        Route::group(['prefix' => '{escenario}/opciones'], function () {
+            Route::post('/', [PanelDialogoController::class, 'crearOpcion']);
+            Route::put('/{opcion}', [PanelDialogoController::class, 'actualizarOpcion']);
+            Route::delete('/{opcion}', [PanelDialogoController::class, 'eliminarOpcion']);
+        });
+        
+        // Conexiones
+        Route::group(['prefix' => '{escenario}/conexiones'], function () {
+            Route::get('/', [PanelDialogoController::class, 'conexiones']);
+            Route::post('/', [PanelDialogoController::class, 'crearConexion']);
+            Route::put('/{conexion}', [PanelDialogoController::class, 'actualizarConexion']);
+            Route::delete('/{conexion}', [PanelDialogoController::class, 'eliminarConexion']);
+        });
+    });
     });

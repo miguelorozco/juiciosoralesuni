@@ -123,19 +123,71 @@ class DialogoController extends Controller
                 'usuario_id' => auth()->id(),
                 'payload' => $request->all()
             ]);
+            
             $validated = $request->validate([
                 'nombre' => 'required|string|max:200',
                 'descripcion' => 'nullable|string',
                 'plantilla_id' => 'nullable|exists:plantillas_sesiones,id',
                 'publico' => 'boolean',
                 'configuracion' => 'nullable|array',
+                'nodos' => 'nullable|array',
+                'conexiones' => 'nullable|array',
             ]);
 
             $validated['creado_por'] = auth()->id();
             $validated['estado'] = 'borrador';
 
             $dialogo = Dialogo::create($validated);
-            $dialogo->load(['creador']);
+            
+            // Crear nodos si se proporcionan
+            if (isset($validated['nodos']) && is_array($validated['nodos'])) {
+                foreach ($validated['nodos'] as $nodoData) {
+                    $nodo = $dialogo->nodos()->create([
+                        'titulo' => $nodoData['titulo'] ?? 'Sin título',
+                        'contenido' => $nodoData['contenido'] ?? '',
+                        'tipo' => $nodoData['tipo'] ?? 'desarrollo',
+                        'rol_id' => $nodoData['rol_id'] ?? null,
+                        'es_inicial' => $nodoData['es_inicial'] ?? false,
+                        'es_final' => $nodoData['es_final'] ?? false,
+                        'orden' => $nodoData['orden'] ?? 0,
+                        'metadata' => json_encode([
+                            'x' => $nodoData['posicion']['x'] ?? 0,
+                            'y' => $nodoData['posicion']['y'] ?? 0
+                        ])
+                    ]);
+                    
+                    // Crear respuestas si se proporcionan
+                    if (isset($nodoData['respuestas']) && is_array($nodoData['respuestas'])) {
+                        foreach ($nodoData['respuestas'] as $respuestaData) {
+                            $nodo->respuestas()->create([
+                                'texto' => $respuestaData['texto'] ?? 'Sin texto',
+                                'descripcion' => $respuestaData['descripcion'] ?? '',
+                                'orden' => $respuestaData['orden'] ?? 1,
+                                'puntuacion' => $respuestaData['puntuacion'] ?? 0,
+                                'color' => $respuestaData['color'] ?? '#007bff',
+                                'activo' => $respuestaData['activo'] ?? true
+                            ]);
+                        }
+                    }
+                }
+            }
+            
+            // Crear conexiones si se proporcionan
+            if (isset($validated['conexiones']) && is_array($validated['conexiones'])) {
+                foreach ($validated['conexiones'] as $conexionData) {
+                    $dialogo->conexiones()->create([
+                        'desde' => $conexionData['desde'],
+                        'hacia' => $conexionData['hacia'],
+                        'desde_punto' => $conexionData['desde_punto'] ?? 0,
+                        'hacia_punto' => $conexionData['hacia_punto'] ?? 0,
+                        'texto' => $conexionData['texto'] ?? '',
+                        'color' => $conexionData['color'] ?? '#007bff',
+                        'puntuacion' => $conexionData['puntuacion'] ?? 0
+                    ]);
+                }
+            }
+            
+            $dialogo->load(['creador', 'nodos.respuestas']);
 
             Log::info('Crear diálogo - ok', [
                 'dialogo_id' => $dialogo->id
@@ -262,10 +314,75 @@ class DialogoController extends Controller
                 'descripcion' => 'nullable|string',
                 'publico' => 'boolean',
                 'configuracion' => 'nullable|array',
+                'nodos' => 'nullable|array',
+                'conexiones' => 'nullable|array',
             ]);
 
-            $dialogo->update($validated);
-            $dialogo->load(['creador', 'nodos.rol']);
+            // Actualizar datos básicos del diálogo
+            $dialogo->update([
+                'nombre' => $validated['nombre'] ?? $dialogo->nombre,
+                'descripcion' => $validated['descripcion'] ?? $dialogo->descripcion,
+                'publico' => $validated['publico'] ?? $dialogo->publico,
+                'configuracion' => $validated['configuracion'] ?? $dialogo->configuracion,
+            ]);
+            
+            // Actualizar nodos si se proporcionan
+            if (isset($validated['nodos']) && is_array($validated['nodos'])) {
+                // Eliminar nodos existentes
+                $dialogo->nodos()->delete();
+                
+                // Crear nuevos nodos
+                foreach ($validated['nodos'] as $nodoData) {
+                    $nodo = $dialogo->nodos()->create([
+                        'titulo' => $nodoData['titulo'] ?? 'Sin título',
+                        'contenido' => $nodoData['contenido'] ?? '',
+                        'tipo' => $nodoData['tipo'] ?? 'desarrollo',
+                        'rol_id' => $nodoData['rol_id'] ?? null,
+                        'es_inicial' => $nodoData['es_inicial'] ?? false,
+                        'es_final' => $nodoData['es_final'] ?? false,
+                        'orden' => $nodoData['orden'] ?? 0,
+                        'metadata' => json_encode([
+                            'x' => $nodoData['posicion']['x'] ?? 0,
+                            'y' => $nodoData['posicion']['y'] ?? 0
+                        ])
+                    ]);
+                    
+                    // Crear respuestas si se proporcionan
+                    if (isset($nodoData['respuestas']) && is_array($nodoData['respuestas'])) {
+                        foreach ($nodoData['respuestas'] as $respuestaData) {
+                            $nodo->respuestas()->create([
+                                'texto' => $respuestaData['texto'] ?? 'Sin texto',
+                                'descripcion' => $respuestaData['descripcion'] ?? '',
+                                'orden' => $respuestaData['orden'] ?? 1,
+                                'puntuacion' => $respuestaData['puntuacion'] ?? 0,
+                                'color' => $respuestaData['color'] ?? '#007bff',
+                                'activo' => $respuestaData['activo'] ?? true
+                            ]);
+                        }
+                    }
+                }
+            }
+            
+            // Actualizar conexiones si se proporcionan
+            if (isset($validated['conexiones']) && is_array($validated['conexiones'])) {
+                // Eliminar conexiones existentes
+                $dialogo->conexiones()->delete();
+                
+                // Crear nuevas conexiones
+                foreach ($validated['conexiones'] as $conexionData) {
+                    $dialogo->conexiones()->create([
+                        'desde' => $conexionData['desde'],
+                        'hacia' => $conexionData['hacia'],
+                        'desde_punto' => $conexionData['desde_punto'] ?? 0,
+                        'hacia_punto' => $conexionData['hacia_punto'] ?? 0,
+                        'texto' => $conexionData['texto'] ?? '',
+                        'color' => $conexionData['color'] ?? '#007bff',
+                        'puntuacion' => $conexionData['puntuacion'] ?? 0
+                    ]);
+                }
+            }
+            
+            $dialogo->load(['creador', 'nodos.respuestas']);
 
             return response()->json([
                 'success' => true,

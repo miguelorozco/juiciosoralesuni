@@ -319,4 +319,240 @@ class UnityAuthController extends Controller
             'message' => 'Servidor Unity disponible'
         ]);
     }
+
+    /**
+     * @OA\Get(
+     *     path="/api/unity/session/active",
+     *     summary="Obtener sesión activa del usuario",
+     *     description="Obtener la sesión de juicio activa donde el usuario tiene un rol asignado",
+     *     tags={"Unity - Sesiones"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Sesión obtenida exitosamente",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="session", type="object"),
+     *                 @OA\Property(property="role", type="object"),
+     *                 @OA\Property(property="assignment", type="object")
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function getActiveSession(): JsonResponse
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            
+            // Buscar sesión activa donde el usuario tiene un rol asignado
+            $assignment = \App\Models\AsignacionRol::with(['sesion.instructor', 'rolDisponible'])
+                ->where('usuario_id', $user->id)
+                ->whereHas('sesion', function($query) {
+                    $query->whereIn('estado', ['programada', 'en_curso']);
+                })
+                ->first();
+
+            if (!$assignment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes una sesión activa asignada',
+                    'error_code' => 'NO_ACTIVE_SESSION'
+                ], 404);
+            }
+
+            $session = $assignment->sesion;
+            $role = $assignment->rolDisponible;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'session' => [
+                        'id' => $session->id,
+                        'nombre' => $session->nombre,
+                        'descripcion' => $session->descripcion,
+                        'estado' => $session->estado,
+                        'fecha_inicio' => $session->fecha_inicio,
+                        'fecha_fin' => $session->fecha_fin,
+                        'configuracion' => $session->configuracion,
+                        'instructor' => [
+                            'id' => $session->instructor->id,
+                            'name' => $session->instructor->name,
+                            'email' => $session->instructor->email,
+                        ]
+                    ],
+                    'role' => [
+                        'id' => $role->id,
+                        'nombre' => $role->nombre,
+                        'descripcion' => $role->descripcion,
+                        'color' => $role->color,
+                        'icono' => $role->icono,
+                    ],
+                    'assignment' => [
+                        'id' => $assignment->id,
+                        'confirmado' => $assignment->confirmado,
+                        'notas' => $assignment->notas,
+                        'fecha_asignacion' => $assignment->fecha_asignacion,
+                    ]
+                ],
+                'server_time' => now()->toISOString(),
+            ]);
+
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token inválido: ' . $e->getMessage(),
+                'error_code' => 'INVALID_TOKEN'
+            ], 401);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno: ' . $e->getMessage(),
+                'error_code' => 'INTERNAL_ERROR'
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/unity/session/{sessionId}/dialogue",
+     *     summary="Obtener diálogo de la sesión",
+     *     description="Obtener el diálogo específico asociado a una sesión de juicio",
+     *     tags={"Unity - Sesiones"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="sessionId",
+     *         in="path",
+     *         required=true,
+     *         description="ID de la sesión",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Diálogo obtenido exitosamente",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="dialogue", type="object"),
+     *                 @OA\Property(property="nodes", type="array"),
+     *                 @OA\Property(property="connections", type="array")
+     *             )
+     *         )
+     *     )
+     * )
+     */
+    public function getSessionDialogue($sessionId): JsonResponse
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            
+            // Verificar que el usuario tiene acceso a esta sesión
+            $assignment = \App\Models\AsignacionRol::where('usuario_id', $user->id)
+                ->where('sesion_id', $sessionId)
+                ->first();
+
+            if (!$assignment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes acceso a esta sesión',
+                    'error_code' => 'ACCESS_DENIED'
+                ], 403);
+            }
+
+            // Obtener la sesión
+            $session = \App\Models\SesionJuicio::find($sessionId);
+            if (!$session) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sesión no encontrada',
+                    'error_code' => 'SESSION_NOT_FOUND'
+                ], 404);
+            }
+
+            // Por ahora, usar el diálogo del sistema nuevo (panel_dialogo_)
+            // En el futuro, esto se puede conectar con el diálogo específico de la sesión
+            $dialogue = \App\Models\PanelDialogoEscenario::with(['roles.flujos.dialogos.opciones'])
+                ->where('estado', 'activo')
+                ->first();
+
+            if (!$dialogue) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay diálogos disponibles',
+                    'error_code' => 'NO_DIALOGUES'
+                ], 404);
+            }
+
+            // Preparar datos del diálogo para Unity
+            $dialogueData = [
+                'id' => $dialogue->id,
+                'nombre' => $dialogue->nombre,
+                'descripcion' => $dialogue->descripcion,
+                'roles' => $dialogue->roles->map(function($role) {
+                    return [
+                        'id' => $role->id,
+                        'nombre' => $role->nombre,
+                        'descripcion' => $role->descripcion,
+                        'color' => $role->color,
+                        'icono' => $role->icono,
+                        'requerido' => $role->requerido,
+                        'flujos' => $role->flujos->map(function($flujo) {
+                            return [
+                                'id' => $flujo->id,
+                                'dialogos' => $flujo->dialogos->map(function($dialogo) {
+                                    return [
+                                        'id' => $dialogo->id,
+                                        'titulo' => $dialogo->titulo,
+                                        'contenido' => $dialogo->contenido,
+                                        'tipo' => $dialogo->tipo,
+                                        'posicion' => $dialogo->posicion,
+                                        'opciones' => $dialogo->opciones->map(function($opcion) {
+                                            return [
+                                                'id' => $opcion->id,
+                                                'letra' => $opcion->letra,
+                                                'texto' => $opcion->texto,
+                                                'puntuacion' => $opcion->puntuacion,
+                                                'consecuencias' => $opcion->consecuencias,
+                                            ];
+                                        })
+                                    ];
+                                })
+                            ];
+                        })
+                    ];
+                })
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'dialogue' => $dialogueData,
+                    'session_info' => [
+                        'id' => $session->id,
+                        'nombre' => $session->nombre,
+                        'estado' => $session->estado,
+                    ],
+                    'user_role' => [
+                        'id' => $assignment->rolDisponible->id,
+                        'nombre' => $assignment->rolDisponible->nombre,
+                    ]
+                ],
+                'server_time' => now()->toISOString(),
+            ]);
+
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token inválido: ' . $e->getMessage(),
+                'error_code' => 'INVALID_TOKEN'
+            ], 401);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno: ' . $e->getMessage(),
+                'error_code' => 'INTERNAL_ERROR'
+            ], 500);
+        }
+    }
 }

@@ -132,10 +132,10 @@
                                         <div class="card-body">
                                             <div class="d-flex align-items-center">
                                                 <div class="flex-shrink-0">
-                                                    <i class="bi bi-{{ $asignacion->rol->icono ?? 'person' }} text-primary" style="font-size: 2rem;"></i>
+                                                    <i class="bi bi-{{ $asignacion->rolDisponible->icono ?? 'person' }} text-primary" style="font-size: 2rem;"></i>
                                                 </div>
                                                 <div class="flex-grow-1 ms-3">
-                                                    <h6 class="mb-1">{{ $asignacion->rol->nombre }}</h6>
+                                                    <h6 class="mb-1">{{ $asignacion->rolDisponible->nombre }}</h6>
                                                     @if($asignacion->usuario)
                                                         <p class="mb-1 text-success">
                                                             <i class="bi bi-person-circle me-1"></i>
@@ -212,9 +212,16 @@
                             @endif
                             
                             @if($sesion->estado !== 'finalizada' && $sesion->estado !== 'cancelada')
-                                <button type="button" class="btn btn-outline-danger" onclick="cancelarSesion()">
+                                <button type="button" class="btn btn-outline-danger me-2" onclick="cancelarSesion()">
                                     <i class="bi bi-x-circle me-2"></i>
                                     Cancelar
+                                </button>
+                            @endif
+                            
+                            @if(in_array($sesion->estado, ['programada', 'en_curso']))
+                                <button type="button" class="btn btn-primary" onclick="generateUnityLink()">
+                                    <i class="bi bi-controller me-2"></i>
+                                    Entrar a Unity
                                 </button>
                             @endif
                         </div>
@@ -289,6 +296,221 @@ function continuarSesion() {
 function pausarSesion() {
     // Implementar pausar sesión
     console.log('Pausar sesión');
+}
+
+function generateUnityLink() {
+    // Mostrar modal de selección de usuario
+    showUserSelectionModal();
+}
+
+function showUserSelectionModal() {
+    // Crear modal dinámicamente
+    const modalHtml = `
+        <div class="modal fade" id="unityUserModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-controller me-2"></i>
+                            Seleccionar Usuario para Unity
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">Selecciona el usuario que entrará a Unity:</p>
+                        <div id="userList" class="list-group">
+                            <!-- Los usuarios se cargarán aquí -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente si existe
+    const existingModal = document.getElementById('unityUserModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Cargar usuarios asignados
+    loadAssignedUsers();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('unityUserModal'));
+    modal.show();
+}
+
+function loadAssignedUsers() {
+    const userList = document.getElementById('userList');
+    userList.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
+    
+    // Obtener usuarios asignados de la sesión
+    const sessionId = {{ $sesion->id }};
+    
+    fetch(`/api/sesiones/${sessionId}/usuarios-asignados`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayUsers(data.data);
+            } else {
+                userList.innerHTML = '<div class="alert alert-warning">No hay usuarios asignados a esta sesión.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando usuarios:', error);
+            userList.innerHTML = '<div class="alert alert-danger">Error cargando usuarios asignados.</div>';
+        });
+}
+
+function displayUsers(users) {
+    const userList = document.getElementById('userList');
+    
+    if (users.length === 0) {
+        userList.innerHTML = '<div class="alert alert-warning">No hay usuarios asignados a esta sesión.</div>';
+        return;
+    }
+    
+    let html = '';
+    users.forEach(user => {
+        html += `
+            <div class="list-group-item list-group-item-action" onclick="selectUserForUnity(${user.usuario_id}, '${user.usuario.name}', '${user.rol.nombre}')">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${user.usuario.name}</h6>
+                    <small class="text-muted">${user.usuario.email}</small>
+                </div>
+                <p class="mb-1">
+                    <i class="bi bi-${user.rol.icono || 'person'} me-2" style="color: ${user.rol.color || '#007bff'};"></i>
+                    <strong>Rol:</strong> ${user.rol.nombre}
+                </p>
+                <small class="text-muted">${user.rol.descripcion}</small>
+            </div>
+        `;
+    });
+    
+    userList.innerHTML = html;
+}
+
+function selectUserForUnity(userId, userName, roleName) {
+    // Generar enlace de Unity para el usuario seleccionado
+    const sessionId = {{ $sesion->id }};
+    
+    fetch('/api/unity-entry/generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+            user_id: userId,
+            session_id: sessionId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unityUserModal'));
+            modal.hide();
+            
+            // Mostrar enlace de Unity
+            showUnityLink(data.data);
+        } else {
+            alert('Error generando enlace: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generando enlace de Unity');
+    });
+}
+
+function showUnityLink(data) {
+    // Crear modal con el enlace de Unity
+    const modalHtml = `
+        <div class="modal fade" id="unityLinkModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-controller me-2"></i>
+                            Enlace de Unity Generado
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">Usuario: ${data.user.name}</h6>
+                            <p class="mb-0"><strong>Rol:</strong> ${data.role.nombre}</p>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Enlace de Unity:</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="unityLink" value="${data.unity_entry_url}" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyUnityLink()">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <a href="${data.unity_entry_url}" target="_blank" class="btn btn-success btn-lg">
+                                <i class="bi bi-play-circle me-2"></i>
+                                Abrir Unity
+                            </a>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal existente si existe
+    const existingModal = document.getElementById('unityLinkModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('unityLinkModal'));
+    modal.show();
+}
+
+function copyUnityLink() {
+    const linkInput = document.getElementById('unityLink');
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999); // Para dispositivos móviles
+    
+    try {
+        document.execCommand('copy');
+        // Mostrar notificación de copiado
+        const button = event.target.closest('button');
+        const originalIcon = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i>';
+        button.classList.add('btn-success');
+        button.classList.remove('btn-outline-secondary');
+        
+        setTimeout(() => {
+            button.innerHTML = originalIcon;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    } catch (err) {
+        console.error('Error copiando enlace:', err);
+    }
 }
 </script>
 @endsection

@@ -149,7 +149,7 @@ class AuthController extends Controller
             'data' => [
                 'access_token' => $token,
                 'token_type' => 'bearer',
-                'expires_in' => auth()->factory()->getTTL() * 60,
+                'expires_in' => config('jwt.ttl') * 60,
                 'user' => $user
             ],
             'message' => 'Login exitoso'
@@ -199,6 +199,10 @@ class AuthController extends Controller
             // Actualizar último acceso
             $user->update(['ultimo_acceso' => now()]);
             Log::info('Último acceso actualizado');
+            
+            // Establecer sesión web de Laravel
+            Auth::login($user);
+            Log::info('Sesión web establecida');
             
             Log::info('=== LOGIN WEB EXITOSO ===');
             return response()->json([
