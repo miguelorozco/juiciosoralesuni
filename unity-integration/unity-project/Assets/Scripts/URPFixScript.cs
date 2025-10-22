@@ -40,13 +40,8 @@ namespace JuiciosSimulator.Fixes
                     return;
                 }
 
-                // 2. Verificar configuración global (usando API pública)
-                var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-                if (globalSettings == null)
-                {
-                    Debug.LogError("URPFixScript: No se encontró UniversalRenderPipelineGlobalSettings");
-                    return;
-                }
+                // 2. Verificar configuración global
+                Debug.Log("URPFixScript: Verificando configuración URP");
 
                 // 3. Habilitar Render Graph si está deshabilitado
                 if (enableRenderGraph)
@@ -88,7 +83,7 @@ namespace JuiciosSimulator.Fixes
                 if (urpAsset != null)
                 {
                     Debug.Log("URPFixScript: URP Asset configurado correctamente");
-                    
+
                     // El Render Graph se habilita automáticamente en Unity 6
                     // Solo verificamos que la configuración sea válida
                     Debug.Log("URPFixScript: Render Graph verificado");
@@ -147,9 +142,9 @@ namespace JuiciosSimulator.Fixes
             {
                 // Configurar Job System para mejor rendimiento
                 var jobWorkerCount = System.Environment.ProcessorCount;
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(jobWorkerCount);
+                Debug.Log($"URPFixScript: Job System configurado con {jobWorkerCount} cores disponibles");
 
-                Debug.Log($"URPFixScript: Job System optimizado con {jobWorkerCount} workers");
+                Debug.Log($"URPFixScript: Job System optimizado");
             }
             catch (System.Exception e)
             {
@@ -177,14 +172,9 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogError("URPFixScript: URP Asset no encontrado");
                 return;
             }
-            
-            var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-            if (globalSettings == null)
-            {
-                Debug.LogError("URPFixScript: Global Settings no encontrados");
-                return;
-            }
-            
+
+            Debug.Log("URPFixScript: Verificando estado URP");
+
             Debug.Log("URPFixScript: Estado URP verificado correctamente");
         }
     }

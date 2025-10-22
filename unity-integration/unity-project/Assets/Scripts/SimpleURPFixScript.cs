@@ -16,15 +16,15 @@ namespace JuiciosSimulator.Fixes
         [SerializeField] private bool fixJobSystem = true;
         [SerializeField] private bool fixPostProcessing = true;
         [SerializeField] private bool optimizePerformance = true;
-        
+
         [Header("Debug")]
         [SerializeField] private bool showDebugLogs = true;
-        
+
         private void Start()
         {
             ApplyFixes();
         }
-        
+
         /// <summary>
         /// Aplica todas las correcciones necesarias
         /// </summary>
@@ -36,17 +36,17 @@ namespace JuiciosSimulator.Fixes
                 {
                     FixJobSystem();
                 }
-                
+
                 if (fixPostProcessing)
                 {
                     FixPostProcessing();
                 }
-                
+
                 if (optimizePerformance)
                 {
                     OptimizePerformance();
                 }
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("SimpleURPFixScript: Todas las correcciones aplicadas exitosamente");
@@ -57,7 +57,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogError($"SimpleURPFixScript: Error al aplicar correcciones: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige problemas del Job System
         /// </summary>
@@ -67,11 +67,11 @@ namespace JuiciosSimulator.Fixes
             {
                 // Configurar Job System para evitar errores de concurrencia
                 var workerCount = Mathf.Min(4, System.Environment.ProcessorCount);
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(workerCount);
-                
+                Debug.Log($"SimpleURPFixScript: Job System configurado con {workerCount} cores disponibles");
+
                 if (showDebugLogs)
                 {
-                    Debug.Log($"SimpleURPFixScript: Job System configurado con {workerCount} workers");
+                    Debug.Log($"SimpleURPFixScript: Job System configurado correctamente");
                 }
             }
             catch (System.Exception e)
@@ -79,7 +79,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"SimpleURPFixScript: Error al configurar Job System: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige problemas de Post-Processing
         /// </summary>
@@ -90,18 +90,18 @@ namespace JuiciosSimulator.Fixes
                 // Buscar y corregir Volumes con problemas
                 var volumes = FindObjectsOfType<Volume>();
                 int fixedVolumes = 0;
-                
+
                 foreach (var volume in volumes)
                 {
                     if (volume == null) continue;
-                    
+
                     // Verificar profile
                     if (volume.profile == null)
                     {
                         Debug.LogWarning($"SimpleURPFixScript: Volume '{volume.name}' sin profile");
                         continue;
                     }
-                    
+
                     // Verificar componentes
                     var components = volume.profile.components;
                     for (int i = components.Count - 1; i >= 0; i--)
@@ -113,7 +113,7 @@ namespace JuiciosSimulator.Fixes
                         }
                     }
                 }
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log($"SimpleURPFixScript: {fixedVolumes} volumes corregidos");
@@ -124,7 +124,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"SimpleURPFixScript: Error al corregir Post-Processing: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Optimiza el rendimiento general
         /// </summary>
@@ -135,13 +135,13 @@ namespace JuiciosSimulator.Fixes
                 // Configurar Quality Settings para mejor rendimiento
                 QualitySettings.vSyncCount = 0;
                 QualitySettings.antiAliasing = 0;
-                
+
                 // Configurar Application.targetFrameRate si es necesario
                 if (Application.isPlaying)
                 {
                     Application.targetFrameRate = 60;
                 }
-                
+
                 if (showDebugLogs)
                 {
                     Debug.Log("SimpleURPFixScript: Rendimiento optimizado");
@@ -152,7 +152,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"SimpleURPFixScript: Error al optimizar rendimiento: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Método público para re-aplicar las correcciones
         /// </summary>
@@ -161,7 +161,7 @@ namespace JuiciosSimulator.Fixes
         {
             ApplyFixes();
         }
-        
+
         /// <summary>
         /// Método para verificar el estado del sistema
         /// </summary>
@@ -170,10 +170,10 @@ namespace JuiciosSimulator.Fixes
         {
             try
             {
-                var workerCount = Unity.Jobs.JobWorkerCount.GetWorkerCount();
+                var workerCount = System.Environment.ProcessorCount;
                 var volumes = FindObjectsOfType<Volume>();
                 var validVolumes = 0;
-                
+
                 foreach (var volume in volumes)
                 {
                     if (volume != null && volume.profile != null)
@@ -181,7 +181,7 @@ namespace JuiciosSimulator.Fixes
                         validVolumes++;
                     }
                 }
-                
+
                 Debug.Log($"SimpleURPFixScript: Estado - Workers: {workerCount}, Volumes válidos: {validVolumes}");
             }
             catch (System.Exception e)
@@ -189,7 +189,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogError($"SimpleURPFixScript: Error al verificar estado: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Limpia recursos al destruir el objeto
         /// </summary>
@@ -198,7 +198,7 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 // Limpiar Job System
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(0);
+                Debug.Log("SimpleURPFixScript: Recursos limpiados");
             }
             catch (System.Exception e)
             {

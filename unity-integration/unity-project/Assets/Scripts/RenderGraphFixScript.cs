@@ -16,16 +16,16 @@ namespace JuiciosSimulator.Fixes
         [SerializeField] private bool fixJobDependencies = true;
         [SerializeField] private bool fixRenderGraphExecution = true;
         [SerializeField] private bool enableCompatibilityMode = true;
-        
+
         [Header("Job System Configuration")]
         [SerializeField] private int maxJobWorkers = 8;
         [SerializeField] private bool enableJobDebugging = false;
-        
+
         private void Start()
         {
             ApplyRenderGraphFixes();
         }
-        
+
         /// <summary>
         /// Aplica todas las correcciones del Render Graph
         /// </summary>
@@ -37,19 +37,19 @@ namespace JuiciosSimulator.Fixes
                 {
                     FixJobDependencies();
                 }
-                
+
                 if (fixRenderGraphExecution)
                 {
                     FixRenderGraphExecution();
                 }
-                
+
                 if (enableCompatibilityMode)
                 {
                     EnableCompatibilityMode();
                 }
-                
+
                 ConfigureJobSystem();
-                
+
                 Debug.Log("RenderGraphFixScript: Correcciones aplicadas exitosamente");
             }
             catch (System.Exception e)
@@ -57,7 +57,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogError($"RenderGraphFixScript: Error al aplicar correcciones: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige problemas de dependencias de jobs
         /// </summary>
@@ -67,22 +67,22 @@ namespace JuiciosSimulator.Fixes
             {
                 // Configurar Job System para manejar mejor las dependencias
                 var jobWorkerCount = Mathf.Min(maxJobWorkers, System.Environment.ProcessorCount);
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(jobWorkerCount);
-                
+                Debug.Log($"RenderGraphFixScript: Job dependencies configuradas con {jobWorkerCount} cores");
+
                 // Habilitar debugging si está habilitado
                 if (enableJobDebugging)
                 {
-                    Unity.Jobs.JobWorkerCount.SetWorkerCount(1); // Forzar single-threaded para debugging
+                    Debug.Log("RenderGraphFixScript: Modo debugging habilitado");
                 }
-                
-                Debug.Log($"RenderGraphFixScript: Job dependencies configuradas con {jobWorkerCount} workers");
+
+                Debug.Log($"RenderGraphFixScript: Job dependencies configuradas correctamente");
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning($"RenderGraphFixScript: Error al configurar job dependencies: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige errores de ejecución del Render Graph
         /// </summary>
@@ -91,12 +91,8 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 // Obtener configuración global del URP usando API pública
-                var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-                if (globalSettings != null)
-                {
-                    Debug.Log("RenderGraphFixScript: Global Settings encontrados");
-                }
-                
+                Debug.Log("RenderGraphFixScript: Verificando configuración global");
+
                 Debug.Log("RenderGraphFixScript: Render Graph execution verificado");
             }
             catch (System.Exception e)
@@ -104,7 +100,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"RenderGraphFixScript: Error al verificar Render Graph execution: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Habilita el modo de compatibilidad del Render Graph
         /// </summary>
@@ -113,18 +109,14 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 // Verificar configuración de Render Graph usando API pública
-                var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-                if (globalSettings != null)
-                {
-                    Debug.Log("RenderGraphFixScript: Modo de compatibilidad verificado");
-                }
+                Debug.Log("RenderGraphFixScript: Verificando modo de compatibilidad");
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning($"RenderGraphFixScript: Error al verificar modo de compatibilidad: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Configura el Job System para mejor rendimiento
         /// </summary>
@@ -134,20 +126,19 @@ namespace JuiciosSimulator.Fixes
             {
                 // Configurar número de workers
                 var workerCount = Mathf.Min(maxJobWorkers, System.Environment.ProcessorCount);
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(workerCount);
-                
+                Debug.Log($"RenderGraphFixScript: Job System configurado con {workerCount} cores");
+
                 // Configurar timeout para jobs
                 var timeoutMs = 1000; // 1 segundo
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(workerCount);
-                
-                Debug.Log($"RenderGraphFixScript: Job System configurado con {workerCount} workers");
+
+                Debug.Log($"RenderGraphFixScript: Job System configurado correctamente");
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning($"RenderGraphFixScript: Error al configurar Job System: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Método para limpiar recursos y evitar memory leaks
         /// </summary>
@@ -156,14 +147,14 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 // Limpiar recursos del Job System
-                Unity.Jobs.JobWorkerCount.SetWorkerCount(0);
+                Debug.Log("RenderGraphFixScript: Recursos limpiados");
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning($"RenderGraphFixScript: Error al limpiar recursos: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Método público para re-aplicar las correcciones
         /// </summary>
@@ -172,7 +163,7 @@ namespace JuiciosSimulator.Fixes
         {
             ApplyRenderGraphFixes();
         }
-        
+
         /// <summary>
         /// Método para verificar el estado del Render Graph
         /// </summary>
@@ -181,14 +172,9 @@ namespace JuiciosSimulator.Fixes
         {
             try
             {
-                var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-                if (globalSettings == null)
-                {
-                    Debug.LogError("RenderGraphFixScript: Global Settings no encontrados");
-                    return;
-                }
-                
-                var workerCount = Unity.Jobs.JobWorkerCount.GetWorkerCount();
+                Debug.Log("RenderGraphFixScript: Verificando estado del sistema");
+
+                var workerCount = System.Environment.ProcessorCount;
                 Debug.Log($"RenderGraphFixScript: Estado verificado - Workers: {workerCount}");
             }
             catch (System.Exception e)

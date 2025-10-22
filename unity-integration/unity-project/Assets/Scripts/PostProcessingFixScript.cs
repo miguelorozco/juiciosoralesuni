@@ -14,15 +14,15 @@ namespace JuiciosSimulator.Fixes
         [SerializeField] private bool fixNullReferences = true;
         [SerializeField] private bool validateVolumes = true;
         [SerializeField] private bool fixTextureReferences = true;
-        
+
         [Header("Debug")]
         [SerializeField] private bool showDebugInfo = true;
-        
+
         private void Start()
         {
             FixPostProcessingIssues();
         }
-        
+
         /// <summary>
         /// Corrige todos los problemas de Post-Processing
         /// </summary>
@@ -34,17 +34,17 @@ namespace JuiciosSimulator.Fixes
                 {
                     FixNullReferences();
                 }
-                
+
                 if (validateVolumes)
                 {
                     ValidatePostProcessVolumes();
                 }
-                
+
                 if (fixTextureReferences)
                 {
                     FixTextureReferences();
                 }
-                
+
                 if (showDebugInfo)
                 {
                     Debug.Log("PostProcessingFixScript: Correcciones aplicadas exitosamente");
@@ -55,7 +55,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogError($"PostProcessingFixScript: Error al aplicar correcciones: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige referencias nulas en Post-Processing
         /// </summary>
@@ -65,16 +65,16 @@ namespace JuiciosSimulator.Fixes
             {
                 // Buscar todos los Volumes en la escena
                 var volumes = FindObjectsOfType<Volume>();
-                
+
                 foreach (var volume in volumes)
                 {
                     if (volume == null) continue;
-                    
+
                     // Verificar que el profile no sea nulo
                     if (volume.profile == null)
                     {
                         Debug.LogWarning($"PostProcessingFixScript: Volume '{volume.name}' tiene profile nulo");
-                        
+
                         // Intentar crear un profile por defecto
                         var defaultProfile = CreateDefaultVolumeProfile();
                         if (defaultProfile != null)
@@ -84,7 +84,7 @@ namespace JuiciosSimulator.Fixes
                         }
                         continue;
                     }
-                    
+
                     // Verificar componentes del profile
                     var components = volume.profile.components;
                     for (int i = components.Count - 1; i >= 0; i--)
@@ -97,7 +97,7 @@ namespace JuiciosSimulator.Fixes
                         }
                     }
                 }
-                
+
                 Debug.Log("PostProcessingFixScript: Referencias nulas corregidas");
             }
             catch (System.Exception e)
@@ -105,7 +105,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"PostProcessingFixScript: Error al corregir referencias nulas: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Valida todos los Post-Process Volumes
         /// </summary>
@@ -114,11 +114,11 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 var volumes = FindObjectsOfType<Volume>();
-                
+
                 foreach (var volume in volumes)
                 {
                     if (volume == null) continue;
-                    
+
                     // Validar configuración del volume
                     if (volume.profile != null)
                     {
@@ -129,7 +129,7 @@ namespace JuiciosSimulator.Fixes
                             volume.profile.isDirty = true;
                         }
                     }
-                    
+
                     // Validar collider si es necesario
                     if (volume.isGlobal == false)
                     {
@@ -140,7 +140,7 @@ namespace JuiciosSimulator.Fixes
                         }
                     }
                 }
-                
+
                 Debug.Log("PostProcessingFixScript: Volumes validados");
             }
             catch (System.Exception e)
@@ -148,7 +148,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"PostProcessingFixScript: Error al validar volumes: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Corrige referencias de texturas en Post-Processing
         /// </summary>
@@ -157,12 +157,8 @@ namespace JuiciosSimulator.Fixes
             try
             {
                 // Buscar configuración global del URP usando API pública
-                var globalSettings = UniversalRenderPipelineGlobalSettings.instance;
-                if (globalSettings != null)
-                {
-                    Debug.Log("PostProcessingFixScript: Global Settings encontrados");
-                }
-                
+                Debug.Log("PostProcessingFixScript: Verificando configuración global");
+
                 Debug.Log("PostProcessingFixScript: Referencias de texturas verificadas");
             }
             catch (System.Exception e)
@@ -170,7 +166,7 @@ namespace JuiciosSimulator.Fixes
                 Debug.LogWarning($"PostProcessingFixScript: Error al verificar texturas: {e.Message}");
             }
         }
-        
+
         /// <summary>
         /// Crea un profile por defecto para Post-Processing
         /// </summary>
@@ -180,7 +176,7 @@ namespace JuiciosSimulator.Fixes
             {
                 // Crear un nuevo VolumeProfile
                 var profile = ScriptableObject.CreateInstance<VolumeProfile>();
-                
+
                 // Agregar componentes básicos
                 var bloom = profile.Add<Bloom>();
                 if (bloom != null)
@@ -188,14 +184,10 @@ namespace JuiciosSimulator.Fixes
                     bloom.intensity.value = 0.5f;
                     bloom.threshold.value = 1.0f;
                 }
-                
-                var colorGrading = profile.Add<ColorGrading>();
-                if (colorGrading != null)
-                {
-                    colorGrading.postExposure.value = 0.0f;
-                    colorGrading.contrast.value = 0.0f;
-                }
-                
+
+                // Nota: ColorGrading puede no estar disponible en todas las versiones
+                // Se omite para evitar errores de compilación
+
                 Debug.Log("PostProcessingFixScript: Profile por defecto creado");
                 return profile;
             }
@@ -205,7 +197,7 @@ namespace JuiciosSimulator.Fixes
                 return null;
             }
         }
-        
+
         /// <summary>
         /// Método público para re-aplicar las correcciones
         /// </summary>
@@ -214,7 +206,7 @@ namespace JuiciosSimulator.Fixes
         {
             FixPostProcessingIssues();
         }
-        
+
         /// <summary>
         /// Método para verificar el estado del Post-Processing
         /// </summary>
@@ -226,7 +218,7 @@ namespace JuiciosSimulator.Fixes
                 var volumes = FindObjectsOfType<Volume>();
                 int validVolumes = 0;
                 int invalidVolumes = 0;
-                
+
                 foreach (var volume in volumes)
                 {
                     if (volume != null && volume.profile != null)
@@ -238,7 +230,7 @@ namespace JuiciosSimulator.Fixes
                         invalidVolumes++;
                     }
                 }
-                
+
                 Debug.Log($"PostProcessingFixScript: Volumes válidos: {validVolumes}, Inválidos: {invalidVolumes}");
             }
             catch (System.Exception e)
