@@ -39,6 +39,67 @@ Bienvenido a la documentación completa del sistema de diálogos ramificados par
 - 🚀 Índices para performance
 - 📋 Guía de migración de datos
 
+### 📊 [Diagrama de Relaciones v2](./database-design-v2-diagrama.md)
+**Diagrama ER y relaciones detalladas del sistema v2**
+
+- 🔗 Diagrama ER simplificado
+- 📋 Relaciones detalladas entre tablas
+- 🔄 Flujo de datos
+- 🎯 Cardinalidades
+- 📊 Índices y performance
+
+### 📄 [Formatos JSON v2](./database-design-v2-formatos-json.md)
+**Documentación detallada de formatos JSON**
+
+- 📋 Formatos de todos los campos JSON
+- ✅ Ejemplos de uso
+- 🔍 Reglas de validación
+- 💡 Mejores prácticas
+
+### 🎯 [Alineación con Pixel Crushers](./pixel-crushers-alignment.md)
+**Mapeo y alineación con Dialogue System de Pixel Crushers**
+
+- 🔄 Mapeo de conceptos
+- 🔑 Características clave replicadas
+- ⚠️ Mejoras necesarias
+- 📋 Checklist de alineación
+- 🎯 Prioridades de implementación
+
+### 🔍 [Auditoría del Sistema Actual](./auditoria-sistema-dialogos-actual.md)
+**Análisis completo del sistema actual antes de migración**
+
+- 📊 Tablas de base de datos
+- 🏗️ Modelos Eloquent
+- 🎮 Controladores
+- 🛣️ Rutas API/Web
+- 🌱 Seeders
+- 🔗 Dependencias
+- 📝 Problemas identificados
+- 📋 Plan de acción
+
+### 📝 [Evaluación de Decisiones por Profesor](./evaluacion-decisiones-profesor.md)
+**Guía completa para evaluación de decisiones por profesores/instructores**
+
+- 📊 Campos de evaluación
+- 🔄 Flujo de evaluación
+- 📋 Estados de evaluación
+- 🎯 Casos de uso
+- 📊 Vistas y consultas
+- 🎓 Criterios de evaluación
+- 📈 Métricas y reportes
+
+### 🎤 [Sistema de Grabación de Audio MP3](./audio-grabacion-dialogos.md)
+**Sistema completo de grabación y almacenamiento de audio MP3**
+
+- 📊 Campos de audio en base de datos
+- 📁 Almacenamiento de archivos
+- 🔄 Flujo de grabación
+- 🎯 Casos de uso y APIs
+- 🔧 Helpers y utilidades
+- 🔒 Permisos y seguridad
+- 🎓 Uso para retroalimentación
+- 🔄 Integración con Unity
+
 ### 🚀 Características Principales
 
 #### **Sistema de Grid Inteligente**

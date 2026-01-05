@@ -20,6 +20,7 @@
   - `estado` (enum: borrador, activo, archivado)
   - `configuracion` (JSON)
   - Soft deletes habilitado
+- **Índices**: `creado_por`, `estado`, `publico`
 
 #### `nodos_dialogo`
 - **Migración**: `2025_10_16_075333_create_nodos_dialogo_table.php`
@@ -30,8 +31,9 @@
   - `orden` (integer)
   - `tipo` (enum: inicio, desarrollo, decision, final)
   - `condiciones` (JSON)
-  - `metadata` (JSON) - **Contiene posiciones en formato JSON**
+  - `metadata` (JSON) - **Contiene posiciones en formato JSON** ⚠️
   - `es_inicial`, `es_final` (boolean)
+- **Problema crítico**: Las posiciones están en JSON, no en campos directos
 
 #### `respuestas_dialogo`
 - **Migración**: `2025_01_15_000003_create_respuestas_dialogo_table.php`
@@ -46,6 +48,7 @@
   - `puntuacion` (integer)
   - `color` (string 7)
   - `activo` (boolean)
+- **Problema**: No hay soporte para usuarios no registrados
 
 #### `sesiones_dialogos`
 - **Migración**: `2025_01_15_000004_create_sesiones_dialogos_table.php`
@@ -59,13 +62,14 @@
   - `configuracion` (JSON)
   - `variables` (JSON)
   - Unique: `sesion_id` + `dialogo_id`
+- **Problema**: No hay historial de nodos visitados
 
 #### `decisiones_sesion`
 - **Migración**: `2025_01_15_000005_create_decisiones_sesion_table.php`
 - **Campos principales**:
   - `id`
   - `sesion_id` (FK a sesiones_juicios)
-  - `usuario_id` (FK a users)
+  - `usuario_id` (FK a users) ⚠️ **NO NULLABLE - No soporta usuarios no registrados**
   - `rol_id` (FK a roles_disponibles)
   - `nodo_dialogo_id` (FK a nodos_dialogo)
   - `respuesta_id` (FK a respuestas_dialogo, nullable)
@@ -73,12 +77,14 @@
   - `metadata` (JSON)
   - `tiempo_respuesta` (integer, nullable)
   - `fecha_decision` (timestamp)
+- **Problema crítico**: `usuario_id` no es nullable, no permite usuarios no registrados
 
 ### 1.2 Tablas del Sistema Panel Dialogo (Alternativo)
 
 #### `panel_dialogo_escenarios`
 - **Migración**: `2025_10_22_054105_create_panel_dialogo_system_tables.php`
 - Sistema alternativo de diálogos
+- **Estado**: Sistema paralelo, puede causar confusión
 
 #### `panel_dialogo_dialogos`
 - Sistema alternativo de diálogos
@@ -124,40 +130,57 @@
 
 #### `Dialogo` (`app/Models/Dialogo.php`)
 - **Tabla**: `dialogos`
+- **Fillable**: `nombre`, `descripcion`, `creado_por`, `plantilla_id`, `publico`, `estado`, `configuracion`
+- **Casts**: `publico` → boolean, `configuracion` → array
 - **Relaciones**:
-  - `creador()` → User
-  - `plantilla()` → PlantillaSesion
-  - `nodos()` → NodoDialogo (hasMany)
-  - `sesiones()` → SesionDialogo (hasMany)
-- **Scopes**: `activos()`, `publicos()`, `delUsuario()`, `disponiblesParaUsuario()`
+  - `creador()` → User (belongsTo)
+  - `plantilla()` → PlantillaSesion (belongsTo, nullable)
+  - `nodos()` → NodoDialogo (hasMany, ordenado por `orden`)
+  - `roles()` → RolDialogo (hasMany)
+  - `rolesActivos()` → RolDialogo (hasMany, filtrado por activo)
+- **Scopes**: 
+  - `activos()` - Filtra por estado 'activo'
+  - `publicos()` - Filtra por publico = true
+  - `delUsuario($userId)` - Filtra por creado_por
+  - `disponiblesParaUsuario($user)` - Públicos o del usuario
+- **Accessors**:
+  - `total_nodos` - Cuenta de nodos
+  - `nodo_inicial` - Primer nodo con es_inicial = true
+  - `nodos_finales` - Nodos con es_final = true
 - **Métodos clave**:
-  - `obtenerEstructuraGrafo()` - Obtiene estructura completa del grafo
-  - `actualizarPosicionesNodos()` - Actualiza posiciones desde metadata JSON
-  - `validarEstructuraGrafo()` - Valida estructura del diálogo
-  - `crearCopia()` - Crea copia del diálogo con nodos y respuestas
+  - `obtenerEstructuraGrafo()` - Retorna estructura completa del grafo con nodos y conexiones
+  - `actualizarPosicionesNodos($posiciones)` - Actualiza posiciones desde array
+  - `obtenerNodosPorPosicion($x, $y, $tolerancia)` - Busca nodos cerca de posición
+  - `validarEstructuraGrafo()` - Valida que tenga nodo inicial, final y no huérfanos
+  - `puedeSerEditadoPor($user)` - Verifica permisos de edición
+  - `puedeSerUsadoPor($user)` - Verifica permisos de uso
+  - `activar()` - Cambia estado a 'activo'
+  - `archivar()` - Cambia estado a 'archivado'
+  - `crearCopia($nuevoNombre, $usuarioId)` - Crea copia completa con nodos y respuestas
 
 #### `NodoDialogo` (`app/Models/NodoDialogo.php`)
 - **Tabla**: `nodos_dialogo`
 - **Relaciones**:
-  - `dialogo()` → Dialogo
-  - `rol()` → RolDisponible
+  - `dialogo()` → Dialogo (belongsTo)
+  - `rol()` → RolDisponible (belongsTo, nullable)
   - `respuestas()` → RespuestaDialogo (hasMany, nodo_padre_id)
   - `respuestasEntrantes()` → RespuestaDialogo (hasMany, nodo_siguiente_id)
   - `decisiones()` → DecisionSesion (hasMany)
 - **Accessors**:
-  - `posicion` - Extrae de metadata JSON
-  - `x`, `y` - Acceso directo a coordenadas
+  - `posicion` - Extrae de metadata JSON: `['x' => int, 'y' => int]`
+  - `x` - Acceso directo a coordenada X
+  - `y` - Acceso directo a coordenada Y
 - **Métodos clave**:
-  - `actualizarPosicion($x, $y)` - Actualiza posición en metadata
+  - `actualizarPosicion($x, $y)` - Actualiza posición en metadata JSON
   - `obtenerRespuestasDisponibles()` - Filtra respuestas por condiciones
   - `evaluarCondiciones()` - Evalúa condiciones del nodo
-  - `marcarComoInicial()` - Marca como inicial (desmarca otros)
+  - `marcarComoInicial()` - Marca como inicial (desmarca otros del diálogo)
 
 #### `RespuestaDialogo` (`app/Models/RespuestaDialogo.php`)
 - **Tabla**: `respuestas_dialogo`
 - **Relaciones**:
-  - `nodoPadre()` → NodoDialogo
-  - `nodoSiguiente()` → NodoDialogo
+  - `nodoPadre()` → NodoDialogo (belongsTo)
+  - `nodoSiguiente()` → NodoDialogo (belongsTo, nullable)
   - `decisiones()` → DecisionSesion (hasMany)
 - **Métodos clave**:
   - `aplicarConsecuencias()` - Aplica consecuencias a variables
@@ -167,18 +190,18 @@
 #### `SesionDialogo` (`app/Models/SesionDialogo.php`)
 - **Tabla**: `sesiones_dialogos`
 - **Relaciones**:
-  - `sesion()` → SesionJuicio
-  - `dialogo()` → Dialogo
-  - `nodoActual()` → NodoDialogo
+  - `sesion()` → SesionJuicio (belongsTo)
+  - `dialogo()` → Dialogo (belongsTo)
+  - `nodoActual()` → NodoDialogo (belongsTo, nullable)
 
 #### `DecisionSesion` (`app/Models/DecisionSesion.php`)
 - **Tabla**: `decisiones_sesion`
 - **Relaciones**:
-  - `sesion()` → SesionJuicio
-  - `usuario()` → User
-  - `rol()` → RolDisponible
-  - `nodoDialogo()` → NodoDialogo
-  - `respuesta()` → RespuestaDialogo
+  - `sesion()` → SesionJuicio (belongsTo)
+  - `usuario()` → User (belongsTo) ⚠️ **NO NULLABLE**
+  - `rol()` → RolDisponible (belongsTo)
+  - `nodoDialogo()` → NodoDialogo (belongsTo)
+  - `respuesta()` → RespuestaDialogo (belongsTo, nullable)
 - **Métodos clave**:
   - `calcularPuntuacion()` - Calcula puntuación con modificadores
   - `obtenerEstadisticas()` - Estadísticas de la decisión
@@ -188,16 +211,18 @@
 
 ### 2.2 Modelos del Sistema Panel Dialogo
 
-- `PanelDialogoEscenario`
-- `PanelDialogoDialogo`
-- `PanelDialogoFlujo`
-- `PanelDialogoOpcion`
-- `PanelDialogoConexion`
-- `PanelDialogoRol`
-- `PanelDialogoAsignacion`
-- `PanelDialogoSesion`
-- `PanelDialogoDecision`
-- `RolDialogo`
+- `PanelDialogoEscenario` (`app/Models/PanelDialogoEscenario.php`)
+- `PanelDialogoDialogo` (`app/Models/PanelDialogoDialogo.php`)
+- `PanelDialogoFlujo` (`app/Models/PanelDialogoFlujo.php`)
+- `PanelDialogoOpcion` (`app/Models/PanelDialogoOpcion.php`)
+- `PanelDialogoConexion` (`app/Models/PanelDialogoConexion.php`)
+- `PanelDialogoRol` (`app/Models/PanelDialogoRol.php`)
+- `PanelDialogoAsignacion` (`app/Models/PanelDialogoAsignacion.php`)
+- `PanelDialogoSesion` (`app/Models/PanelDialogoSesion.php`)
+- `PanelDialogoDecision` (`app/Models/PanelDialogoDecision.php`)
+- `RolDialogo` (`app/Models/RolDialogo.php`)
+
+**⚠️ PROBLEMA**: Sistema dual causa confusión y duplicación de código.
 
 ### 2.3 Modelos Relacionados (Dependencias)
 
@@ -220,61 +245,66 @@
 
 #### `DialogoController` (`app/Http/Controllers/DialogoController.php`)
 - **Rutas API**:
-  - `GET /api/dialogos` - Listar diálogos
-  - `POST /api/dialogos` - Crear diálogo
-  - `GET /api/dialogos/{id}` - Mostrar diálogo
-  - `PUT /api/dialogos/{id}` - Actualizar diálogo
-  - `DELETE /api/dialogos/{id}` - Eliminar diálogo
-  - `POST /api/dialogos/{id}/activar` - Activar diálogo
-  - `POST /api/dialogos/{id}/copiar` - Copiar diálogo
-  - `GET /api/dialogos/{id}/estructura` - Obtener estructura
-  - `POST /api/dialogos/{id}/posiciones` - Actualizar posiciones
+  - `GET /api/dialogos` - Listar diálogos (index)
+  - `POST /api/dialogos` - Crear diálogo (store) - Requiere: admin/instructor
+  - `GET /api/dialogos/{dialogo}` - Mostrar diálogo (show)
+  - `PUT /api/dialogos/{dialogo}` - Actualizar diálogo (update) - Requiere: admin/instructor
+  - `DELETE /api/dialogos/{dialogo}` - Eliminar diálogo (destroy) - Requiere: admin/instructor
+  - `POST /api/dialogos/{dialogo}/activar` - Activar diálogo (activar) - Requiere: admin/instructor
+  - `POST /api/dialogos/{dialogo}/copiar` - Copiar diálogo (copiar)
+  - `GET /api/dialogos/{dialogo}/estructura` - Obtener estructura (estructura)
+  - `POST /api/dialogos/{dialogo}/posiciones` - Actualizar posiciones (actualizarPosiciones)
+  - `GET /api/dialogos/{dialogo}/export` - Exportar a JSON (exportar)
 - **Rutas Web**:
-  - `/dialogos-legacy` - Vista legacy
+  - `/dialogos-legacy` - Vista legacy (indexWeb)
+  - `/dialogos-legacy/{dialogo}` - Mostrar diálogo legacy (showWeb)
 
 #### `NodoDialogoController` (`app/Http/Controllers/NodoDialogoController.php`)
 - **Rutas API**:
-  - `POST /api/dialogos/{dialogo}/nodos` - Crear nodo
-  - `PUT /api/nodos/{id}` - Actualizar nodo
-  - `DELETE /api/nodos/{id}` - Eliminar nodo
-  - `POST /api/nodos/{id}/marcar-inicial` - Marcar como inicial
-  - `GET /api/nodos/{id}/respuestas` - Obtener respuestas
-  - `POST /api/nodos/{id}/respuestas` - Agregar respuesta
+  - `POST /api/dialogos/{dialogo}/nodos` - Crear nodo (store) - Requiere: admin/instructor
+  - `PUT /api/nodos/{id}` - Actualizar nodo (update) - Requiere: admin/instructor
+  - `DELETE /api/nodos/{id}` - Eliminar nodo (destroy) - Requiere: admin/instructor
+  - `POST /api/nodos/{id}/marcar-inicial` - Marcar como inicial (marcarComoInicial) - Requiere: admin/instructor
+  - `GET /api/nodos/{id}/respuestas` - Obtener respuestas (obtenerRespuestas)
+  - `POST /api/nodos/{id}/respuestas` - Agregar respuesta (agregarRespuesta) - Requiere: admin/instructor
 
 #### `DialogoFlujoController` (`app/Http/Controllers/DialogoFlujoController.php`)
 - **Rutas API**:
-  - `POST /api/sesiones/{id}/iniciar-dialogo` - Iniciar diálogo en sesión
-  - `GET /api/sesiones/{id}/dialogo-actual` - Estado actual
-  - `GET /api/sesiones/{id}/respuestas-disponibles/{usuario}` - Respuestas disponibles
-  - `POST /api/sesiones/{id}/procesar-decision` - Procesar decisión
-  - `POST /api/sesiones/{id}/avanzar-dialogo` - Avanzar diálogo
-  - `POST /api/sesiones/{id}/pausar-dialogo` - Pausar diálogo
-  - `POST /api/sesiones/{id}/finalizar-dialogo` - Finalizar diálogo
-  - `GET /api/sesiones/{id}/historial-decisiones` - Historial
+  - `POST /api/sesiones/{id}/iniciar-dialogo` - Iniciar diálogo en sesión (iniciarDialogo) - Requiere: admin/instructor
+  - `GET /api/sesiones/{id}/dialogo-actual` - Estado actual (obtenerEstadoActual)
+  - `GET /api/sesiones/{id}/respuestas-disponibles/{usuario}` - Respuestas disponibles (obtenerRespuestasDisponibles)
+  - `POST /api/sesiones/{id}/procesar-decision` - Procesar decisión (procesarDecision)
+  - `POST /api/sesiones/{id}/avanzar-dialogo` - Avanzar diálogo (avanzarDialogo) - Requiere: admin/instructor
+  - `POST /api/sesiones/{id}/pausar-dialogo` - Pausar diálogo (pausarDialogo) - Requiere: admin/instructor
+  - `POST /api/sesiones/{id}/finalizar-dialogo` - Finalizar diálogo (finalizarDialogo) - Requiere: admin/instructor
+  - `GET /api/sesiones/{id}/historial-decisiones` - Historial (obtenerHistorialDecisiones)
 
 #### `DialogoImportController` (`app/Http/Controllers/DialogoImportController.php`)
 - **Rutas API**:
-  - `POST /api/dialogos/import` - Importar desde JSON
-  - `GET /api/dialogos/{id}/export` - Exportar a JSON
+  - `POST /api/dialogos/import` - Importar desde JSON (importar) - Requiere: admin/instructor
+  - `GET /api/dialogos/{id}/export` - Exportar a JSON (exportar)
 
 #### `UnityDialogoController` (`app/Http/Controllers/UnityDialogoController.php`)
-- **Rutas API Unity**:
-  - `GET /api/unity/sesion/{id}/dialogo-estado` - Estado del diálogo
-  - `GET /api/unity/sesion/{id}/respuestas-usuario/{usuario}` - Respuestas del usuario
-  - `POST /api/unity/sesion/{id}/enviar-decision` - Enviar decisión
-  - `POST /api/unity/sesion/{id}/notificar-hablando` - Notificar habla
-  - `GET /api/unity/sesion/{id}/movimientos-personajes` - Movimientos
+- **Rutas API Unity** (requieren `unity.auth`):
+  - `GET /api/unity/sesion/{id}/dialogo-estado` - Estado del diálogo (obtenerEstadoDialogo)
+  - `GET /api/unity/sesion/{id}/respuestas-usuario/{usuario}` - Respuestas del usuario (obtenerRespuestasUsuario)
+  - `POST /api/unity/sesion/{id}/enviar-decision` - Enviar decisión (enviarDecision)
+  - `POST /api/unity/sesion/{id}/notificar-hablando` - Notificar habla (notificarHablando)
+  - `GET /api/unity/sesion/{id}/movimientos-personajes` - Movimientos (obtenerMovimientosPersonajes)
 
 #### `PanelDialogoController` (`app/Http/Controllers/PanelDialogoController.php`)
-- **Rutas API**:
-  - `GET /api/panel-dialogos` - Listar escenarios
-  - `POST /api/panel-dialogos` - Crear escenario
+- **Rutas API** (sistema alternativo):
+  - `GET /api/panel-dialogos` - Listar escenarios (index)
+  - `POST /api/panel-dialogos` - Crear escenario (store)
+  - `GET /api/panel-dialogos/{escenario}` - Mostrar escenario (show)
+  - `PUT /api/panel-dialogos/{escenario}` - Actualizar escenario (update)
+  - `DELETE /api/panel-dialogos/{escenario}` - Eliminar escenario (destroy)
   - Rutas para roles, flujos, diálogos, opciones, conexiones
 - **Rutas Web**:
-  - `/panel-dialogos` - Vista principal
-  - `/panel-dialogos/create` - Crear escenario
-  - `/panel-dialogos/{id}` - Mostrar escenario
-  - `/panel-dialogos/{id}/editor` - Editor
+  - `/panel-dialogos` - Vista principal (indexWeb)
+  - `/panel-dialogos/create` - Crear escenario (create)
+  - `/panel-dialogos/{id}` - Mostrar escenario (show)
+  - `/panel-dialogos/{id}/editor` - Editor (editor)
 
 ---
 
@@ -312,22 +342,22 @@
 
 ### 5.1 Seeders de Diálogos
 
-#### `DialogoEjemploSeeder`
+#### `DialogoEjemploSeeder` (`database/seeders/DialogoEjemploSeeder.php`)
 - Diálogo de ejemplo básico
 
-#### `DialogoRoboOXXOSeeder`
+#### `DialogoRoboOXXOSeeder` (`database/seeders/DialogoRoboOXXOSeeder.php`)
 - Diálogo de robo a OXXO (versión simple)
 
-#### `DialogoRoboOXXOCompletoSeeder`
+#### `DialogoRoboOXXOCompletoSeeder` (`database/seeders/DialogoRoboOXXOCompletoSeeder.php`)
 - Diálogo de robo a OXXO (versión completa, 1309 líneas)
 
-#### `DialogoJuicioPenalSeeder`
+#### `DialogoJuicioPenalSeeder` (`database/seeders/DialogoJuicioPenalSeeder.php`)
 - Diálogo de juicio penal (424 líneas)
 
-#### `PanelDialogoEscenarioSeeder`
+#### `PanelDialogoEscenarioSeeder` (`database/seeders/PanelDialogoEscenarioSeeder.php`)
 - Seeders para sistema Panel Dialogo
 
-#### `RolesDialogoSeeder`
+#### `RolesDialogoSeeder` (`database/seeders/RolesDialogoSeeder.php`)
 - Seeders de roles de diálogos
 
 ---
@@ -343,8 +373,8 @@
 
 #### Módulo de Usuarios (`User`)
 - **Relación**: `belongsTo` en `Dialogo` (creado_por)
-- **Relación**: `belongsTo` en `DecisionSesion` (usuario_id)
-- **Impacto**: Necesario mantener referencias
+- **Relación**: `belongsTo` en `DecisionSesion` (usuario_id) ⚠️ **NO NULLABLE**
+- **Impacto**: Necesario mantener referencias, pero v2 debe soportar NULL
 
 #### Módulo de Roles (`RolDisponible`)
 - **Relación**: `belongsTo` en `NodoDialogo` (rol_id)
@@ -377,7 +407,7 @@ sesiones_dialogos.nodo_actual_id → nodos_dialogo.id (SET NULL)
 
 -- Decisiones
 decisiones_sesion.sesion_id → sesiones_juicios.id
-decisiones_sesion.usuario_id → users.id
+decisiones_sesion.usuario_id → users.id ⚠️ **NO NULLABLE - PROBLEMA**
 decisiones_sesion.rol_id → roles_disponibles.id
 decisiones_sesion.nodo_dialogo_id → nodos_dialogo.id
 decisiones_sesion.respuesta_id → respuestas_dialogo.id (nullable)
@@ -393,20 +423,29 @@ decisiones_sesion.respuesta_id → respuestas_dialogo.id (nullable)
    - Dificulta consultas por posición
    - No hay índices en posiciones
    - Extracción requiere parsing JSON
+   - **Solución v2**: Campos `posicion_x` y `posicion_y` directos
 
 2. **Falta soporte para usuarios no registrados**:
    - No hay campo `requiere_usuario_registrado` en respuestas
    - No hay campo `es_opcion_por_defecto`
    - No hay tracking de usuarios no registrados en decisiones
+   - `usuario_id` en `decisiones_sesion` es NOT NULL
+   - **Solución v2**: Campos específicos y `usuario_id` nullable
 
 3. **Sistema dual**: Existen dos sistemas paralelos
    - Sistema principal (`Dialogo`, `NodoDialogo`, etc.)
    - Sistema Panel Dialogo (`PanelDialogo*`)
    - Confusión y duplicación de código
+   - **Solución v2**: Unificar en un solo sistema
 
 4. **Falta historial de nodos**: No hay tracking de nodos visitados en sesiones
+   - **Solución v2**: Campo `historial_nodos` (JSON array)
 
 5. **Metadata sin estructura**: Campos JSON sin validación estricta
+   - **Solución v2**: Validación y estructura definida
+
+6. **Falta versionado**: No hay control de versiones de diálogos
+   - **Solución v2**: Campo `version` en `dialogos_v2`
 
 ### 7.2 Problemas de Performance
 
@@ -424,7 +463,24 @@ decisiones_sesion.respuesta_id → respuestas_dialogo.id (nullable)
 
 ## 📊 8. Análisis de Datos Existentes
 
-### 8.1 Scripts de Análisis Necesarios
+### 8.1 Scripts de Análisis
+
+**Scripts creados**:
+- `database/scripts/analizar-datos-dialogos.php` - Análisis completo de datos
+- `database/scripts/backup-datos-dialogos.php` - Backup de datos antes de migración
+
+**Para ejecutar**:
+```bash
+# Análisis
+php artisan tinker
+require 'database/scripts/analizar-datos-dialogos.php';
+
+# Backup
+php artisan tinker
+require 'database/scripts/backup-datos-dialogos.php';
+```
+
+### 8.2 Consultas SQL de Análisis
 
 ```sql
 -- Contar registros por tabla
@@ -457,10 +513,10 @@ FROM respuestas_dialogo
 WHERE nodo_siguiente_id IS NULL;
 ```
 
-### 8.2 Datos Críticos a Migrar
+### 8.3 Datos Críticos a Migrar
 
 1. **Todos los diálogos activos**
-2. **Todos los nodos con sus posiciones** (extraer de metadata)
+2. **Todos los nodos con sus posiciones** (extraer de metadata JSON)
 3. **Todas las respuestas y conexiones**
 4. **Sesiones de diálogos activas**
 5. **Decisiones históricas** (para estadísticas)
@@ -469,20 +525,20 @@ WHERE nodo_siguiente_id IS NULL;
 
 ## 🎯 9. Plan de Acción para Migración
 
-### 9.1 Fase 1: Preparación
+### 9.1 Fase 1: Preparación ✅
 1. ✅ Auditoría completa (este documento)
-2. ⏳ Crear script de backup de datos
-3. ⏳ Documentar formato de datos actual
+2. ✅ Crear script de backup de datos
+3. ✅ Documentar formato de datos actual
 
-### 9.2 Fase 2: Diseño
+### 9.2 Fase 2: Diseño ✅
 1. ✅ Diseño de nuevo esquema (ver `database-design-v2.md`)
-2. ⏳ Crear nuevas migraciones
+2. ✅ Crear nuevas migraciones
 3. ⏳ Validar diseño con stakeholders
 
 ### 9.3 Fase 3: Implementación
 1. ⏳ Crear tablas v2
 2. ⏳ Crear modelos v2
-3. ⏳ Scripts de migración de datos
+3. ✅ Scripts de migración de datos
 4. ⏳ Tests de migración
 
 ### 9.4 Fase 4: Transición
@@ -501,9 +557,9 @@ WHERE nodo_siguiente_id IS NULL;
 ## 📋 10. Checklist de Migración
 
 ### Pre-Migración
-- [ ] Backup completo de base de datos
-- [ ] Backup de código actual
-- [ ] Documentar todos los endpoints en uso
+- [x] Backup completo de base de datos (script creado)
+- [x] Backup de código actual (git)
+- [x] Documentar todos los endpoints en uso
 - [ ] Identificar datos de producción críticos
 - [ ] Plan de rollback preparado
 
@@ -523,6 +579,40 @@ WHERE nodo_siguiente_id IS NULL;
 
 ---
 
+## 📄 11. Scripts de Migración Creados
+
+### Scripts Disponibles
+
+1. **`database/scripts/analizar-datos-dialogos.php`**
+   - Analiza todos los datos del sistema actual
+   - Cuenta registros por tabla
+   - Identifica datos críticos
+
+2. **`database/scripts/backup-datos-dialogos.php`**
+   - Crea backup completo de todas las tablas relacionadas
+   - Guarda en `storage/app/backups/dialogos_v1/`
+
+3. **`database/scripts/migrar-datos-dialogos-v2.php`**
+   - Migra todos los datos de v1 a v2
+   - Extrae posiciones de metadata JSON
+   - Valida integridad referencial
+
+4. **`database/scripts/validar-migracion-dialogos.php`**
+   - Valida que la migración se haya realizado correctamente
+   - Compara conteos entre v1 y v2
+   - Verifica integridad referencial
+
+### Comandos Artisan
+
+1. **`php artisan dialogos:migrate-to-v2`**
+   - Ejecuta la migración de datos
+   - Opciones: `--validate-only`, `--force`
+
+2. **`php artisan dialogos:validate-migration`**
+   - Valida la migración realizada
+
+---
+
 **Última actualización**: Enero 2025  
-**Estado**: Auditoría completada  
-**Próximo paso**: Crear script de backup y análisis de datos
+**Estado**: Auditoría completada ✅  
+**Próximo paso**: Ejecutar análisis de datos y completar migraciones

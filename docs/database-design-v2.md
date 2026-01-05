@@ -54,15 +54,22 @@ CREATE TABLE `dialogos_v2` (
 
 ### Tabla: `nodos_dialogo_v2`
 
+**Actualización**: Campos adicionales agregados para alineación con Pixel Crushers Dialogue System:
+- `conversant_id`: Quien escucha el diálogo (equivalente a ConversantID)
+- `menu_text`: Texto para mostrar en menú de respuestas (equivalente a MenuText)
+- `tipo`: Incluye 'agrupacion' (equivalente a isGroup)
+
 ```sql
 CREATE TABLE `nodos_dialogo_v2` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `dialogo_id` BIGINT UNSIGNED NOT NULL,
   `rol_id` BIGINT UNSIGNED NULL,
+  `conversant_id` BIGINT UNSIGNED NULL,
   `titulo` VARCHAR(200) NOT NULL,
   `contenido` TEXT NOT NULL,
+  `menu_text` TEXT NULL,
   `instrucciones` TEXT NULL,
-  `tipo` ENUM('inicio', 'desarrollo', 'decision', 'final') NOT NULL DEFAULT 'desarrollo',
+  `tipo` ENUM('inicio', 'desarrollo', 'decision', 'final', 'agrupacion') NOT NULL DEFAULT 'desarrollo',
   `posicion_x` INTEGER NOT NULL DEFAULT 0,
   `posicion_y` INTEGER NOT NULL DEFAULT 0,
   `es_inicial` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -77,6 +84,7 @@ CREATE TABLE `nodos_dialogo_v2` (
   PRIMARY KEY (`id`),
   INDEX `idx_dialogo_id` (`dialogo_id`),
   INDEX `idx_rol_id` (`rol_id`),
+  INDEX `idx_conversant_id` (`conversant_id`),
   INDEX `idx_tipo` (`tipo`),
   INDEX `idx_es_inicial` (`es_inicial`),
   INDEX `idx_es_final` (`es_final`),
@@ -85,12 +93,16 @@ CREATE TABLE `nodos_dialogo_v2` (
   INDEX `idx_dialogo_inicial` (`dialogo_id`, `es_inicial`),
   INDEX `idx_dialogo_final` (`dialogo_id`, `es_final`),
   FOREIGN KEY (`dialogo_id`) REFERENCES `dialogos_v2`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`rol_id`) REFERENCES `roles_disponibles`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`rol_id`) REFERENCES `roles_disponibles`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`conversant_id`) REFERENCES `roles_disponibles`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Cambios principales:**
 - ✅ `posicion_x` y `posicion_y` como campos directos (en lugar de JSON)
+- ✅ `conversant_id`: Quien escucha el diálogo (alineado con Pixel Crushers ConversantID)
+- ✅ `menu_text`: Texto para menú de respuestas (alineado con Pixel Crushers MenuText)
+- ✅ `tipo` incluye 'agrupacion' (alineado con Pixel Crushers isGroup)
 - ✅ Índices optimizados para búsquedas por posición
 - ✅ Campo `activo` para soft enable/disable
 
@@ -181,6 +193,11 @@ CREATE TABLE `sesiones_dialogos_v2` (
   `variables` JSON NULL,
   `configuracion` JSON NULL,
   `historial_nodos` JSON NULL,
+  `audio_mp3_completo` VARCHAR(500) NULL,
+  `audio_duracion_completo` INTEGER NULL,
+  `audio_grabado_en` TIMESTAMP NULL,
+  `audio_procesado` BOOLEAN NOT NULL DEFAULT FALSE,
+  `audio_habilitado` BOOLEAN NOT NULL DEFAULT FALSE,
   `created_at` TIMESTAMP NULL,
   `updated_at` TIMESTAMP NULL,
   PRIMARY KEY (`id`),
@@ -197,6 +214,13 @@ CREATE TABLE `sesiones_dialogos_v2` (
 
 **Campos nuevos:**
 - ✅ `historial_nodos`: Array JSON con historial de nodos visitados
+
+**Campos de audio MP3 completo:**
+- ✅ `audio_mp3_completo`: Ruta al archivo MP3 de la grabación completa de la sesión
+- ✅ `audio_duracion_completo`: Duración total del audio completo en segundos
+- ✅ `audio_grabado_en`: Fecha y hora en que se inició la grabación
+- ✅ `audio_procesado`: Indica si el audio completo fue procesado y validado
+- ✅ `audio_habilitado`: Indica si la grabación de audio está habilitada para esta sesión
 
 **Formato de historial_nodos (JSON):**
 ```json
@@ -243,6 +267,17 @@ CREATE TABLE `decisiones_dialogo_v2` (
   `rol_id` BIGINT UNSIGNED NULL,
   `texto_respuesta` TEXT NULL,
   `puntuacion_obtenida` INTEGER NOT NULL DEFAULT 0,
+  `calificacion_profesor` INTEGER NULL,
+  `notas_profesor` TEXT NULL,
+  `evaluado_por` BIGINT UNSIGNED NULL,
+  `fecha_evaluacion` TIMESTAMP NULL,
+  `estado_evaluacion` ENUM('pendiente', 'evaluado', 'revisado') NOT NULL DEFAULT 'pendiente',
+  `justificacion_estudiante` TEXT NULL,
+  `retroalimentacion` TEXT NULL,
+  `audio_mp3` VARCHAR(500) NULL,
+  `audio_duracion` INTEGER NULL,
+  `audio_grabado_en` TIMESTAMP NULL,
+  `audio_procesado` BOOLEAN NOT NULL DEFAULT FALSE,
   `tiempo_respuesta` INTEGER NULL,
   `fue_opcion_por_defecto` BOOLEAN NOT NULL DEFAULT FALSE,
   `usuario_registrado` BOOLEAN NOT NULL DEFAULT FALSE,
@@ -256,11 +291,20 @@ CREATE TABLE `decisiones_dialogo_v2` (
   INDEX `idx_respuesta` (`respuesta_id`),
   INDEX `idx_usuario_registrado` (`usuario_registrado`),
   INDEX `idx_fecha` (`created_at`),
+  INDEX `idx_audio_procesado` (`audio_procesado`),
+  INDEX `idx_audio_grabado_en` (`audio_grabado_en`),
+  INDEX `idx_usuario_audio` (`usuario_id`, `audio_procesado`),
+  INDEX `idx_estado_evaluacion` (`estado_evaluacion`),
+  INDEX `idx_evaluado_por` (`evaluado_por`),
+  INDEX `idx_fecha_evaluacion` (`fecha_evaluacion`),
+  INDEX `idx_usuario_evaluacion` (`usuario_id`, `estado_evaluacion`),
+  INDEX `idx_sesion_evaluacion` (`sesion_dialogo_id`, `estado_evaluacion`),
   FOREIGN KEY (`sesion_dialogo_id`) REFERENCES `sesiones_dialogos_v2`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`nodo_dialogo_id`) REFERENCES `nodos_dialogo_v2`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`respuesta_id`) REFERENCES `respuestas_dialogo_v2`(`id`) ON DELETE SET NULL,
   FOREIGN KEY (`usuario_id`) REFERENCES `users`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`rol_id`) REFERENCES `roles_disponibles`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`rol_id`) REFERENCES `roles_disponibles`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`evaluado_por`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
@@ -270,10 +314,28 @@ CREATE TABLE `decisiones_dialogo_v2` (
 - ✅ `texto_respuesta`: Almacena el texto de la respuesta (por si se elimina la respuesta)
 - ✅ `tiempo_respuesta`: Tiempo en segundos que tardó en responder
 
+**Campos de evaluación del profesor:**
+- ✅ `calificacion_profesor`: Calificación manual del profesor (0-100, nullable)
+- ✅ `notas_profesor`: Comentarios y notas del profesor sobre la decisión
+- ✅ `evaluado_por`: ID del profesor/instructor que evaluó (FK a users, nullable)
+- ✅ `fecha_evaluacion`: Fecha y hora en que se evaluó la decisión
+- ✅ `estado_evaluacion`: Estado de la evaluación (pendiente, evaluado, revisado)
+- ✅ `justificacion_estudiante`: Justificación del estudiante sobre su decisión
+- ✅ `retroalimentacion`: Retroalimentación general para el estudiante
+
+**Campos de audio MP3:**
+- ✅ `audio_mp3`: Ruta al archivo MP3 de la grabación de la decisión
+- ✅ `audio_duracion`: Duración del audio en segundos
+- ✅ `audio_grabado_en`: Fecha y hora en que se grabó el audio
+- ✅ `audio_procesado`: Indica si el audio fue procesado y validado
+
 **Uso:**
 - Si `usuario_id` es NULL → Usuario no registrado
 - Si `fue_opcion_por_defecto = true` → Se ejecutó automáticamente
 - `texto_respuesta` permite mantener historial incluso si se elimina la respuesta
+- `estado_evaluacion = 'pendiente'` → Aún no evaluada por el profesor
+- `estado_evaluacion = 'evaluado'` → Evaluada pero no revisada por el estudiante
+- `estado_evaluacion = 'revisado'` → El estudiante ya revisó la evaluación
 
 ---
 

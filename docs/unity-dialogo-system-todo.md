@@ -8,189 +8,207 @@ Crear un sistema de diálogos propio para Unity que reemplace la dependencia de 
 ## 🔄 FASE 0.5: Migración y Reemplazo del Sistema Actual de Diálogos
 
 ### 0.5.1 Análisis del Sistema Actual
-- [ ] **Auditoría completa del sistema actual**
-  - [ ] Listar todas las tablas relacionadas con diálogos
-  - [ ] Listar todos los modelos relacionados
-  - [ ] Listar todos los controladores relacionados
-  - [ ] Listar todas las rutas API relacionadas
-  - [ ] Listar todos los seeders que usan diálogos
-  - [ ] Identificar dependencias con otros módulos
-  - [ ] Documentar estructura actual completa
+- [x] **Auditoría completa del sistema actual**
+  - [x] Listar todas las tablas relacionadas con diálogos
+  - [x] Listar todos los modelos relacionados
+  - [x] Listar todos los controladores relacionados
+  - [x] Listar todas las rutas API relacionadas
+  - [x] Listar todos los seeders que usan diálogos
+  - [x] Identificar dependencias con otros módulos
+  - [x] Documentar estructura actual completa
+  - [x] Documento completo en `docs/auditoria-sistema-dialogos-actual.md`
 
-- [ ] **Análisis de datos existentes**
-  - [ ] Contar registros en cada tabla de diálogos
-  - [ ] Identificar datos críticos a migrar
-  - [ ] Crear script de backup de datos
-  - [ ] Documentar formato de datos actual
+- [x] **Análisis de datos existentes**
+  - [x] Contar registros en cada tabla de diálogos
+  - [x] Identificar datos críticos a migrar
+  - [x] Crear script de backup de datos
+  - [x] Documentar formato de datos actual
+  - [x] Script `database/scripts/analizar-datos-dialogos.php` creado
+  - [x] Script `database/scripts/backup-datos-dialogos.php` creado
 
 ### 0.5.2 Diseño del Nuevo Esquema de Base de Datos
-- [ ] **Diseñar tabla `dialogos_v2` (nueva versión)**
-  - [ ] Campos base: `id`, `nombre`, `descripcion`, `version`
-  - [ ] `creado_por` (FK a users)
-  - [ ] `plantilla_id` (FK a plantillas_sesiones, nullable)
-  - [ ] `publico` (boolean)
-  - [ ] `estado` (enum: borrador, activo, archivado)
-  - [ ] `configuracion` (JSON) - Configuraciones específicas
-  - [ ] `metadata_unity` (JSON) - Metadatos para Unity
-  - [ ] `fecha_creacion`, `fecha_actualizacion`
-  - [ ] Soft deletes
-  - [ ] Índices optimizados
+- [x] **Diseñar tabla `dialogos_v2` (nueva versión)**
+  - [x] Campos base: `id`, `nombre`, `descripcion`, `version`
+  - [x] `creado_por` (FK a users)
+  - [x] `plantilla_id` (FK a plantillas_sesiones, nullable)
+  - [x] `publico` (boolean)
+  - [x] `estado` (enum: borrador, activo, archivado)
+  - [x] `configuracion` (JSON) - Configuraciones específicas
+  - [x] `metadata_unity` (JSON) - Metadatos para Unity
+  - [x] `fecha_creacion`, `fecha_actualizacion`
+  - [x] Soft deletes
+  - [x] Índices optimizados
+  - [x] Documentación completa en `database-design-v2.md`
 
-- [ ] **Diseñar tabla `nodos_dialogo_v2`**
-  - [ ] `id` (PK)
-  - [ ] `dialogo_id` (FK a dialogos_v2, cascade delete)
-  - [ ] `rol_id` (FK a roles_disponibles, nullable, set null)
-  - [ ] `titulo` (string 200)
-  - [ ] `contenido` (text)
-  - [ ] `instrucciones` (text, nullable)
-  - [ ] `tipo` (enum: inicio, desarrollo, decision, final)
-  - [ ] `posicion_x` (integer) - Posición X en grid (200px unidades)
-  - [ ] `posicion_y` (integer) - Posición Y en grid (200px unidades)
-  - [ ] `es_inicial` (boolean, default false)
-  - [ ] `es_final` (boolean, default false)
-  - [ ] `condiciones` (JSON, nullable) - Condiciones para mostrar nodo
-  - [ ] `consecuencias` (JSON, nullable) - Consecuencias al llegar al nodo
-  - [ ] `metadata` (JSON, nullable) - Metadatos adicionales
-  - [ ] `orden` (integer, default 0) - Para ordenamiento
-  - [ ] `activo` (boolean, default true)
-  - [ ] `timestamps`
-  - [ ] Índices: dialogo_id, rol_id, tipo, es_inicial, es_final, posicion
+- [x] **Diseñar tabla `nodos_dialogo_v2`**
+  - [x] `id` (PK)
+  - [x] `dialogo_id` (FK a dialogos_v2, cascade delete)
+  - [x] `rol_id` (FK a roles_disponibles, nullable, set null)
+  - [x] `conversant_id` (FK a roles_disponibles, nullable, set null) - Pixel Crushers
+  - [x] `titulo` (string 200)
+  - [x] `contenido` (text)
+  - [x] `menu_text` (text, nullable) - Pixel Crushers MenuText
+  - [x] `instrucciones` (text, nullable)
+  - [x] `tipo` (enum: inicio, desarrollo, decision, final, agrupacion) - Pixel Crushers
+  - [x] `posicion_x` (integer) - Posición X en grid (200px unidades)
+  - [x] `posicion_y` (integer) - Posición Y en grid (200px unidades)
+  - [x] `es_inicial` (boolean, default false)
+  - [x] `es_final` (boolean, default false)
+  - [x] `condiciones` (JSON, nullable) - Condiciones para mostrar nodo
+  - [x] `consecuencias` (JSON, nullable) - Consecuencias al llegar al nodo
+  - [x] `metadata` (JSON, nullable) - Metadatos adicionales (Sequence, userScript)
+  - [x] `orden` (integer, default 0) - Para ordenamiento
+  - [x] `activo` (boolean, default true)
+  - [x] `timestamps`
+  - [x] Índices: dialogo_id, rol_id, conversant_id, tipo, es_inicial, es_final, posicion
 
-- [ ] **Diseñar tabla `respuestas_dialogo_v2`**
-  - [ ] `id` (PK)
-  - [ ] `nodo_padre_id` (FK a nodos_dialogo_v2, cascade delete)
-  - [ ] `nodo_siguiente_id` (FK a nodos_dialogo_v2, nullable, set null)
-  - [ ] `texto` (string 500) - Texto de la opción
-  - [ ] `descripcion` (text, nullable)
-  - [ ] `orden` (integer, default 0)
-  - [ ] `puntuacion` (integer, default 0)
-  - [ ] `color` (string 7, default '#007bff') - Color hex
-  - [ ] `condiciones` (JSON, nullable) - Condiciones para mostrar respuesta
-  - [ ] `consecuencias` (JSON, nullable) - Consecuencias de seleccionar
-  - [ ] `requiere_usuario_registrado` (boolean, default false)
-  - [ ] `es_opcion_por_defecto` (boolean, default false) - Para usuarios no registrados
-  - [ ] `requiere_rol` (JSON, nullable) - Array de IDs de roles requeridos
-  - [ ] `activo` (boolean, default true)
-  - [ ] `timestamps`
-  - [ ] Índices: nodo_padre_id, nodo_siguiente_id, activo, requiere_usuario_registrado
+- [x] **Diseñar tabla `respuestas_dialogo_v2`**
+  - [x] `id` (PK)
+  - [x] `nodo_padre_id` (FK a nodos_dialogo_v2, cascade delete)
+  - [x] `nodo_siguiente_id` (FK a nodos_dialogo_v2, nullable, set null)
+  - [x] `texto` (string 500) - Texto de la opción
+  - [x] `descripcion` (text, nullable)
+  - [x] `orden` (integer, default 0)
+  - [x] `puntuacion` (integer, default 0)
+  - [x] `color` (string 7, default '#007bff') - Color hex
+  - [x] `condiciones` (JSON, nullable) - Condiciones para mostrar respuesta
+  - [x] `consecuencias` (JSON, nullable) - Consecuencias de seleccionar
+  - [x] `requiere_usuario_registrado` (boolean, default false)
+  - [x] `es_opcion_por_defecto` (boolean, default false) - Para usuarios no registrados
+  - [x] `requiere_rol` (JSON, nullable) - Array de IDs de roles requeridos
+  - [x] `activo` (boolean, default true)
+  - [x] `timestamps`
+  - [x] Índices: nodo_padre_id, nodo_siguiente_id, activo, requiere_usuario_registrado
 
-- [ ] **Diseñar tabla `sesiones_dialogos_v2`**
-  - [ ] `id` (PK)
-  - [ ] `sesion_id` (FK a sesiones_juicios, cascade delete)
-  - [ ] `dialogo_id` (FK a dialogos_v2, cascade delete)
-  - [ ] `nodo_actual_id` (FK a nodos_dialogo_v2, nullable, set null)
-  - [ ] `estado` (enum: iniciado, en_curso, pausado, finalizado)
-  - [ ] `fecha_inicio` (timestamp, nullable)
-  - [ ] `fecha_fin` (timestamp, nullable)
-  - [ ] `variables` (JSON, nullable) - Variables de estado del diálogo
-  - [ ] `configuracion` (JSON, nullable) - Configuración específica
-  - [ ] `historial_nodos` (JSON, nullable) - Historial de nodos visitados
-  - [ ] `timestamps`
-  - [ ] Índices: sesion_id, dialogo_id, estado, nodo_actual_id
-  - [ ] Unique: sesion_id + dialogo_id
+- [x] **Diseñar tabla `sesiones_dialogos_v2`**
+  - [x] `id` (PK)
+  - [x] `sesion_id` (FK a sesiones_juicios, cascade delete)
+  - [x] `dialogo_id` (FK a dialogos_v2, cascade delete)
+  - [x] `nodo_actual_id` (FK a nodos_dialogo_v2, nullable, set null)
+  - [x] `estado` (enum: iniciado, en_curso, pausado, finalizado)
+  - [x] `fecha_inicio` (timestamp, nullable)
+  - [x] `fecha_fin` (timestamp, nullable)
+  - [x] `variables` (JSON, nullable) - Variables de estado del diálogo
+  - [x] `configuracion` (JSON, nullable) - Configuración específica
+  - [x] `historial_nodos` (JSON, nullable) - Historial de nodos visitados
+  - [x] `timestamps`
+  - [x] Índices: sesion_id, dialogo_id, estado, nodo_actual_id
+  - [x] Unique: sesion_id + dialogo_id
 
-- [ ] **Diseñar tabla `decisiones_dialogo_v2` (mejorada)**
-  - [ ] `id` (PK)
-  - [ ] `sesion_dialogo_id` (FK a sesiones_dialogos_v2, cascade delete)
-  - [ ] `nodo_dialogo_id` (FK a nodos_dialogo_v2, set null)
-  - [ ] `respuesta_id` (FK a respuestas_dialogo_v2, nullable, set null)
-  - [ ] `usuario_id` (FK a users, nullable) - NULL si usuario no registrado
-  - [ ] `rol_id` (FK a roles_disponibles, nullable)
-  - [ ] `texto_respuesta` (text, nullable) - Texto de la respuesta seleccionada
-  - [ ] `puntuacion_obtenida` (integer, default 0)
-  - [ ] `tiempo_respuesta` (integer, nullable) - Tiempo en segundos
-  - [ ] `fue_opcion_por_defecto` (boolean, default false)
-  - [ ] `usuario_registrado` (boolean, default false)
-  - [ ] `metadata` (JSON, nullable) - Metadatos adicionales
-  - [ ] `timestamps`
-  - [ ] Índices: sesion_dialogo_id, usuario_id, nodo_dialogo_id, respuesta_id
+- [x] **Diseñar tabla `decisiones_dialogo_v2` (mejorada)**
+  - [x] `id` (PK)
+  - [x] `sesion_dialogo_id` (FK a sesiones_dialogos_v2, cascade delete)
+  - [x] `nodo_dialogo_id` (FK a nodos_dialogo_v2, set null)
+  - [x] `respuesta_id` (FK a respuestas_dialogo_v2, nullable, set null)
+  - [x] `usuario_id` (FK a users, nullable) - NULL si usuario no registrado
+  - [x] `rol_id` (FK a roles_disponibles, nullable)
+  - [x] `texto_respuesta` (text, nullable) - Texto de la respuesta seleccionada
+  - [x] `puntuacion_obtenida` (integer, default 0)
+  - [x] `tiempo_respuesta` (integer, nullable) - Tiempo en segundos
+  - [x] `fue_opcion_por_defecto` (boolean, default false)
+  - [x] `usuario_registrado` (boolean, default false)
+  - [x] `metadata` (JSON, nullable) - Metadatos adicionales
+  - [x] `timestamps`
+  - [x] Índices: sesion_dialogo_id, usuario_id, nodo_dialogo_id, respuesta_id
+
+- [x] **Documentación adicional**
+  - [x] Diagrama de relaciones (`database-design-v2-diagrama.md`)
+  - [x] Formatos JSON detallados (`database-design-v2-formatos-json.md`)
+  - [x] Alineación con Pixel Crushers (`pixel-crushers-alignment.md`)
 
 ### 0.5.3 Crear Nuevas Migraciones
-- [ ] **Crear migración de eliminación de tablas antiguas**
-  - [ ] `drop_sesiones_dialogos_table` (si existe)
-  - [ ] `drop_respuestas_dialogo_table`
-  - [ ] `drop_nodos_dialogo_table`
-  - [ ] `drop_dialogos_table`
-  - [ ] Verificar que no hay foreign keys dependientes
+- [x] **Crear migración de eliminación de tablas antiguas**
+  - [x] `drop_sesiones_dialogos_table` (si existe)
+  - [x] `drop_respuestas_dialogo_table`
+  - [x] `drop_nodos_dialogo_table`
+  - [x] `drop_dialogos_table`
+  - [x] Verificar que no hay foreign keys dependientes
 
-- [ ] **Crear migración `create_dialogos_v2_table`**
-  - [ ] Implementar estructura completa
-  - [ ] Agregar índices
-  - [ ] Agregar foreign keys
-  - [ ] Agregar soft deletes
+- [x] **Crear migración `create_dialogos_v2_table`**
+  - [x] Implementar estructura completa
+  - [x] Agregar índices
+  - [x] Agregar foreign keys
+  - [x] Agregar soft deletes
 
-- [ ] **Crear migración `create_nodos_dialogo_v2_table`**
-  - [ ] Implementar estructura completa
-  - [ ] Campos de posición directos (posicion_x, posicion_y)
-  - [ ] Agregar índices optimizados
-  - [ ] Agregar foreign keys con cascadas apropiadas
+- [x] **Crear migración `create_nodos_dialogo_v2_table`**
+  - [x] Implementar estructura completa
+  - [x] Campos de posición directos (posicion_x, posicion_y)
+  - [x] Agregar índices optimizados
+  - [x] Agregar foreign keys con cascadas apropiadas
 
-- [ ] **Crear migración `create_respuestas_dialogo_v2_table`**
-  - [ ] Implementar estructura completa
-  - [ ] Campos para usuarios no registrados
-  - [ ] Campo para opción por defecto
-  - [ ] Agregar índices
-  - [ ] Agregar foreign keys
+- [x] **Crear migración `create_respuestas_dialogo_v2_table`**
+  - [x] Implementar estructura completa
+  - [x] Campos para usuarios no registrados
+  - [x] Campo para opción por defecto
+  - [x] Agregar índices
+  - [x] Agregar foreign keys
 
-- [ ] **Crear migración `create_sesiones_dialogos_v2_table`**
-  - [ ] Implementar estructura completa
-  - [ ] Campo de historial de nodos
-  - [ ] Agregar índices
-  - [ ] Agregar unique constraint
+- [x] **Crear migración `create_sesiones_dialogos_v2_table`**
+  - [x] Implementar estructura completa
+  - [x] Campo de historial de nodos
+  - [x] Agregar índices
+  - [x] Agregar unique constraint
 
-- [ ] **Crear migración `create_decisiones_dialogo_v2_table`**
-  - [ ] Implementar estructura completa
-  - [ ] Campos para tracking de usuarios no registrados
-  - [ ] Agregar índices
-  - [ ] Agregar foreign keys
+- [x] **Crear migración `create_decisiones_dialogo_v2_table`**
+  - [x] Implementar estructura completa
+  - [x] Campos para tracking de usuarios no registrados
+  - [x] Agregar índices
+  - [x] Agregar foreign keys
 
 ### 0.5.4 Scripts de Migración de Datos
-- [ ] **Crear script de migración de datos**
-  - [ ] Script para migrar `dialogos` → `dialogos_v2`
-  - [ ] Script para migrar `nodos_dialogo` → `nodos_dialogo_v2`
-    - [ ] Extraer posiciones de metadata JSON a campos directos
-  - [ ] Script para migrar `respuestas_dialogo` → `respuestas_dialogo_v2`
-  - [ ] Script para migrar `sesiones_dialogos` → `sesiones_dialogos_v2`
-  - [ ] Script para migrar `decisiones_sesion` → `decisiones_dialogo_v2`
-  - [ ] Validación de integridad de datos migrados
+- [x] **Crear script de migración de datos**
+  - [x] Script para migrar `dialogos` → `dialogos_v2`
+  - [x] Script para migrar `nodos_dialogo` → `nodos_dialogo_v2`
+    - [x] Extraer posiciones de metadata JSON a campos directos
+  - [x] Script para migrar `respuestas_dialogo` → `respuestas_dialogo_v2`
+  - [x] Script para migrar `sesiones_dialogos` → `sesiones_dialogos_v2`
+  - [x] Script para migrar `decisiones_sesion` → `decisiones_dialogo_v2`
+  - [x] Validación de integridad de datos migrados
+  - [x] Comando Artisan `dialogos:migrate-to-v2`
+  - [x] Comando Artisan `dialogos:validate-migration`
 
-- [ ] **Crear script de rollback**
-  - [ ] Script para revertir migración si es necesario
-  - [ ] Restaurar datos desde backup
+- [x] **Crear script de validación**
+  - [x] Script para validar migración
+  - [x] Comparación de conteos entre v1 y v2
+  - [x] Validación de integridad referencial
+  - [x] Validación de nodos iniciales y finales
 
 ### 0.5.5 Actualizar Modelos Eloquent
-- [ ] **Crear nuevo modelo `DialogoV2`**
-  - [ ] Actualizar fillable
-  - [ ] Actualizar relaciones
-  - [ ] Actualizar scopes
-  - [ ] Actualizar métodos de validación
-  - [ ] Métodos para exportar a formato Unity
+- [x] **Crear nuevo modelo `DialogoV2`**
+  - [x] Actualizar fillable
+  - [x] Actualizar relaciones
+  - [x] Actualizar scopes
+  - [x] Actualizar métodos de validación
+  - [x] Métodos para exportar a formato Unity
 
-- [ ] **Crear nuevo modelo `NodoDialogoV2`**
-  - [ ] Actualizar fillable
-  - [ ] Accessors para posicion (x, y directos)
-  - [ ] Métodos para actualizar posición
-  - [ ] Actualizar relaciones
-  - [ ] Métodos de validación
+- [x] **Crear nuevo modelo `NodoDialogoV2`**
+  - [x] Actualizar fillable
+  - [x] Accessors para posicion (x, y directos)
+  - [x] Métodos para actualizar posición
+  - [x] Actualizar relaciones
+  - [x] Métodos de validación
 
-- [ ] **Crear nuevo modelo `RespuestaDialogoV2`**
-  - [ ] Actualizar fillable
-  - [ ] Métodos para filtrar por usuario registrado
-  - [ ] Método para obtener opción por defecto
-  - [ ] Actualizar relaciones
-  - [ ] Métodos de evaluación de condiciones
+- [x] **Crear nuevo modelo `RespuestaDialogoV2`**
+  - [x] Actualizar fillable
+  - [x] Métodos para filtrar por usuario registrado
+  - [x] Método para obtener opción por defecto
+  - [x] Actualizar relaciones
+  - [x] Métodos de evaluación de condiciones
 
-- [ ] **Crear nuevo modelo `SesionDialogoV2`**
-  - [ ] Actualizar fillable
-  - [ ] Métodos para gestionar historial
-  - [ ] Métodos para gestionar variables
-  - [ ] Actualizar relaciones
+- [x] **Crear nuevo modelo `SesionDialogoV2`**
+  - [x] Actualizar fillable
+  - [x] Métodos para gestionar historial
+  - [x] Métodos para gestionar variables
+  - [x] Actualizar relaciones
+  - [x] Métodos para audio completo
 
-- [ ] **Crear nuevo modelo `DecisionDialogoV2`**
-  - [ ] Actualizar fillable
-  - [ ] Métodos para tracking de usuarios no registrados
-  - [ ] Actualizar relaciones
-  - [ ] Métodos de estadísticas
+- [x] **Crear nuevo modelo `DecisionDialogoV2`**
+  - [x] Actualizar fillable
+  - [x] Métodos para tracking de usuarios no registrados
+  - [x] Actualizar relaciones
+  - [x] Métodos de estadísticas
+  - [x] Métodos para evaluación del profesor
+  - [x] Métodos para audio MP3
 
 ### 0.5.6 Remover Código Antiguo
 - [ ] **Eliminar modelos antiguos**
