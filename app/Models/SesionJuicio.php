@@ -217,11 +217,20 @@ class SesionJuicio extends Model
     }
 
     /**
-     * Relación con diálogos de la sesión
+     * Relación con diálogos de la sesión (v2)
      */
     public function dialogos()
     {
-        return $this->hasMany(SesionDialogo::class, 'sesion_id');
+        return $this->hasMany(SesionDialogoV2::class, 'sesion_id');
+    }
+
+    /**
+     * Relación con diálogos antiguos (deprecated - mantener para compatibilidad temporal)
+     * @deprecated Usar dialogos() en su lugar
+     */
+    public function dialogosAntiguos()
+    {
+        return $this->hasMany(\App\Models\SesionDialogo::class, 'sesion_id');
     }
 
     /**

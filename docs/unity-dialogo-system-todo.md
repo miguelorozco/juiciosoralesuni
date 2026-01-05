@@ -211,53 +211,64 @@ Crear un sistema de diálogos propio para Unity que reemplace la dependencia de 
   - [x] Métodos para audio MP3
 
 ### 0.5.6 Remover Código Antiguo
-- [ ] **Eliminar modelos antiguos**
-  - [ ] Eliminar `Dialogo.php` (después de migración)
-  - [ ] Eliminar `NodoDialogo.php`
-  - [ ] Eliminar `RespuestaDialogo.php`
-  - [ ] Actualizar referencias en otros modelos
+- [x] **Eliminar modelos antiguos**
+  - [x] Eliminar `Dialogo.php` (después de migración)
+  - [x] Eliminar `NodoDialogo.php`
+  - [x] Eliminar `RespuestaDialogo.php`
+  - [x] Eliminar `SesionDialogo.php`
+  - [x] Eliminar `DecisionSesion.php`
+  - [x] Actualizar referencias en otros modelos (SesionJuicio, RolDialogo)
+  - [x] Actualizar servicios (ProcesamientoAutomaticoService)
 
-- [ ] **Eliminar controladores antiguos**
-  - [ ] Eliminar o refactorizar `DialogoController.php`
-  - [ ] Eliminar o refactorizar `NodoDialogoController.php`
-  - [ ] Eliminar o refactorizar `DialogoFlujoController.php`
-  - [ ] Eliminar o refactorizar `DialogoImportController.php`
-  - [ ] Actualizar `UnityDialogoController.php`
+- [x] **Eliminar controladores antiguos**
+  - [x] Refactorizar `DialogoController.php` para usar DialogoV2 (marcado como deprecated)
+  - [x] Refactorizar `UnityDialogoController.php` para usar SesionDialogoV2 (marcado como deprecated)
+  - [x] Actualizar `SesionController.php` para usar DialogoV2 y SesionDialogoV2
+  - [x] Refactorizar `NodoDialogoController.php` para usar modelos v2 (marcado como deprecated)
+  - [x] Refactorizar `DialogoFlujoController.php` para usar modelos v2 (marcado como deprecated)
+  - [x] Refactorizar `DialogoImportController.php` para usar modelos v2 (marcado como deprecated)
 
-- [ ] **Actualizar rutas API**
-  - [ ] Actualizar rutas en `routes/api.php`
-  - [ ] Mantener compatibilidad temporal si es necesario
-  - [ ] Documentar cambios de endpoints
+- [x] **Actualizar rutas API**
+  - [x] Actualizar rutas en `routes/api.php` con comentarios sobre v2
+  - [x] Mantener compatibilidad temporal
+  - [x] Documentar cambios de endpoints
 
-- [ ] **Limpiar seeders**
-  - [ ] Actualizar seeders que usan diálogos
-  - [ ] Crear nuevos seeders para v2
-  - [ ] Eliminar seeders antiguos
+- [x] **Limpiar seeders**
+  - [x] Marcar seeders antiguos como deprecated
+  - [x] Actualizar `DialogoJuicioPenalSeeder.php` para usar modelos v2
+  - [x] Actualizar `RolesDialogoSeeder.php` para usar DialogoV2
+  - [x] Actualizar `DialogoEjemploSeeder.php` como deprecated
 
 ### 0.5.7 Testing de Migración
-- [ ] **Tests de migración**
-  - [ ] Test de creación de tablas
-  - [ ] Test de migración de datos
-  - [ ] Test de integridad referencial
-  - [ ] Test de rollback
+- [x] **Tests de migración**
+  - [x] Test de creación de tablas
+  - [x] Test de estructura de columnas
+  - [x] Test de integridad referencial (Foreign Keys)
+  - [x] Test de índices
+  - [x] Test de rollback
+  - [x] Test de campos JSON
 
-- [ ] **Tests de funcionalidad**
-  - [ ] Test de creación de diálogo v2
-  - [ ] Test de creación de nodos con posiciones
-  - [ ] Test de respuestas con usuarios no registrados
-  - [ ] Test de flujo completo
+- [x] **Tests de funcionalidad**
+  - [x] Test de creación de diálogo v2
+  - [x] Test de creación de nodos con posiciones
+  - [x] Test de actualización de posición
+  - [x] Test de respuestas con usuarios no registrados
+  - [x] Test de flujo completo de diálogo
+  - [x] Test de evaluación del profesor
+  - [x] Test de audio MP3 en decisiones
+  - [x] Test de historial de nodos en sesión
 
 ### 0.5.8 Documentación de Migración
-- [ ] **Documentar proceso de migración**
-  - [ ] Guía paso a paso
-  - [ ] Checklist de migración
-  - [ ] Troubleshooting común
-  - [ ] Guía de rollback
+- [x] **Documentar proceso de migración**
+  - [x] Guía paso a paso
+  - [x] Checklist de migración
+  - [x] Troubleshooting común
+  - [x] Guía de rollback
 
-- [ ] **Documentar cambios de API**
-  - [ ] Lista de endpoints cambiados
-  - [ ] Cambios en formato de datos
-  - [ ] Guía de migración para clientes Unity
+- [x] **Documentar cambios de API**
+  - [x] Lista de endpoints cambiados
+  - [x] Cambios en formato de datos
+  - [x] Guía de migración para clientes Unity
 
 ---
 

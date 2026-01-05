@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Models\SesionJuicio;
-use App\Models\SesionDialogo;
-use App\Models\DecisionSesion;
-use App\Models\NodoDialogo;
-use App\Models\RespuestaDialogo;
+use App\Models\DecisionDialogoV2;
+use App\Models\NodoDialogoV2;
+use App\Models\RespuestaDialogoV2;
+use App\Models\SesionDialogoV2;
 use App\Models\User;
 use App\Models\RolDisponible;
 use Illuminate\Support\Facades\Log;
@@ -67,22 +67,27 @@ class ProcesamientoAutomaticoService
     /**
      * Procesar decisión automática para un rol específico
      */
-    private function procesarDecisionParaRol(SesionJuicio $sesion, SesionDialogo $sesionDialogo, NodoDialogo $nodoActual, $respuestasDisponibles, RolDisponible $rol)
+    private function procesarDecisionParaRol(SesionJuicio $sesion, SesionDialogoV2 $sesionDialogo, NodoDialogoV2 $nodoActual, $respuestasDisponibles, RolDisponible $rol)
     {
         // Seleccionar respuesta aleatoria
         $respuestaSeleccionada = $respuestasDisponibles->random();
         
         // Crear decisión automática
-        DecisionSesion::create([
-            'sesion_id' => $sesion->id,
+        DecisionDialogoV2::create([
+            'sesion_dialogo_id' => $sesionDialogo->id,
+            'nodo_dialogo_id' => $nodoActual->id,
+            'respuesta_id' => $respuestaSeleccionada->id,
             'usuario_id' => null, // Usuario nulo para decisiones automáticas
             'rol_id' => $rol->id,
-            'nodo_dialogo_id' => $nodoActual->id,
-            'respuesta_dialogo_id' => $respuestaSeleccionada->id,
             'texto_respuesta' => $respuestaSeleccionada->texto,
+            'puntuacion_obtenida' => $respuestaSeleccionada->puntuacion ?? 0,
             'tiempo_respuesta' => rand(5, 15), // Tiempo aleatorio entre 5-15 segundos
-            'es_automatica' => true,
-            'notas' => "Decisión automática para rol: {$rol->nombre}"
+            'usuario_registrado' => false,
+            'fue_opcion_por_defecto' => $respuestaSeleccionada->es_opcion_por_defecto ?? false,
+            'metadata' => [
+                'es_automatica' => true,
+                'notas' => "Decisión automática para rol: {$rol->nombre}"
+            ]
         ]);
 
         Log::info("Decisión automática creada para rol {$rol->nombre}: {$respuestaSeleccionada->texto}");

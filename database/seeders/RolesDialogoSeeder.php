@@ -14,7 +14,7 @@ class RolesDialogoSeeder extends Seeder
     public function run(): void
     {
         // Obtener el diálogo de juicio penal
-        $dialogo = Dialogo::where('nombre', 'like', '%Robo a Tienda%')->first();
+        $dialogo = \App\Models\DialogoV2::where('nombre', 'like', '%Robo a Tienda%')->first();
         
         if (!$dialogo) {
             $this->command->warn('No se encontró el diálogo de juicio penal');

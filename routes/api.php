@@ -187,8 +187,10 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ========================================
-    // RUTAS DE DIÁLOGOS RAMIFICADOS
+    // RUTAS DE DIÁLOGOS RAMIFICADOS (v2)
     // ========================================
+    // NOTA: Estas rutas usan DialogoController que ahora usa DialogoV2 internamente
+    // TODO: Crear DialogoV2Controller específico en el futuro
     Route::group(['prefix' => 'dialogos'], function () {
         Route::get('/', [DialogoController::class, 'index']);
         Route::post('/', [DialogoController::class, 'store'])->middleware('user.type:admin,instructor');

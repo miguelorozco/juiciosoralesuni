@@ -100,6 +100,18 @@ Bienvenido a la documentación completa del sistema de diálogos ramificados par
 - 🎓 Uso para retroalimentación
 - 🔄 Integración con Unity
 
+### 🔄 [Guía de Migración Dialogos v2](./migracion-dialogos-v2.md)
+**Guía completa para migrar al nuevo sistema de diálogos v2**
+
+- 📋 Resumen ejecutivo de cambios
+- 🚀 Proceso de migración paso a paso
+- ✅ Checklist completo de migración
+- 🔧 Troubleshooting común
+- ↩️ Guía de rollback
+- 📡 Cambios en la API
+- 📊 Cambios en formatos de datos
+- 🎮 Guía de migración para Unity
+
 ### 🚀 Características Principales
 
 #### **Sistema de Grid Inteligente**

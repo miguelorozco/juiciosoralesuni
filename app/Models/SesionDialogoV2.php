@@ -230,7 +230,12 @@ class SesionDialogoV2 extends Model
         $nodoInicial = $this->dialogo->nodo_inicial;
         
         if (!$nodoInicial) {
-            return false;
+            // Si no hay nodo inicial marcado, usar el primer nodo del diálogo
+            $nodoInicial = $this->dialogo->nodos()->orderBy('orden')->first();
+            
+            if (!$nodoInicial) {
+                return false;
+            }
         }
 
         $variablesIniciales = $this->configuracion['variables_iniciales'] ?? [];
@@ -273,8 +278,8 @@ class SesionDialogoV2 extends Model
             return false;
         }
 
-        // Agregar al historial
-        if ($this->nodo_actual_id) {
+        // Agregar el nodo actual al historial antes de avanzar
+        if ($this->nodo_actual_id && $this->nodo_actual_id !== $nodoId) {
             $this->agregarAlHistorial(
                 $this->nodo_actual_id,
                 $usuarioId,
@@ -284,7 +289,18 @@ class SesionDialogoV2 extends Model
             );
         }
 
+        // Actualizar nodo actual
         $this->update(['nodo_actual_id' => $nodoId]);
+        
+        // Agregar el nuevo nodo al historial
+        $this->agregarAlHistorial(
+            $nodoId,
+            $usuarioId,
+            $rolId,
+            null,
+            null
+        );
+        
         $this->actualizarProgreso();
         
         return true;

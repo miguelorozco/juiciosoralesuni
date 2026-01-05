@@ -14,21 +14,35 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Eliminar foreign keys primero para evitar problemas de restricciones
+        
+        // 1. Eliminar foreign key de asignaciones_roles a roles_dialogo
+        if (Schema::hasTable('asignaciones_roles')) {
+            Schema::table('asignaciones_roles', function (Blueprint $table) {
+                if (Schema::hasColumn('asignaciones_roles', 'rol_dialogo_id')) {
+                    $table->dropForeign(['rol_dialogo_id']);
+                }
+            });
+        }
+        
         // Eliminar en orden inverso de dependencias para evitar problemas de foreign keys
         
-        // 1. Eliminar decisiones (depende de otras tablas)
+        // 2. Eliminar decisiones (depende de otras tablas)
         Schema::dropIfExists('decisiones_sesion');
         
-        // 2. Eliminar sesiones de diálogos
+        // 3. Eliminar sesiones de diálogos
         Schema::dropIfExists('sesiones_dialogos');
         
-        // 3. Eliminar respuestas
+        // 4. Eliminar respuestas
         Schema::dropIfExists('respuestas_dialogo');
         
-        // 4. Eliminar nodos
+        // 5. Eliminar nodos
         Schema::dropIfExists('nodos_dialogo');
         
-        // 5. Eliminar diálogos (última, es la tabla principal)
+        // 6. Eliminar roles_dialogo (tiene foreign key a dialogos)
+        Schema::dropIfExists('roles_dialogo');
+        
+        // 7. Eliminar diálogos (última, es la tabla principal)
         Schema::dropIfExists('dialogos');
     }
 

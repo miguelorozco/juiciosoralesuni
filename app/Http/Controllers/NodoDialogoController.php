@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Dialogo;
-use App\Models\NodoDialogo;
-use App\Models\RespuestaDialogo;
+/**
+ * @deprecated Este controlador usa modelos antiguos (NodoDialogo v1).
+ * Se mantiene temporalmente para compatibilidad.
+ * TODO: Refactorizar completamente para usar NodoDialogoV2 o eliminar después de migración completa.
+ */
+
+use App\Models\DialogoV2 as Dialogo;
+use App\Models\NodoDialogoV2 as NodoDialogo;
+use App\Models\RespuestaDialogoV2 as RespuestaDialogo;
 use App\Models\RolDisponible;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -58,11 +64,13 @@ class NodoDialogoController extends Controller
             }
 
             $validated = $request->validate([
-                'rol_id' => 'required|exists:roles_disponibles,id',
-                'titulo' => 'nullable|string|max:200',
+                'rol_id' => 'nullable|exists:roles_disponibles,id',
+                'titulo' => 'required|string|max:200',
                 'contenido' => 'required|string',
                 'instrucciones' => 'nullable|string',
-                'tipo' => 'sometimes|in:inicio,desarrollo,decision,final',
+                'tipo' => 'sometimes|in:inicio,desarrollo,decision,final,agrupacion',
+                'posicion_x' => 'nullable|integer',
+                'posicion_y' => 'nullable|integer',
                 'condiciones' => 'nullable|array',
                 'metadata' => 'nullable|array',
                 'es_inicial' => 'boolean',
@@ -72,6 +80,9 @@ class NodoDialogoController extends Controller
             // Calcular orden
             $ultimoOrden = $dialogo->nodos()->max('orden') ?? 0;
             $validated['orden'] = $ultimoOrden + 1;
+            $validated['posicion_x'] = $validated['posicion_x'] ?? 0;
+            $validated['posicion_y'] = $validated['posicion_y'] ?? 0;
+            $validated['activo'] = true;
 
             $nodo = $dialogo->nodos()->create($validated);
             $nodo->load(['rol']);
@@ -136,11 +147,13 @@ class NodoDialogoController extends Controller
             }
 
             $validated = $request->validate([
-                'rol_id' => 'sometimes|required|exists:roles_disponibles,id',
+                'rol_id' => 'sometimes|nullable|exists:roles_disponibles,id',
                 'titulo' => 'nullable|string|max:200',
                 'contenido' => 'sometimes|required|string',
                 'instrucciones' => 'nullable|string',
-                'tipo' => 'sometimes|in:inicio,desarrollo,decision,final',
+                'tipo' => 'sometimes|in:inicio,desarrollo,decision,final,agrupacion',
+                'posicion_x' => 'nullable|integer',
+                'posicion_y' => 'nullable|integer',
                 'condiciones' => 'nullable|array',
                 'metadata' => 'nullable|array',
                 'es_inicial' => 'boolean',
@@ -295,11 +308,12 @@ class NodoDialogoController extends Controller
             $validated = $request->validate([
                 'texto' => 'required|string|max:500',
                 'descripcion' => 'nullable|string',
-                'nodo_siguiente_id' => 'nullable|exists:nodos_dialogo,id',
+                'nodo_siguiente_id' => 'nullable|exists:nodos_dialogo_v2,id',
                 'condiciones' => 'nullable|array',
                 'consecuencias' => 'nullable|array',
                 'puntuacion' => 'nullable|integer',
                 'color' => 'nullable|string|max:7',
+                'orden' => 'nullable|integer',
             ]);
 
             $respuesta = $nodoDialogo->agregarRespuesta($validated);

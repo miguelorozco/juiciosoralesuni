@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sesiones_juicios', function (Blueprint $table) {
-            $table->enum('tipo', ['civil', 'penal', 'laboral', 'administrativo'])->default('penal')->after('descripcion');
+            if (!Schema::hasColumn('sesiones_juicios', 'tipo')) {
+                $table->enum('tipo', ['civil', 'penal', 'laboral', 'administrativo'])->default('penal')->after('descripcion');
+            }
         });
     }
 
@@ -22,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('sesiones_juicios', function (Blueprint $table) {
-            $table->dropColumn('tipo');
+            if (Schema::hasColumn('sesiones_juicios', 'tipo')) {
+                $table->dropColumn('tipo');
+            }
         });
     }
 };

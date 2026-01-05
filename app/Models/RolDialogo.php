@@ -31,11 +31,20 @@ class RolDialogo extends Model
     ];
 
     /**
-     * Relación con el diálogo
+     * Relación con el diálogo (v2)
      */
     public function dialogo(): BelongsTo
     {
-        return $this->belongsTo(Dialogo::class);
+        return $this->belongsTo(DialogoV2::class);
+    }
+
+    /**
+     * Relación con diálogo antiguo (deprecated - mantener para compatibilidad temporal)
+     * @deprecated Usar dialogo() en su lugar
+     */
+    public function dialogoAntiguo(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Dialogo::class);
     }
 
     /**

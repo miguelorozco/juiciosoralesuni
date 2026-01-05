@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Dialogo;
-use App\Models\NodoDialogo;
-use App\Models\RespuestaDialogo;
+/**
+ * @deprecated Este controlador usa modelos antiguos (Dialogo v1).
+ * Se mantiene temporalmente para compatibilidad.
+ * TODO: Refactorizar completamente para usar DialogoV2 después de migración completa.
+ */
+
+use App\Models\DialogoV2 as Dialogo;
+use App\Models\NodoDialogoV2 as NodoDialogo;
+use App\Models\RespuestaDialogoV2 as RespuestaDialogo;
 use App\Models\RolDisponible;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -105,8 +111,9 @@ class DialogoImportController extends Controller
                     'nombre' => $validated['dialogo']['nombre'],
                     'descripcion' => $validated['dialogo']['descripcion'],
                     'publico' => $validated['dialogo']['publico'] ?? false,
-                    'activo' => true,
-                    'usuario_id' => $user->id
+                    'estado' => 'borrador',
+                    'version' => '1.0.0',
+                    'creado_por' => $user->id
                 ]);
                 
                 Log::info('=== DIÁLOGO CREADO ===', [
@@ -163,11 +170,13 @@ class DialogoImportController extends Controller
                         'contenido' => $nodoData['contenido'],
                         'instrucciones' => $nodoData['instrucciones'] ?? null,
                         'tipo' => $nodoData['tipo'],
+                        'posicion_x' => $nodoData['posicion']['x'] ?? 0,
+                        'posicion_y' => $nodoData['posicion']['y'] ?? 0,
                         'es_inicial' => $nodoData['es_inicial'] ?? false,
                         'es_final' => $nodoData['es_final'] ?? false,
-                        'metadata' => [
-                            'posicion' => $nodoData['posicion']
-                        ]
+                        'orden' => $index + 1,
+                        'activo' => true,
+                        'metadata' => []
                     ]);
 
                     $nodoIdMap[$nodoData['id']] = $nodo->id;
@@ -331,19 +340,21 @@ class DialogoImportController extends Controller
                         'tipo' => $nodo->tipo,
                         'es_inicial' => $nodo->es_inicial,
                         'es_final' => $nodo->es_final,
-                        'posicion' => $nodo->posicion
+                        'posicion' => ['x' => $nodo->posicion_x, 'y' => $nodo->posicion_y]
                     ];
                 })->toArray(),
                 'conexiones' => $nodos->flatMap(function($nodo) {
                     return $nodo->respuestas->map(function($respuesta) use ($nodo) {
                         return [
                             'desde' => 'nodo_' . $nodo->id,
-                            'hacia' => 'nodo_' . $respuesta->nodo_siguiente_id,
+                            'hacia' => $respuesta->nodo_siguiente_id ? 'nodo_' . $respuesta->nodo_siguiente_id : null,
                             'texto' => $respuesta->texto,
                             'descripcion' => $respuesta->descripcion,
                             'color' => $respuesta->color,
                             'puntuacion' => $respuesta->puntuacion
                         ];
+                    })->filter(function($conexion) {
+                        return $conexion['hacia'] !== null;
                     });
                 })->toArray()
             ];

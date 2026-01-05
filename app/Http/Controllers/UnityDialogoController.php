@@ -2,7 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SesionDialogo;
+/**
+ * @deprecated Este controlador usa modelos antiguos (SesionDialogo v1).
+ * Se mantiene temporalmente para compatibilidad con Unity.
+ * TODO: Refactorizar para usar SesionDialogoV2 después de migración completa.
+ */
+
+use App\Models\SesionDialogoV2 as SesionDialogo;
 use App\Models\SesionJuicio;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -78,9 +84,10 @@ class UnityDialogoController extends Controller
                         'es_turno' => $asignacion->rol_id === $sesionDialogo->nodoActual->rol_id,
                     ];
                 }),
-                'progreso' => $sesionDialogo->progreso,
+                'progreso' => $sesionDialogo->configuracion['progreso'] ?? null,
                 'tiempo_transcurrido' => $sesionDialogo->tiempo_transcurrido,
                 'variables' => $sesionDialogo->variables,
+                'audio_habilitado' => $sesionDialogo->audio_habilitado,
             ];
 
             return response()->json([

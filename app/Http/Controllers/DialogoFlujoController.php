@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SesionDialogo;
-use App\Models\DecisionSesion;
-use App\Models\NodoDialogo;
-use App\Models\RespuestaDialogo;
+/**
+ * @deprecated Este controlador usa modelos antiguos (SesionDialogo v1).
+ * Se mantiene temporalmente para compatibilidad.
+ * TODO: Refactorizar completamente para usar SesionDialogoV2 después de migración completa.
+ */
+
+use App\Models\SesionDialogoV2 as SesionDialogo;
+use App\Models\DecisionDialogoV2 as DecisionSesion;
+use App\Models\NodoDialogoV2 as NodoDialogo;
+use App\Models\RespuestaDialogoV2 as RespuestaDialogo;
 use App\Models\SesionJuicio;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -56,7 +62,7 @@ class DialogoFlujoController extends Controller
             }
 
             $validated = $request->validate([
-                'dialogo_id' => 'required|exists:dialogos,id',
+                'dialogo_id' => 'required|exists:dialogos_v2,id',
                 'configuracion' => 'nullable|array',
             ]);
 
@@ -78,6 +84,8 @@ class DialogoFlujoController extends Controller
                 'dialogo_id' => $validated['dialogo_id'],
                 'estado' => 'iniciado',
                 'configuracion' => $validated['configuracion'] ?? [],
+                'variables' => [],
+                'historial_nodos' => [],
             ]);
 
             // Iniciar el diálogo
@@ -136,7 +144,7 @@ class DialogoFlujoController extends Controller
             $estado = [
                 'sesion_dialogo' => $sesionDialogo,
                 'nodo_actual' => $sesionDialogo->nodoActual,
-                'progreso' => $sesionDialogo->progreso,
+                'progreso' => $sesionDialogo->configuracion['progreso'] ?? null,
                 'tiempo_transcurrido' => $sesionDialogo->tiempo_transcurrido,
                 'variables' => $sesionDialogo->variables,
             ];
@@ -207,7 +215,7 @@ class DialogoFlujoController extends Controller
                 ], 404);
             }
 
-            $respuestas = $sesionDialogo->obtenerRespuestasDisponibles($usuarioId, $asignacion->rol_id);
+            $respuestas = $sesionDialogo->obtenerRespuestasDisponibles($usuarioId, $asignacion->rol_id, true);
 
             return response()->json([
                 'success' => true,
@@ -256,7 +264,7 @@ class DialogoFlujoController extends Controller
         try {
             $validated = $request->validate([
                 'usuario_id' => 'required|exists:users,id',
-                'respuesta_id' => 'required|exists:respuestas_dialogo,id',
+                'respuesta_id' => 'required|exists:respuestas_dialogo_v2,id',
                 'decision_texto' => 'nullable|string',
                 'tiempo_respuesta' => 'nullable|integer|min:0',
             ]);
@@ -307,7 +315,7 @@ class DialogoFlujoController extends Controller
                 'data' => [
                     'decision' => $decision,
                     'estado_actual' => $sesionDialogo,
-                    'progreso' => $sesionDialogo->progreso,
+                    'progreso' => $sesionDialogo->configuracion['progreso'] ?? null,
                 ],
                 'message' => 'Decisión procesada exitosamente'
             ]);
@@ -361,7 +369,7 @@ class DialogoFlujoController extends Controller
             }
 
             $validated = $request->validate([
-                'nodo_id' => 'required|exists:nodos_dialogo,id',
+                'nodo_id' => 'required|exists:nodos_dialogo_v2,id',
             ]);
 
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
@@ -554,7 +562,7 @@ class DialogoFlujoController extends Controller
                 'data' => [
                     'historial' => $historial,
                     'estadisticas' => $estadisticas,
-                    'progreso' => $sesionDialogo->progreso,
+                    'progreso' => $sesionDialogo->configuracion['progreso'] ?? null,
                 ],
                 'message' => 'Historial de decisiones obtenido exitosamente'
             ]);

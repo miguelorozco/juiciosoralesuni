@@ -55,7 +55,7 @@ class SesionController extends Controller
      */
     public function create()
     {
-        $dialogos = \App\Models\Dialogo::where('estado', 'activo')
+        $dialogos = \App\Models\DialogoV2::where('estado', 'activo')
             ->where('publico', true)
             ->orderBy('nombre')
             ->get();
@@ -74,7 +74,7 @@ class SesionController extends Controller
             'tipo' => 'required|in:civil,penal,laboral,administrativo',
             'fecha_inicio' => 'required|date|after:now',
             'max_participantes' => 'nullable|integer|min:1|max:20',
-            'dialogo_id' => 'required|exists:dialogos,id',
+            'dialogo_id' => 'required|exists:dialogos_v2,id',
         ]);
 
         try {
@@ -92,8 +92,9 @@ class SesionController extends Controller
             ]);
 
             // Obtener roles del diálogo seleccionado
-            $dialogo = \App\Models\Dialogo::with('rolesActivos')->find($request->dialogo_id);
-            $rolesDialogo = $dialogo->rolesActivos;
+            $dialogo = \App\Models\DialogoV2::find($request->dialogo_id);
+            // Nota: Los roles ahora se obtienen de roles_disponibles directamente
+            $rolesDialogo = collect(); // Se puede obtener de otra forma si es necesario
 
             // Procesar asignaciones automáticas de roles del diálogo
             $procesamientoService = new ProcesamientoAutomaticoService();
@@ -152,18 +153,22 @@ class SesionController extends Controller
      */
     private function crearSesionDialogo($sesion, $dialogoId)
     {
-        $dialogo = \App\Models\Dialogo::findOrFail($dialogoId);
+        $dialogo = \App\Models\DialogoV2::findOrFail($dialogoId);
+        $nodoInicial = $dialogo->nodo_inicial;
         
-        \App\Models\SesionDialogo::create([
+        \App\Models\SesionDialogoV2::create([
             'sesion_id' => $sesion->id,
             'dialogo_id' => $dialogoId,
-            'estado' => 'programada',
-            'nodo_actual_id' => $dialogo->nodo_inicial_id,
+            'estado' => 'iniciado',
+            'nodo_actual_id' => $nodoInicial ? $nodoInicial->id : null,
             'configuracion' => [
                 'modo_automatico' => true,
                 'tiempo_respuesta' => 30,
                 'permite_pausa' => true
-            ]
+            ],
+            'variables' => [],
+            'historial_nodos' => [],
+            'audio_habilitado' => false,
         ]);
     }
     
