@@ -43,3 +43,9 @@ unity-integration/unity-project/*.suo
 unity-integration/unity-project/*.userprefs
 unity-integration/unity-project/*.unityproj
 unity-integration/unity-project/*.mdb
+
+# Workspace files
+*.code-workspace
+
+# WARP documentation
+WARP.md
