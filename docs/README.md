@@ -15,6 +15,30 @@ Bienvenido a la documentación completa del sistema de diálogos ramificados par
 - ✅ Validaciones y mejores prácticas
 - ✅ Troubleshooting y optimizaciones
 
+### 🛠️ [TODO List - Sistema de Diálogos Unity](./unity-dialogo-system-todo.md)
+**Plan de desarrollo del sistema de diálogos propio para Unity**
+
+- 📋 Arquitectura base y estructura de datos
+- 🎨 Editor de diálogos visual
+- 💾 Sistema de almacenamiento y persistencia
+- 🎬 Sistema de reproducción de diálogos
+- 🎭 Sistema de UI para diálogos
+- 👥 Asignación de diálogos a personajes
+- 🔄 Integración con Laravel
+- 🧪 Testing y validación
+- 📚 Documentación
+- 🚀 Optimización y mejoras
+
+### 🗄️ [Diseño de Base de Datos v2](./database-design-v2.md)
+**Esquema completo del nuevo sistema de base de datos**
+
+- 📊 Estructura de tablas optimizada
+- 🔗 Relaciones entre tablas
+- 📝 Campos y tipos de datos
+- ✅ Validaciones y constraints
+- 🚀 Índices para performance
+- 📋 Guía de migración de datos
+
 ### 🚀 Características Principales
 
 #### **Sistema de Grid Inteligente**
