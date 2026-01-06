@@ -112,6 +112,125 @@ Bienvenido a la documentación completa del sistema de diálogos ramificados par
 - 📊 Cambios en formatos de datos
 - 🎮 Guía de migración para Unity
 
+### 🔍 [FASE 0.1: Análisis Pixel Crushers](./fase-0.1-analisis-pixel-crushers.md)
+**Análisis profundo de la arquitectura y estructura del Dialogue System de Pixel Crushers**
+
+- 📁 Estructura de carpetas del plugin
+- 🏗️ Clases core del sistema (DialogueSystemController, DialogueDatabase, etc.)
+- 📊 Modelo de datos completo (Conversation, DialogueEntry, Actor, etc.)
+- 🎨 Patrones de diseño utilizados (Singleton, Observer, MVC, Strategy)
+- 🔗 Dependencias entre módulos
+- 📈 Diagramas de estructura y ER
+
+### 🔄 [FASE 0.2: Análisis del Sistema de Diálogos](./fase-0.2-analisis-sistema-dialogos.md)
+**Análisis del flujo de ejecución, nodos, conexiones y scripting del Dialogue System**
+
+- 🚀 Flujo de ejecución de conversaciones (inicio, navegación, fin)
+- 🔗 Sistema de nodos y conexiones (Links, tipos de nodos, grafo)
+- 📝 Sistema de condiciones y scripting (Lua, variables, Sequencer)
+- 🎯 Diagramas de flujo completos
+- 💡 Ejemplos de código y uso
+
+### ✏️ [FASE 0.3: Análisis del Editor](./fase-0.3-analisis-editor.md)
+**Análisis del editor de diálogos y sistema de importación/exportación**
+
+- 🎨 Editor de diálogos (Node Editor y Outline Editor)
+- 📊 Sistema de visualización del grafo (zoom, pan, links)
+- 🛠️ Herramientas de organización (auto-arrange, grupos, validación)
+- 📥 Importación (Chat Mapper, Articy, Celtx, Yarn, JSON)
+- 📤 Exportación (Chat Mapper, CSV, Screenplay, Voiceover, etc.)
+- ✅ Validación de datos y estructura
+
+### 🎨 [FASE 0.4: Análisis del Sistema de UI](./fase-0.4-analisis-sistema-ui.md)
+**Análisis completo del sistema de UI y personalización**
+
+- 🖼️ Componentes de UI (IDialogueUI, AbstractDialogueUI, StandardDialogueUI)
+- 📝 Sistema de subtítulos (paneles, retratos, texto)
+- 🎯 Sistema de menús y respuestas (botones, paneles, override)
+- 🎭 Sistema de retratos/portraits (animados, nativos, override)
+- ✨ Efectos visuales (typewriter, fade, color)
+- 🎨 Sistema de personalización (prefabs, temas, localización)
+- 🌍 Localización e internacionalización
+- 🔤 Sistema de fuentes y textos (Unity UI Text, TextMesh Pro)
+
+### 👥 [FASE 0.5: Análisis del Sistema de Actores y Personajes](./fase-0.5-analisis-actores-personajes.md)
+**Análisis completo del sistema de actores e integración con personajes**
+
+- 🎭 DialogueActor (componente principal de actores)
+- 📋 CharacterInfo (información de personajes)
+- 🖼️ Sistema de retratos/portraits (estáticos, animados, alternativos)
+- 🎨 Override de UI por actor (paneles personalizados)
+- 💬 Sistema de bark (comentarios breves)
+- 🔗 Integración con personajes del juego
+- ⚡ Sistema de triggers (DialogueSystemTrigger)
+- 📍 Proximidad y detección (ProximitySelector)
+- 🎮 Sistema de interacción (Usable)
+
+### 💾 [FASE 0.6: Análisis del Sistema de Almacenamiento](./fase-0.6-analisis-almacenamiento.md)
+**Análisis del sistema de almacenamiento y comparación con nuestra BD v2**
+
+- 📦 DialogueDatabase (ScriptableObject)
+- 💾 Sistema de persistencia (PersistentDataManager, Lua)
+- 💿 Sistema de guardado (Save System Integration)
+- 🔄 Comparación con nuestra base de datos v2
+- 🗺️ Mapeo de estructuras (DialogueDatabase → dialogos_v2, etc.)
+- 📊 Diferencias arquitectónicas (Single-Player vs Multi-User)
+- 📥 Sistema de recursos (Resources, AssetBundles, API REST)
+- ✅ Ventajas y desventajas de cada enfoque
+
+### 🎯 [FASE 0.7 y 0.8: Funcionalidades Avanzadas e Integraciones](./fase-0.7-0.8-funcionalidades-avanzadas-integraciones.md)
+**Análisis de funcionalidades avanzadas y sistema de extensiones**
+
+- 🎮 Sistema de misiones (Quests) - QuestLog, QuestState, Quest Entries
+- 🌍 Sistema de localización (Localization, TextTable)
+- 📢 Sistema de eventos (DialogueSystemEvents, Unity Events, Messages)
+- 🎬 Integraciones (Timeline, Cinemachine, Input System, TextMesh Pro)
+- 🔧 Sistema de extensibilidad (Custom Commands, Custom UI, Custom Lua Functions)
+- 🔌 Hooks y callbacks disponibles
+- 📊 Comparación con nuestra implementación
+
+### ⚡ [FASE 0.9: Análisis de Rendimiento y Optimización](./fase-0.9-rendimiento-optimizacion.md)
+**Análisis de optimizaciones y limitaciones de rendimiento**
+
+- 🚀 Optimizaciones implementadas (Cache, Preloading, Warm-up)
+- 🔍 Optimizaciones de búsqueda (Evitar GameObject.Find, GetComponent)
+- 🎨 Optimizaciones de UI (Cache de paneles, Reutilización)
+- ⚙️ Optimizaciones de Lua (Stop at First Valid, Linear Group Mode)
+- ⚠️ Limitaciones y problemas conocidos (Rendimiento, Diseño, Compatibilidad)
+- 💡 Recomendaciones para nuestra implementación (Cache Laravel, Optimizaciones BD, Unity)
+- 📈 Métricas y profiling
+
+### 📚 [FASE 0.10: Documentación Técnica para Desarrollo](./fase-0.10-documentacion-desarrollo.md)
+**Documentación técnica completa para el desarrollo del sistema**
+
+- 🏗️ Arquitectura del sistema (Cliente-Servidor, Componentes)
+- 📊 Diagramas y flujos (Creación, Reproducción, Evaluación)
+- 🔄 Comparativa con Pixel Crushers (Tabla de funcionalidades)
+- 📋 Plan de desarrollo (Fases, Prioridades, Checklist)
+- 🎯 Funcionalidades clave a replicar
+- 🗺️ Mapa de dependencias
+- ✅ Estrategia de implementación incremental
+
+### 🧪 [FASE 0.11: Prototipos y Pruebas](./fase-0.11-prototipos-pruebas.md)
+**Prototipos de funcionalidades clave y pruebas comparativas**
+
+- 🔬 Prototipo de estructura de datos básica (Backend ✅, Unity 🟡)
+- ⚙️ Prototipo de sistema de ejecución simple (Backend ✅, Unity 🟡)
+- 🎨 Prototipo de UI básica (Unity 🟡)
+- 📊 Pruebas comparativas (Rendimiento, Facilidad de uso, Funcionalidades)
+- ✅ Validación de conceptos (Estructura, Ejecución, Multi-Usuario, Evaluación)
+- 📈 Resultados y conclusiones
+
+### 🔧 [FASE 0.12: Herramientas de Análisis](./fase-0.12-herramientas-analisis.md)
+**Scripts de análisis automatizado y base de conocimiento**
+
+- 📊 Script para mapear estructura de clases (PHP)
+- 🔗 Script para extraer dependencias (PHP + Graphviz)
+- 💾 Script para analizar uso de memoria (PHP)
+- 📝 Script para generar documentación automática (PHP)
+- 📚 Base de conocimiento (Notas por componente, Decisiones de diseño)
+- 🔗 Referencias y recursos útiles (Pixel Crushers, Laravel, Unity)
+
 ### 🚀 Características Principales
 
 #### **Sistema de Grid Inteligente**
