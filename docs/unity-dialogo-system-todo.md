@@ -481,49 +481,49 @@ Crear un sistema de diálogos propio para Unity que reemplace la dependencia de 
 ## 📦 FASE 1: Arquitectura Base y Estructura de Datos
 
 ### 1.1 Modelos de Datos
-- [ ] **Crear ScriptableObject `DialogoData`**
-  - [ ] Propiedades: `id`, `nombre`, `descripcion`, `version`, `fechaCreacion`
-  - [ ] Lista de `NodoDialogo`
-  - [ ] Lista de `ConexionDialogo`
-  - [ ] Métodos: `GetNodoInicial()`, `GetNodosFinales()`, `ValidarEstructura()`
+- [x] **Crear ScriptableObject `DialogoData`**
+  - [x] Propiedades: `id`, `nombre`, `descripcion`, `version`, `fechaCreacion`
+  - [x] Lista de `NodoDialogo`
+  - [x] Lista de `ConexionDialogo`
+  - [x] Métodos: `GetNodoInicial()`, `GetNodosFinales()`, `ValidarEstructura()`
 
-- [ ] **Crear clase `NodoDialogo` (Serializable)**
-  - [ ] Propiedades: `id`, `titulo`, `contenido`, `tipo` (Inicio/Desarrollo/Decision/Final)
-  - [ ] `rolAsignado`, `posicion` (Vector2), `esInicial`, `esFinal`
-  - [ ] `instrucciones`, `condiciones`, `consecuencias`
-  - [ ] Lista de `RespuestaDialogo`
+- [x] **Crear clase `NodoDialogo` (Serializable)**
+  - [x] Propiedades: `id`, `titulo`, `contenido`, `tipo` (Inicio/Desarrollo/Decision/Final)
+  - [x] `rolAsignado`, `posicion` (Vector2), `esInicial`, `esFinal`
+  - [x] `instrucciones`, `condiciones`, `consecuencias`
+  - [x] Lista de `RespuestaDialogo`
 
-- [ ] **Crear clase `RespuestaDialogo` (Serializable)**
-  - [ ] Propiedades: `id`, `texto`, `nodoDestinoId`, `puntuacion`
-  - [ ] `color`, `condiciones`, `requiereUsuarioRegistrado`
-  - [ ] `esOpcionPorDefecto` (para usuarios no registrados)
+- [x] **Crear clase `RespuestaDialogo` (Serializable)**
+  - [x] Propiedades: `id`, `texto`, `nodoDestinoId`, `puntuacion`
+  - [x] `color`, `condiciones`, `requiereUsuarioRegistrado`
+  - [x] `esOpcionPorDefecto` (para usuarios no registrados)
 
-- [ ] **Crear clase `ConexionDialogo` (Serializable)**
-  - [ ] Propiedades: `nodoOrigenId`, `nodoDestinoId`, `respuestaId`
-  - [ ] `puntosIntermedios` (para líneas curvas)
+- [x] **Crear clase `ConexionDialogo` (Serializable)**
+  - [x] Propiedades: `nodoOrigenId`, `nodoDestinoId`, `respuestaId`
+  - [x] `puntosIntermedios` (para líneas curvas)
 
-- [ ] **Crear enum `TipoNodo`**
-  - [ ] `Inicio`, `Desarrollo`, `Decision`, `Final`
+- [x] **Crear enum `TipoNodo`**
+  - [x] `Inicio`, `Desarrollo`, `Decision`, `Final`, `Agrupacion`
 
 ### 1.2 Sistema de Almacenamiento
-- [ ] **Crear `DialogoStorageManager` (Singleton)**
-  - [ ] Método `GuardarDialogo(DialogoData dialogo)` → ScriptableObject
-  - [ ] Método `CargarDialogo(string dialogoId)` → DialogoData
-  - [ ] Método `CargarDesdeJSON(string jsonPath)` → DialogoData
-  - [ ] Método `ExportarAJSON(DialogoData dialogo)` → string JSON
-  - [ ] Método `ImportarDesdeLaravel(int dialogoId)` → Coroutine/async
-  - [ ] Método `SincronizarConLaravel(DialogoData dialogo)` → Coroutine/async
-  - [ ] Cache local de diálogos cargados
+- [x] **Crear `DialogoStorageManager` (Singleton)**
+  - [x] Método `GuardarDialogo(DialogoData dialogo)` → ScriptableObject
+  - [x] Método `CargarDialogo(string dialogoId)` → DialogoData
+  - [x] Método `CargarDesdeJSON(string jsonPath)` → DialogoData
+  - [x] Método `ExportarAJSON(DialogoData dialogo)` → string JSON
+  - [x] Método `ImportarDesdeLaravel(int dialogoId)` → Coroutine/async
+  - [x] Método `SincronizarConLaravel(DialogoData dialogo)` → Coroutine/async
+  - [x] Cache local de diálogos cargados
 
-- [ ] **Crear estructura de carpetas**
-  - [ ] `Assets/DialogoSystem/Data/` → ScriptableObjects
-  - [ ] `Assets/DialogoSystem/Data/JSON/` → Archivos JSON
-  - [ ] `Assets/DialogoSystem/Data/Resources/` → Recursos runtime
+- [x] **Crear estructura de carpetas**
+  - [x] `Assets/DialogoSystem/Data/` → ScriptableObjects
+  - [x] `Assets/DialogoSystem/Data/JSON/` → Archivos JSON
+  - [x] `Assets/DialogoSystem/Data/Resources/` → Recursos runtime
 
-- [ ] **Implementar serialización JSON**
-  - [ ] Usar `JsonUtility` o `Newtonsoft.Json`
-  - [ ] Convertir entre formato Laravel y formato Unity
-  - [ ] Validar estructura JSON al importar
+- [x] **Implementar serialización JSON**
+  - [x] Usar `JsonUtility` o `Newtonsoft.Json`
+  - [x] Convertir entre formato Laravel y formato Unity
+  - [x] Validar estructura JSON al importar
 
 ---
 
