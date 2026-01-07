@@ -19,6 +19,18 @@ use Illuminate\Support\Facades\Validator;
 class DialogoV2EditorController extends Controller
 {
     /**
+     * Listado de diálogos v2
+     */
+    public function index()
+    {
+        $dialogos = DialogoV2::withCount(['nodos'])
+            ->orderBy('updated_at', 'desc')
+            ->paginate(20);
+
+        return view('dialogos.v2.index', compact('dialogos'));
+    }
+
+    /**
      * Mostrar el editor visual
      */
     public function show($id)

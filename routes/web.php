@@ -77,13 +77,13 @@ Route::middleware(['web.auth'])->group(function () {
     // API endpoints para sesiones
     Route::get('/api/sesiones/{sesion}/usuarios-asignados', [SesionController::class, 'getUsuariosAsignados'])->name('sesiones.usuarios-asignados');
     
-    // Diálogos - Redirigir al nuevo sistema
+    // Diálogos - Redirigir al sistema V2
     Route::get('/dialogos', function() {
-        return redirect()->route('panel-dialogos.index');
+        return redirect()->route('dialogos-v2.index');
     })->name('dialogos.index');
     
     Route::get('/dialogos/create', function() {
-        return redirect()->route('panel-dialogos.create');
+        return redirect()->route('dialogos-v2.create');
     })->name('dialogos.create');
     
     // Diálogos (Sistema Legacy)
@@ -100,6 +100,7 @@ Route::middleware(['web.auth'])->group(function () {
     Route::get('/panel-dialogos/create', [PanelDialogoController::class, 'create'])->name('panel-dialogos.create');
     
     // Editor de Diálogos v2
+    Route::get('/dialogos-v2', [App\Http\Controllers\DialogoV2EditorController::class, 'index'])->name('dialogos-v2.index');
     Route::get('/dialogos-v2/create', [App\Http\Controllers\DialogoV2EditorController::class, 'create'])->name('dialogos-v2.create');
     Route::get('/dialogos-v2/{dialogo}/editor', [App\Http\Controllers\DialogoV2EditorController::class, 'show'])->name('dialogos-v2.editor');
     Route::get('/panel-dialogos/{escenario}', [PanelDialogoController::class, 'show'])->name('panel-dialogos.show');
