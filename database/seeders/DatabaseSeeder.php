@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             RolesDialogoSeeder::class,
             DialogoRoboOXXOCompletoSeeder::class, // Nuevo seeder del caso OXXO
             DialogoV2EjemploSeeder::class, // Diálogo de ejemplo para sistema v2
+            DialogoV2OxxoSeeder::class, // Caso OXXO en diálogos v2
         ]);
     }
 }

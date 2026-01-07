@@ -1262,7 +1262,8 @@
         font-size: 13px;
         color: #111;
         line-height: 1.5;
-        padding: 12px 14px;
+        /* Se reduce la sangría lateral para que el texto no arranque tan adentro */
+        padding: 10px 10px;
         min-height: 50px;
         max-height: 100px;
         overflow: hidden;
@@ -1271,7 +1272,8 @@
         -webkit-line-clamp: 4;
         -webkit-box-orient: vertical;
         word-wrap: break-word;
-        white-space: pre-wrap;
+        /* Evitar que la primera línea se indente por espacios guardados */
+        white-space: pre-line;
     }
 
     .node-content:empty::before {
