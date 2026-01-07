@@ -14,9 +14,9 @@
     </a>
 
            @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-           <!-- Diálogos -->
-           <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('panel-dialogos.*') ? 'bg-primary text-white' : 'text-dark' }}" 
-              href="/panel-dialogos">
+           <!-- Diálogos v2 -->
+           <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('dialogos-v2.*') ? 'bg-primary text-white' : 'text-dark' }}" 
+              href="/dialogos-v2/create">
                <i class="bi bi-diagram-3 me-3 fs-5"></i>
                <span class="fw-medium">Diálogos</span>
            </a>

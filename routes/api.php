@@ -49,6 +49,33 @@ Route::group(['prefix' => 'auth'], function () {
     });
 });
 
+// ========================================
+// RUTAS DEL EDITOR V2 (Usan autenticación web)
+// ========================================
+// Nota: Estas rutas necesitan el middleware 'web' para acceder a la sesión
+// Están fuera del grupo 'auth:api' porque usan autenticación de sesión web, no JWT
+Route::middleware(['web', 'web.auth'])->group(function () {
+    Route::group(['prefix' => 'dialogos-v2'], function () {
+        Route::get('/{dialogo}/editor', [App\Http\Controllers\DialogoV2EditorController::class, 'getDialogo']);
+        Route::post('/editor', [App\Http\Controllers\DialogoV2EditorController::class, 'save'])->middleware('user.type:admin,instructor');
+        Route::put('/{dialogo}/editor', [App\Http\Controllers\DialogoV2EditorController::class, 'save'])->middleware('user.type:admin,instructor');
+        
+        // Nodos
+        Route::post('/{dialogo}/nodos', [App\Http\Controllers\DialogoV2EditorController::class, 'saveNodo'])->middleware('user.type:admin,instructor');
+        Route::put('/{dialogo}/nodos/{nodo}', [App\Http\Controllers\DialogoV2EditorController::class, 'saveNodo'])->middleware('user.type:admin,instructor');
+        Route::delete('/{dialogo}/nodos/{nodo}', [App\Http\Controllers\DialogoV2EditorController::class, 'deleteNodo'])->middleware('user.type:admin,instructor');
+        
+        // Respuestas
+        Route::post('/{dialogo}/nodos/{nodo}/respuestas', [App\Http\Controllers\DialogoV2EditorController::class, 'saveRespuesta'])->middleware('user.type:admin,instructor');
+        Route::put('/{dialogo}/nodos/{nodo}/respuestas/{respuesta}', [App\Http\Controllers\DialogoV2EditorController::class, 'saveRespuesta'])->middleware('user.type:admin,instructor');
+        Route::delete('/{dialogo}/nodos/{nodo}/respuestas/{respuesta}', [App\Http\Controllers\DialogoV2EditorController::class, 'deleteRespuesta'])->middleware('user.type:admin,instructor');
+        
+        // Utilidades
+        Route::post('/{dialogo}/posiciones', [App\Http\Controllers\DialogoV2EditorController::class, 'updatePosiciones'])->middleware('user.type:admin,instructor');
+        Route::get('/{dialogo}/validar', [App\Http\Controllers\DialogoV2EditorController::class, 'validar']);
+    });
+});
+
 // Rutas protegidas por autenticación
 Route::middleware('auth:api')->group(function () {
     
@@ -209,6 +236,7 @@ Route::middleware('auth:api')->group(function () {
         // Rutas de nodos de diálogo
         Route::post('/{dialogo}/nodos', [NodoDialogoController::class, 'store'])->middleware('user.type:admin,instructor');
     });
+
 
     // ========================================
     // RUTAS DE NODOS DE DIÁLOGO

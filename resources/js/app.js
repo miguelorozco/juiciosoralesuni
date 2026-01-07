@@ -352,6 +352,12 @@ window.errorHandler = {
         console.error('API Error:', error);
 
         if (error.status === 401) {
+            // No redirigir automáticamente para rutas de dialogos-v2 que usan sesión web
+            if (error.url && error.url.includes('/api/dialogos-v2/')) {
+                console.log('Error 401 en dialogos-v2, no redirigiendo automáticamente');
+                return;
+            }
+            
             // Token expirado o no válido
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -405,6 +411,14 @@ window.fetch = async function (...args) {
         if (!response.ok) {
             const error = await response.json().catch(() => ({ message: 'Error desconocido' }));
             error.status = response.status;
+            
+            // No redirigir automáticamente para rutas de dialogos-v2 que usan sesión web
+            const url = args[0];
+            if (typeof url === 'string' && url.includes('/api/dialogos-v2/')) {
+                console.log('Error en dialogos-v2, no redirigiendo automáticamente:', error);
+                throw error;
+            }
+            
             throw error;
         }
 
@@ -413,6 +427,12 @@ window.fetch = async function (...args) {
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
             window.errorHandler.handleNetworkError(error);
         } else {
+            // No manejar errores automáticamente para dialogos-v2
+            const url = args[0];
+            if (typeof url === 'string' && url.includes('/api/dialogos-v2/')) {
+                console.log('Error en dialogos-v2, dejando que el código maneje el error:', error);
+                throw error;
+            }
             window.errorHandler.handleApiError(error);
         }
         throw error;

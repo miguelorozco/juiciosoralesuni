@@ -24,70 +24,72 @@ class WebAuthMiddleware
         }
         
         Log::info('=== MIDDLEWARE WEB AUTH ===');
-        Log::info('URL: ' . $request->url());
+        Log::info('Path: ' . $request->path());
+        Log::info('Full URL: ' . $request->fullUrl());
         Log::info('Method: ' . $request->method());
-        Log::info('IP: ' . $request->ip());
+        Log::info('Is AJAX: ' . ($request->ajax() ? 'true' : 'false'));
+        Log::info('Wants JSON: ' . ($request->wantsJson() ? 'true' : 'false'));
+        Log::info('Expects JSON: ' . ($request->expectsJson() ? 'true' : 'false'));
+        Log::info('Has Session: ' . ($request->hasSession() ? 'true' : 'false'));
+        Log::info('Session ID: ' . ($request->hasSession() ? $request->session()->getId() : 'N/A'));
+        Log::info('Cookies: ' . json_encode($request->cookies->all()));
+        Log::info('Headers: ' . json_encode($request->headers->all()));
         
-        // Para rutas API, usar autenticación JWT
+        // Para rutas API, verificar autenticación de sesión web
         if (str_starts_with($request->path(), 'api/')) {
+            Log::info('Es ruta API, llamando handleApiAuth');
             return $this->handleApiAuth($request, $next);
         }
         
         // Para rutas web, usar autenticación de sesión normal
+        Log::info('Es ruta web, llamando handleWebAuth');
         return $this->handleWebAuth($request, $next);
     }
     
     private function handleApiAuth(Request $request, Closure $next)
     {
-        // Verificar si el usuario está autenticado en la sesión web
-        $isAuthenticated = Auth::check();
-        $user = Auth::user();
+        Log::info('=== HANDLE API AUTH ===');
+        Log::info('Request path: ' . $request->path());
+        Log::info('Has session: ' . ($request->hasSession() ? 'true' : 'false'));
         
-        Log::info('Auth::check(): ' . ($isAuthenticated ? 'true' : 'false'));
-        Log::info('Auth::user(): ' . ($user ? json_encode([
+        // Intentar iniciar sesión si no está iniciada
+        if (!$request->hasSession()) {
+            Log::info('No hay sesión disponible, intentando iniciar sesión...');
+            // Las rutas API necesitan el middleware 'web' para tener acceso a la sesión
+            // Si no hay sesión, intentar usar el guard 'web' directamente
+        }
+        
+        // Verificar si el usuario está autenticado en la sesión web
+        // Usar el guard 'web' explícitamente
+        $isAuthenticated = Auth::guard('web')->check();
+        $user = Auth::guard('web')->user();
+        
+        Log::info('Auth::guard("web")->check(): ' . ($isAuthenticated ? 'true' : 'false'));
+        Log::info('Auth::guard("web")->user(): ' . ($user ? json_encode([
             'id' => $user->id,
             'email' => $user->email,
             'tipo' => $user->tipo
         ]) : 'null'));
         
         if ($isAuthenticated) {
-            Log::info('Usuario autenticado, continuando...');
+            Log::info('Usuario autenticado en sesión web, continuando...');
             return $next($request);
         }
         
-        // Si no está autenticado, verificar si es una petición AJAX con token
-        if ($request->ajax()) {
-            $token = $request->header('Authorization');
-            if ($token) {
-                $token = str_replace('Bearer ', '', $token);
-                Log::info('Token encontrado en header AJAX');
-                
-                try {
-                    $user = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->authenticate();
-                    if ($user) {
-                        Log::info('Token válido, usuario: ' . $user->email);
-                        Auth::login($user);
-                        Log::info('Usuario autenticado en sesión web');
-                        return $next($request);
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Error verificando token AJAX: ' . $e->getMessage());
-                }
-            }
-        }
-        
-        // Verificar si hay token en el header Authorization (para navegación normal con token)
+        // Verificar si hay token en el header Authorization
         $token = $request->header('Authorization');
+        Log::info('Authorization header: ' . ($token ? 'present' : 'missing'));
+        
         if ($token) {
             $token = str_replace('Bearer ', '', $token);
-            Log::info('Token encontrado en header de navegación normal');
+            Log::info('Token encontrado, verificando...');
             
             try {
                 $user = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->authenticate();
                 if ($user) {
                     Log::info('Token válido, usuario: ' . $user->email);
-                    Auth::login($user);
-                    Log::info('Usuario autenticado en sesión web');
+                    Auth::guard('web')->login($user);
+                    Log::info('Usuario autenticado en sesión web desde token');
                     return $next($request);
                 }
             } catch (\Exception $e) {
@@ -95,11 +97,12 @@ class WebAuthMiddleware
             }
         }
         
-        Log::info('Usuario NO autenticado, devolviendo JSON 401');
+        // Para todas las peticiones API, siempre devolver JSON, nunca redirigir
+        Log::info('Usuario NO autenticado en API, devolviendo JSON 401');
         return response()->json([
             'success' => false,
             'message' => 'No autorizado',
-            'error' => 'Token de autenticación requerido'
+            'error' => 'Sesión de autenticación requerida'
         ], 401);
     }
     

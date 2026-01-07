@@ -98,6 +98,10 @@ Route::middleware(['web.auth'])->group(function () {
     // Panel de Diálogos (Nuevo Sistema)
     Route::get('/panel-dialogos', [PanelDialogoController::class, 'indexWeb'])->name('panel-dialogos.index');
     Route::get('/panel-dialogos/create', [PanelDialogoController::class, 'create'])->name('panel-dialogos.create');
+    
+    // Editor de Diálogos v2
+    Route::get('/dialogos-v2/create', [App\Http\Controllers\DialogoV2EditorController::class, 'create'])->name('dialogos-v2.create');
+    Route::get('/dialogos-v2/{dialogo}/editor', [App\Http\Controllers\DialogoV2EditorController::class, 'show'])->name('dialogos-v2.editor');
     Route::get('/panel-dialogos/{escenario}', [PanelDialogoController::class, 'show'])->name('panel-dialogos.show');
     Route::get('/panel-dialogos/{escenario}/editor', [PanelDialogoController::class, 'editor'])->name('panel-dialogos.editor');
     Route::get('/panel-dialogos/{escenario}/edit', [PanelDialogoController::class, 'editor'])->name('panel-dialogos.edit');

@@ -20,6 +20,12 @@
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     
+    <!-- Estilos específicos por vista -->
+    @stack('styles')
+    
+    <!-- Scripts del head (se cargan antes de Alpine.js) -->
+    @stack('head-scripts')
+    
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     

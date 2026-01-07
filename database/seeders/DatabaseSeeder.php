@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             DialogoJuicioPenalSeeder::class,
             RolesDialogoSeeder::class,
             DialogoRoboOXXOCompletoSeeder::class, // Nuevo seeder del caso OXXO
+            DialogoV2EjemploSeeder::class, // Diálogo de ejemplo para sistema v2
         ]);
     }
 }

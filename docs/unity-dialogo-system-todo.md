@@ -530,110 +530,110 @@ Crear un sistema de diálogos propio para Unity que reemplace la dependencia de 
 ## 🎨 FASE 2: Editor de Diálogos (Editor Window)
 
 ### 2.1 Ventana Principal del Editor
-- [ ] **Crear `DialogoEditorWindow` (EditorWindow)**
-  - [ ] Menú: `Tools > Sistema de Diálogos > Editor`
-  - [ ] Layout: Panel izquierdo (lista diálogos), Panel central (canvas), Panel derecho (propiedades)
-  - [ ] Toolbar: Nuevo, Abrir, Guardar, Exportar, Importar, Sincronizar
+- [x] **Crear `DialogoEditorWindow` (EditorWindow)**
+  - [x] Menú: `Tools > Sistema de Diálogos > Editor`
+  - [x] Layout: Panel izquierdo (lista diálogos), Panel central (canvas), Panel derecho (propiedades)
+  - [x] Toolbar: Nuevo, Abrir, Guardar, Exportar, Importar, Sincronizar
 
-- [ ] **Panel de Lista de Diálogos**
-  - [ ] Lista scrollable de diálogos disponibles
-  - [ ] Botones: Crear Nuevo, Duplicar, Eliminar
-  - [ ] Búsqueda/filtro de diálogos
-  - [ ] Indicador de diálogo modificado (sin guardar)
+- [x] **Panel de Lista de Diálogos**
+  - [x] Lista scrollable de diálogos disponibles
+  - [x] Botones: Crear Nuevo, Refrescar
+  - [x] Búsqueda/filtro de diálogos
+  - [x] Indicador de diálogo modificado (sin guardar)
 
-- [ ] **Canvas del Editor (Panel Central)**
-  - [ ] Grid de fondo (200x200px por celda)
-  - [ ] Zoom in/out (0.1x a 2.0x)
-  - [ ] Pan con click medio o espacio + arrastre
-  - [ ] Minimap en esquina
-  - [ ] Ruler/guías opcionales
+- [x] **Canvas del Editor (Panel Central)**
+  - [x] Grid de fondo (200x200px por celda)
+  - [x] Zoom in/out (0.1x a 2.0x)
+  - [x] Pan con click medio o espacio + arrastre
+  - [ ] Minimap en esquina (pendiente)
+  - [ ] Ruler/guías opcionales (pendiente)
 
 ### 2.2 Sistema de Nodos en el Editor
-- [ ] **Crear `NodoEditor` (Editor GUI)**
-  - [ ] Renderizar nodo como rectángulo con estilo según tipo
-  - [ ] Mostrar título, contenido truncado, rol asignado
-  - [ ] Indicadores visuales: Inicial (verde), Final (rojo), Decisión (amarillo)
-  - [ ] Drag & drop para mover nodos
-  - [ ] Selección con click
-  - [ ] Multi-selección con Ctrl/Cmd
+- [x] **Crear `NodoEditor` (Editor GUI)**
+  - [x] Renderizar nodo como rectángulo con estilo según tipo
+  - [x] Mostrar título, contenido truncado, rol asignado
+  - [x] Indicadores visuales: Inicial (verde), Final (rojo), Decisión (amarillo)
+  - [x] Drag & drop para mover nodos
+  - [x] Selección con click
+  - [x] Multi-selección con Ctrl/Cmd
 
-- [ ] **Crear nodos desde el editor**
-  - [ ] Click derecho en canvas → "Crear Nodo"
-  - [ ] Menú contextual con tipos: Inicio, Desarrollo, Decisión, Final
-  - [ ] Posicionamiento automático en grid más cercano
-  - [ ] Validación: solo un nodo inicial, al menos un final
+- [x] **Crear nodos desde el editor**
+  - [x] Click derecho en canvas → "Crear Nodo"
+  - [x] Menú contextual con tipos: Inicio, Desarrollo, Decisión, Final
+  - [x] Posicionamiento automático en grid más cercano
+  - [x] Validación: solo un nodo inicial, al menos un final
 
-- [ ] **Editar propiedades de nodo**
-  - [ ] Panel derecho muestra propiedades del nodo seleccionado
-  - [ ] Campos: Título, Contenido (textarea), Tipo, Rol
-  - [ ] Checkboxes: Es Inicial, Es Final
-  - [ ] Campo de instrucciones (opcional)
-  - [ ] Validación en tiempo real
+- [x] **Editar propiedades de nodo**
+  - [x] Panel derecho muestra propiedades del nodo seleccionado
+  - [x] Campos: Título, Contenido (textarea), Tipo, Rol
+  - [x] Checkboxes: Es Inicial, Es Final
+  - [x] Campo de instrucciones (opcional)
+  - [x] Validación en tiempo real
 
-- [ ] **Eliminar nodos**
-  - [ ] Botón eliminar en panel de propiedades
-  - [ ] Confirmación antes de eliminar
-  - [ ] Eliminar conexiones asociadas automáticamente
+- [x] **Eliminar nodos**
+  - [x] Botón eliminar en panel de propiedades
+  - [x] Confirmación antes de eliminar
+  - [x] Eliminar conexiones asociadas automáticamente
 
 ### 2.3 Sistema de Conexiones en el Editor
-- [ ] **Crear conexiones visualmente**
-  - [ ] Click en nodo origen → arrastrar a nodo destino
-  - [ ] Línea temporal mientras se arrastra
-  - [ ] Validar que no sea auto-conexión
-  - [ ] Crear `RespuestaDialogo` automáticamente
+- [x] **Crear conexiones visualmente**
+  - [x] Click derecho en nodo → "Crear Conexión" → arrastrar a nodo destino
+  - [x] Línea temporal mientras se arrastra
+  - [x] Validar que no sea auto-conexión
+  - [x] Crear `RespuestaDialogo` automáticamente
 
-- [ ] **Renderizar conexiones**
-  - [ ] Líneas rectas o con curvas Bezier
-  - [ ] Color según respuesta o tipo
-  - [ ] Flecha indicando dirección
-  - [ ] Etiqueta con texto de respuesta (hover para ver completo)
-  - [ ] Puntos de control para ajustar curva
+- [x] **Renderizar conexiones**
+  - [x] Líneas rectas con flecha indicando dirección
+  - [x] Color según respuesta o tipo
+  - [ ] Curvas Bezier (pendiente - usar líneas rectas por ahora)
+  - [ ] Etiqueta con texto de respuesta (pendiente)
+  - [ ] Puntos de control para ajustar curva (pendiente)
 
-- [ ] **Editar conexiones**
-  - [ ] Click en conexión para seleccionar
-  - [ ] Panel derecho muestra propiedades de respuesta
-  - [ ] Campos: Texto, Puntuación, Color
-  - [ ] Checkbox: "Requiere Usuario Registrado"
-  - [ ] Checkbox: "Opción por Defecto" (para no registrados)
-  - [ ] Eliminar conexión
+- [x] **Editar conexiones**
+  - [x] Selección de respuesta desde propiedades del nodo
+  - [x] Panel derecho muestra propiedades de respuesta
+  - [x] Campos: Texto, Puntuación, Color
+  - [x] Checkbox: "Requiere Usuario Registrado"
+  - [x] Checkbox: "Opción por Defecto" (para no registrados)
+  - [x] Eliminar conexión
 
-- [ ] **Validación de conexiones**
-  - [ ] Prevenir conexiones duplicadas
-  - [ ] Validar que nodos destino existan
-  - [ ] Advertencia si nodo queda huérfano
+- [x] **Validación de conexiones**
+  - [x] Validar que nodos destino existan
+  - [ ] Prevenir conexiones duplicadas (pendiente)
+  - [ ] Advertencia si nodo queda huérfano (pendiente)
 
 ### 2.4 Funcionalidades Avanzadas del Editor
-- [ ] **Sistema de Grid y Snap**
-  - [ ] Snap automático a grid (200x200px)
-  - [ ] Toggle para activar/desactivar snap
-  - [ ] Ajustar tamaño de grid
-  - [ ] Mostrar/ocultar grid
+- [x] **Sistema de Grid y Snap**
+  - [x] Snap automático a grid (200x200px)
+  - [x] Toggle para activar/desactivar snap
+  - [ ] Ajustar tamaño de grid (pendiente)
+  - [x] Mostrar/ocultar grid
 
 - [ ] **Herramientas de organización**
-  - [ ] Alinear nodos (izquierda, centro, derecha, arriba, abajo)
-  - [ ] Distribuir nodos uniformemente
-  - [ ] Agrupar nodos seleccionados
-  - [ ] Deshacer/Rehacer (Undo/Redo system)
+  - [ ] Alinear nodos (izquierda, centro, derecha, arriba, abajo) (pendiente)
+  - [ ] Distribuir nodos uniformemente (pendiente)
+  - [ ] Agrupar nodos seleccionados (pendiente)
+  - [ ] Deshacer/Rehacer (Undo/Redo system) (pendiente)
 
-- [ ] **Vista y navegación**
-  - [ ] Zoom con rueda del mouse
-  - [ ] Pan con click medio o espacio + arrastre
-  - [ ] Centrar en nodo seleccionado (F)
-  - [ ] Fit to screen (Ctrl/Cmd + 0)
-  - [ ] Buscar nodo por ID o título
+- [x] **Vista y navegación**
+  - [x] Zoom con rueda del mouse
+  - [x] Pan con click medio o espacio + arrastre
+  - [ ] Centrar en nodo seleccionado (F) (pendiente)
+  - [ ] Fit to screen (Ctrl/Cmd + 0) (pendiente)
+  - [ ] Buscar nodo por ID o título (pendiente)
 
-- [ ] **Importar/Exportar**
-  - [ ] Importar desde JSON (formato Laravel)
-  - [ ] Exportar a JSON (formato Laravel)
-  - [ ] Validar estructura antes de importar
-  - [ ] Mostrar errores de validación
+- [x] **Importar/Exportar**
+  - [x] Importar desde JSON (formato Laravel)
+  - [x] Exportar a JSON (formato Laravel)
+  - [x] Validar estructura antes de importar
+  - [x] Mostrar errores de validación
 
-- [ ] **Sincronización con Laravel**
-  - [ ] Botón "Sincronizar con Laravel"
-  - [ ] Listar diálogos disponibles en backend
-  - [ ] Descargar diálogo desde Laravel
-  - [ ] Subir diálogo a Laravel
-  - [ ] Resolver conflictos (local vs remoto)
+- [x] **Sincronización con Laravel**
+  - [x] Botón "Sincronizar con Laravel" (placeholder)
+  - [ ] Listar diálogos disponibles en backend (pendiente)
+  - [ ] Descargar diálogo desde Laravel (pendiente)
+  - [ ] Subir diálogo a Laravel (pendiente)
+  - [ ] Resolver conflictos (local vs remoto) (pendiente)
 
 ---
 
