@@ -1,0 +1,10 @@
+{
+  "laravelApiBaseUrl": "https://juiciosorales.site/api",
+  "photonAppId": "2ec23c58-5cc4-419d-8214-13abad14a02f",
+  "environment": "production",
+  "debugMode": false,
+  "enableLogging": true,
+  "maxRetries": 3,
+  "timeout": 30,
+  "version": "1.0.0"
+}
