@@ -21,33 +21,36 @@ public class PlayerController : MonoBehaviourPunCallbacks
     public GameObject avatarPrefab;
     public Transform avatarSpawnPoint;
 
-    private Rigidbody rb;
     private bool isLocalPlayer = false;
     private GameObject currentAvatar;
 
+    void Awake()
+    {
+        Debug.Log($"[PlayerController] ⚡ Awake() ejecutado en GameObject: {gameObject.name}");
+        Debug.Log($"[PlayerController] PhotonView existe: {photonView != null}");
+        if (photonView != null)
+        {
+            Debug.Log($"[PlayerController] PhotonView.IsMine en Awake: {photonView.IsMine}");
+        }
+    }
+
     void Start()
     {
-        // Configurar componentes
-        rb = GetComponent<Rigidbody>();
-        if (rb == null)
-        {
-            rb = gameObject.AddComponent<Rigidbody>();
-        }
-
-        rb.freezeRotation = true;
-        rb.mass = 1f;
-        rb.linearDamping = 5f;
+        Debug.Log($"[PlayerController] 🚀 Start() ejecutado en GameObject: {gameObject.name}");
 
         // Configurar como jugador local
         isLocalPlayer = photonView.IsMine;
+        Debug.Log($"[PlayerController] photonView.IsMine: {isLocalPlayer} | GameObject: {gameObject.name}");
 
         // Configurar cámara para jugador local
         if (isLocalPlayer)
         {
+            Debug.Log($"[PlayerController] Configurando como jugador LOCAL");
             SetupLocalPlayer();
         }
         else
         {
+            Debug.Log($"[PlayerController] Configurando como jugador REMOTO");
             SetupRemotePlayer();
         }
 
@@ -57,7 +60,12 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     void SetupLocalPlayer()
     {
+
+        // Deshabilitar todos los AudioListeners excepto el del jugador local
+        DisableAllAudioListenersExceptLocal();
+
         // Configurar cámara para seguir al jugador local
+        // Nota: El target se asignará después de crear el avatar en CreateAvatar()
         Camera mainCamera = Camera.main;
         if (mainCamera != null)
         {
@@ -66,6 +74,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
             {
                 cameraFollow = mainCamera.gameObject.AddComponent<CameraFollow>();
             }
+            // Usar el transform del PlayerController como fallback temporal
+            // Se actualizará cuando se cree el avatar
             cameraFollow.target = transform;
         }
 
@@ -74,8 +84,42 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (inputHandler == null)
         {
             inputHandler = gameObject.AddComponent<PlayerInputHandler>();
+            Debug.Log($"[PlayerController] PlayerInputHandler agregado como componente");
+        }
+        else
+        {
+            Debug.Log($"[PlayerController] PlayerInputHandler ya existe");
         }
         inputHandler.playerController = this;
+        Debug.Log($"[PlayerController] playerController asignado al inputHandler: {inputHandler != null}");
+    }
+
+    /// <summary>
+    /// Deshabilita todos los AudioListeners en la escena excepto los del jugador local.
+    /// Esto asegura que solo haya un AudioListener activo.
+    /// </summary>
+    private void DisableAllAudioListenersExceptLocal()
+    {
+        // Buscar todos los AudioListeners en la escena
+        AudioListener[] allListeners = FindObjectsOfType<AudioListener>();
+        
+        Debug.Log($"[PlayerController] Encontrados {allListeners.Length} AudioListener(s) en la escena");
+
+        foreach (AudioListener listener in allListeners)
+        {
+            // Si el AudioListener pertenece a este jugador o a sus hijos (cámara del avatar), mantenerlo activo
+            if (listener.transform.IsChildOf(transform) || listener.transform == transform)
+            {
+                listener.enabled = true;
+                Debug.Log($"[PlayerController] AudioListener habilitado en: {listener.gameObject.name}");
+            }
+            else
+            {
+                // Deshabilitar todos los demás AudioListeners (cámara principal de la escena, etc.)
+                listener.enabled = false;
+                Debug.Log($"[PlayerController] AudioListener deshabilitado en: {listener.gameObject.name}");
+            }
+        }
     }
 
     void SetupRemotePlayer()
@@ -150,27 +194,81 @@ public class PlayerController : MonoBehaviourPunCallbacks
             {
                 avatarController.SetRole(playerRole, roleColor);
             }
+
+            // Si es el jugador local, actualizar el target de la cámara al avatar
+            if (isLocalPlayer)
+            {
+                UpdateCameraTarget();
+            }
         }
     }
 
-    public void Move(Vector3 direction)
+    /// <summary>
+    /// Actualiza el target de la cámara para seguir el avatar.
+    /// Busca un punto de referencia específico (Head, CameraTarget, PlayerCameraRoot) o usa el transform del avatar.
+    /// </summary>
+    private void UpdateCameraTarget()
     {
-        if (!isLocalPlayer) return;
+        if (currentAvatar == null) return;
 
-        // Mover el jugador
-        Vector3 moveDirection = direction.normalized;
-        rb.linearVelocity = new Vector3(moveDirection.x * moveSpeed, rb.linearVelocity.y, moveDirection.z * moveSpeed);
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null) return;
 
-        // Rotar hacia la dirección de movimiento
-        if (moveDirection != Vector3.zero)
+        var cameraFollow = mainCamera.GetComponent<CameraFollow>();
+        if (cameraFollow == null) return;
+
+        // Buscar un punto de referencia específico en el avatar
+        Transform targetTransform = null;
+
+        // 1. Buscar "PlayerCameraRoot" (usado en el prefab Player de Photon)
+        Transform cameraRoot = currentAvatar.transform.Find("PlayerCameraRoot");
+        if (cameraRoot != null)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+            targetTransform = cameraRoot;
+            Debug.Log("CameraFollow: Usando PlayerCameraRoot como target");
         }
+        // 2. Buscar "CameraTarget" (punto de referencia genérico)
+        else
+        {
+            cameraRoot = currentAvatar.transform.Find("CameraTarget");
+            if (cameraRoot != null)
+            {
+                targetTransform = cameraRoot;
+                Debug.Log("CameraFollow: Usando CameraTarget como target");
+            }
+        }
+        // 3. Buscar "Head" (cabeza del avatar)
+        if (targetTransform == null)
+        {
+            Transform head = currentAvatar.transform.Find("Head");
+            if (head != null)
+            {
+                targetTransform = head;
+                Debug.Log("CameraFollow: Usando Head como target");
+            }
+        }
+        // 4. Si no se encuentra ningún punto específico, usar el transform del avatar
+        if (targetTransform == null)
+        {
+            targetTransform = currentAvatar.transform;
+            Debug.Log("CameraFollow: Usando transform del avatar como target");
+        }
+
+        // Asignar el target a la cámara
+        cameraFollow.SetTarget(targetTransform);
+        Debug.Log($"CameraFollow: Target asignado a {targetTransform.name}");
     }
+
 
     public bool IsLocalPlayer()
     {
+        // Verificar también photonView.IsMine por si acaso cambió
+        bool isMine = photonView != null && photonView.IsMine;
+        if (isLocalPlayer != isMine)
+        {
+            Debug.LogWarning($"[PlayerController] ⚠️ isLocalPlayer ({isLocalPlayer}) != photonView.IsMine ({isMine})");
+            isLocalPlayer = isMine;
+        }
         return isLocalPlayer;
     }
 

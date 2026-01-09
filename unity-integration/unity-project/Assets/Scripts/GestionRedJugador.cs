@@ -1,6 +1,7 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using System.Collections;
 using ExitGames.Client.Photon;
 using JuiciosSimulator.API;
 using JuiciosSimulator;
@@ -26,7 +27,69 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         if (gameInitializer == null)
             gameInitializer = FindObjectOfType<GameInitializer>();
 
+        // Suscribirse a eventos de LaravelAPI para obtener el rol cuando esté disponible
+        LaravelAPI.OnActiveSessionReceived += OnActiveSessionReceived;
+        LaravelAPI.OnUserLoggedIn += OnUserLoggedIn;
+
         ConnectToPhoton();
+    }
+
+    void OnDestroy()
+    {
+        // Desuscribirse de eventos
+        LaravelAPI.OnActiveSessionReceived -= OnActiveSessionReceived;
+        LaravelAPI.OnUserLoggedIn -= OnUserLoggedIn;
+    }
+
+    private void OnUserLoggedIn(UserData user)
+    {
+        Debug.Log($"Usuario logueado en GestionRedJugador: {user.name}");
+        // La sesión se obtendrá automáticamente después del login
+    }
+
+    private void OnActiveSessionReceived(SessionData sessionData)
+    {
+        // Validaciones null críticas para evitar memory access out of bounds
+        if (sessionData == null)
+        {
+            Debug.LogError("❌ OnActiveSessionReceived: sessionData es null");
+            return;
+        }
+
+        if (sessionData.session == null)
+        {
+            Debug.LogError("❌ OnActiveSessionReceived: sessionData.session es null");
+            return;
+        }
+
+        Debug.Log($"Sesión activa recibida en GestionRedJugador: {sessionData.session.nombre ?? "Sin nombre"}");
+        
+        // Actualizar el rol asignado
+        if (sessionData.role != null)
+        {
+            assignedRole = sessionData.role.nombre ?? "Observador";
+            hasAssignedRole = true;
+            Debug.Log($"✅ Rol asignado actualizado: {assignedRole}");
+
+            // Si ya estamos en una sala, actualizar el rol del jugador en Photon
+            if (PhotonNetwork.InRoom)
+            {
+                ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
+                PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
+                Debug.Log($"✅ Rol actualizado en Photon: {assignedRole}");
+            }
+            // Si estamos en el lobby pero no en sala, unirse a la sala
+            else if (PhotonNetwork.InLobby)
+            {
+                JoinSessionRoom();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ Sesión activa recibida pero sin rol asignado - usando Observador por defecto");
+            assignedRole = "Observador";
+            hasAssignedRole = false;
+        }
     }
 
     void ConnectToPhoton()
@@ -48,27 +111,42 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     {
         Debug.Log("Unido al Lobby. Obteniendo rol asignado desde Laravel...");
 
-        // Obtener el rol asignado desde la sesión activa
+        // Intentar obtener el rol asignado desde la sesión activa
         GetAssignedRoleFromSession();
     }
 
     private void GetAssignedRoleFromSession()
     {
-        if (gameInitializer != null && gameInitializer.currentSessionData != null)
+        // Primero intentar desde gameInitializer (puede estar disponible si ya se cargó)
+        if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
         {
-            // Usar el rol de la sesión activa
-            assignedRole = gameInitializer.currentSessionData.role.nombre;
-            hasAssignedRole = true;
+            // Usar el rol de la sesión activa con validación null
+            assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
+            hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
 
-            Debug.Log($"Rol asignado desde sesión: {assignedRole}");
+            Debug.Log($"Rol asignado desde sesión (GameInitializer): {assignedRole}");
 
             // Unirse directamente a la sala de la sesión
             JoinSessionRoom();
         }
+        // Si no está disponible, intentar desde LaravelAPI directamente
+        else if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
+        {
+            assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
+            hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
+
+            Debug.Log($"Rol asignado desde sesión (LaravelAPI): {assignedRole}");
+
+            // Unirse directamente a la sala de la sesión
+            JoinSessionRoom();
+        }
+        // Si aún no está disponible, esperar a que llegue el evento OnActiveSessionReceived
         else
         {
-            Debug.LogWarning("No hay sesión activa. Usando rol por defecto.");
-            assignedRole = "Observador"; // Rol por defecto
+            Debug.LogWarning("No hay sesión activa disponible todavía. Esperando a que se cargue...");
+            // El evento OnActiveSessionReceived se encargará de unirse a la sala cuando el rol esté disponible
+            // Por ahora, usar rol por defecto temporalmente
+            assignedRole = "Observador"; // Rol por defecto temporal
             hasAssignedRole = true;
             JoinSessionRoom();
         }
@@ -110,13 +188,47 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     {
         Debug.Log("Unido a una sala. Configurando jugador con rol asignado...");
 
-        // Configurar el rol del jugador en Photon
-        if (hasAssignedRole)
+        // Asegurar que tenemos un rol asignado
+        if (string.IsNullOrEmpty(assignedRole))
         {
-            Hashtable playerProps = new Hashtable() { { "Rol", assignedRole } };
+            // Intentar obtener el rol nuevamente con validación null
+            if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
+            {
+                assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
+                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
+                Debug.Log($"Rol obtenido desde GameInitializer: {assignedRole}");
+            }
+            else if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
+            {
+                assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
+                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
+                Debug.Log($"Rol obtenido desde LaravelAPI: {assignedRole}");
+            }
+            else
+            {
+                // Usar "Observador" como fallback pero no mostrar error
+                assignedRole = "Observador";
+                hasAssignedRole = true;
+                Debug.LogWarning("No se pudo obtener el rol desde Laravel, usando 'Observador' por defecto temporalmente. El rol se actualizará cuando llegue la sesión activa.");
+            }
+        }
+
+        // Configurar el rol del jugador en Photon
+        if (hasAssignedRole && !string.IsNullOrEmpty(assignedRole))
+        {
+            ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
             PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
 
-            Debug.Log($"Jugador configurado con rol: {assignedRole}");
+            Debug.Log($"✅ Jugador configurado con rol: {assignedRole}");
+        }
+        else
+        {
+            // Si aún no hay rol, usar Observador como último recurso
+            assignedRole = "Observador";
+            hasAssignedRole = true;
+            ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
+            PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
+            Debug.LogWarning($"⚠️ No se pudo obtener el rol desde Laravel, usando 'Observador' por defecto. El rol se actualizará automáticamente cuando llegue la sesión activa.");
         }
 
         // Instanciar el jugador con el rol asignado
@@ -124,16 +236,18 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         Quaternion spawnRotation = Quaternion.Euler(0, 180, 0);
 
         // Instanciar el prefab del jugador
+        Debug.Log($"[GestionRedJugador] Instanciando prefab 'Player' en posición: {spawnPosition}");
         GameObject playerPrefab = PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
 
-        // Configurar el jugador con su rol
+        // IMPORTANTE: Esperar un frame para que PhotonView se configure correctamente
+        // PhotonNetwork.Instantiate puede no tener IsMine configurado inmediatamente
         if (playerPrefab != null)
         {
-            var playerController = playerPrefab.GetComponent<PlayerController>();
-            if (playerController != null)
-            {
-                playerController.SetRole(assignedRole);
-            }
+            StartCoroutine(ConfigurePlayerAfterInstantiate(playerPrefab, assignedRole));
+        }
+        else
+        {
+            Debug.LogError($"[GestionRedJugador] ❌ No se pudo instanciar el prefab 'Player'!");
         }
 
         // Inicializar el sistema de audio
@@ -141,6 +255,74 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
         // Notificar al sistema de diálogos que un jugador se unió
         NotifyPlayerJoined(assignedRole);
+    }
+
+    /// <summary>
+    /// Configura el jugador después de que se instancia, esperando a que PhotonView se configure correctamente
+    /// </summary>
+    private IEnumerator ConfigurePlayerAfterInstantiate(GameObject playerPrefab, string role)
+    {
+        // Esperar un frame para que PhotonView.IsMine se configure correctamente
+        yield return null;
+        
+        if (playerPrefab == null)
+        {
+            Debug.LogError($"[GestionRedJugador] ❌ Prefab es null después de esperar un frame!");
+            yield break;
+        }
+
+        Debug.Log($"[GestionRedJugador] ✅ Prefab instanciado: {playerPrefab.name}");
+        
+        // Verificar componentes
+        var playerController = playerPrefab.GetComponent<PlayerController>();
+        var playerInputHandler = playerPrefab.GetComponent<PlayerInputHandler>();
+        var photonView = playerPrefab.GetComponent<PhotonView>();
+        
+        Debug.Log($"[GestionRedJugador] PlayerController encontrado: {playerController != null}");
+        Debug.Log($"[GestionRedJugador] PlayerInputHandler encontrado: {playerInputHandler != null}");
+        Debug.Log($"[GestionRedJugador] PhotonView encontrado: {photonView != null}");
+        if (photonView != null)
+        {
+            Debug.Log($"[GestionRedJugador] PhotonView.IsMine (después de esperar): {photonView.IsMine}");
+        }
+        
+        // Si no existe PlayerController, agregarlo programáticamente
+        if (playerController == null)
+        {
+            Debug.LogWarning($"[GestionRedJugador] ⚠️ PlayerController NO encontrado, agregándolo programáticamente...");
+            playerController = playerPrefab.AddComponent<PlayerController>();
+            Debug.Log($"[GestionRedJugador] ✅ PlayerController agregado: {playerController != null}");
+            
+            // Esperar otro frame para que el componente se inicialice
+            yield return null;
+        }
+        
+        // Si no existe PlayerInputHandler, agregarlo programáticamente
+        if (playerInputHandler == null)
+        {
+            Debug.LogWarning($"[GestionRedJugador] ⚠️ PlayerInputHandler NO encontrado, agregándolo programáticamente...");
+            playerInputHandler = playerPrefab.AddComponent<PlayerInputHandler>();
+            if (playerController != null)
+            {
+                playerInputHandler.playerController = playerController;
+            }
+            Debug.Log($"[GestionRedJugador] ✅ PlayerInputHandler agregado: {playerInputHandler != null}");
+        }
+        else if (playerController != null)
+        {
+            // Asegurar que PlayerInputHandler tenga la referencia correcta
+            playerInputHandler.playerController = playerController;
+        }
+        
+        if (playerController != null)
+        {
+            Debug.Log($"[GestionRedJugador] Configurando rol: {role}");
+            playerController.SetRole(role);
+        }
+        else
+        {
+            Debug.LogError($"[GestionRedJugador] ❌ No se pudo crear PlayerController!");
+        }
     }
 
     private Vector3 GetSpawnPositionForRole(string role)
