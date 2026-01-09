@@ -88,7 +88,8 @@
     let peer = null, localStream = null, myId = null, connections = {}, roomId = null, dialInterval = null;
     const MAX_SLOTS = 20; // <- 20 espacios por sala
 
-    async function initVoiceCall(_roomId, actorId) {
+    // Hacer la función disponible globalmente para Unity
+    window.initVoiceCall = async function(_roomId, actorId) {
       console.log("Init Voice Call:", _roomId, actorId);
       roomId = _roomId; myId = `${roomId}_${actorId}`;
       try {
@@ -105,12 +106,13 @@
         activarIndicadorVolumen(localStream, document.getElementById("micCard"));
       } catch (err) { alert("No se pudo acceder al micrófono."); console.error(err); return; }
 
-      // Configuración de servidores PeerJS con respaldo
+      // Configuración de servidores PeerJS
+      // Primero intenta con el servidor local, luego usa servidores públicos como fallback
       const peerConfigs = [
         {
-          host: 'juiciosorales.site',
-          port: 443,
-          secure: true,
+          host: 'localhost',
+          port: 9000,
+          secure: false,
           path: '/peerjs',
           debug: 2
         },
@@ -123,6 +125,13 @@
         },
         {
           host: '0.peerjs.com',
+          port: 443,
+          secure: true,
+          path: '/peerjs',
+          debug: 2
+        },
+        {
+          host: '1.peerjs.com',
           port: 443,
           secure: true,
           path: '/peerjs',
@@ -159,7 +168,7 @@
       if (peer) {
         setupPeerEvents(peer);
       }
-    }
+    };
 
     function setupPeerEvents(peerInstance) {
       peerInstance.on('open', id => {

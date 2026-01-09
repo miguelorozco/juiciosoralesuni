@@ -15,12 +15,14 @@ use App\Http\Controllers\UnityDialogoController;
 use App\Http\Controllers\UnityAuthController;
 use App\Http\Controllers\UnityRealtimeController;
 use App\Http\Controllers\UnityRoomController;
+use App\Http\Controllers\UnitySessionController;
 use App\Http\Controllers\NodoDialogoController;
 use App\Http\Controllers\EstadisticasController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\PanelDialogoController;
+use App\Http\Controllers\HealthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,6 +34,13 @@ use App\Http\Controllers\PanelDialogoController;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+// ========================================
+// HEALTH CHECK ENDPOINTS (Públicos)
+// ========================================
+Route::get('/health', [HealthController::class, 'check'])->name('api.health');
+Route::get('/health/ping', [HealthController::class, 'ping'])->name('api.health.ping');
+Route::get('/health/detailed', [HealthController::class, 'detailed'])->name('api.health.detailed');
 
 // Rutas de autenticación
 Route::group(['prefix' => 'auth'], function () {
@@ -311,8 +320,17 @@ Route::group(['prefix' => 'unity'], function () {
             ]);
         });
 
-        // Nuevos endpoints para diálogos Unity (requieren autenticación)
+        // Nuevos endpoints para sesiones Unity (requieren autenticación)
         Route::middleware('unity.auth')->group(function () {
+            // Rutas de sesiones
+            Route::group(['prefix' => 'sesiones'], function () {
+                Route::get('/buscar-por-codigo/{codigo}', [UnitySessionController::class, 'buscarPorCodigo']);
+                Route::get('/{id}/mi-rol', [UnitySessionController::class, 'obtenerMiRol']);
+                Route::post('/{id}/confirmar-rol', [UnitySessionController::class, 'confirmarRol']);
+                Route::get('/disponibles', [UnitySessionController::class, 'disponibles']);
+            });
+            
+            // Nuevos endpoints para diálogos Unity
             Route::group(['prefix' => 'sesion'], function () {
                 Route::get('/{sesionJuicio}/dialogo-estado', [UnityDialogoController::class, 'obtenerEstadoDialogo']);
                 Route::get('/{sesionJuicio}/respuestas-usuario/{usuario}', [UnityDialogoController::class, 'obtenerRespuestasUsuario']);

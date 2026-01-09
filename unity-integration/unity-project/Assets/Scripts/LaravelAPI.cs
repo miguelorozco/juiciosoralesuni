@@ -100,23 +100,41 @@ namespace JuiciosSimulator.API
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonUtility.FromJson<APIResponse<LoginResponse>>(request.downloadHandler.text);
-
-                    if (response.success)
+                    try
                     {
-                        authToken = response.data.token;
-                        currentUser = response.data.user;
-                        isConnected = true;
+                        string responseText = request.downloadHandler.text;
+                        if (string.IsNullOrEmpty(responseText))
+                        {
+                            OnError?.Invoke("Respuesta vacía del servidor");
+                            Debug.LogError("Error en login: Respuesta vacía del servidor");
+                            yield break;
+                        }
 
-                        OnUserLoggedIn?.Invoke(currentUser);
-                        OnConnectionStatusChanged?.Invoke(true);
+                        var response = JsonUtility.FromJson<APIResponse<LoginResponse>>(responseText);
 
-                        Debug.Log($"Login exitoso: {currentUser.name}");
+                        if (response != null && response.success && response.data != null)
+                        {
+                            authToken = response.data.token;
+                            currentUser = response.data.user;
+                            isConnected = true;
+
+                            OnUserLoggedIn?.Invoke(currentUser);
+                            OnConnectionStatusChanged?.Invoke(true);
+
+                            Debug.Log($"Login exitoso: {currentUser.name}");
+                        }
+                        else
+                        {
+                            string errorMsg = response?.message ?? "Error desconocido en login";
+                            OnError?.Invoke(errorMsg);
+                            Debug.LogError($"Error en login: {errorMsg}");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        OnError?.Invoke(response.message);
-                        Debug.LogError($"Error en login: {response.message}");
+                        string errorMsg = $"Error parseando respuesta de login: {e.Message}";
+                        OnError?.Invoke(errorMsg);
+                        Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
                     }
                 }
                 else
@@ -149,10 +167,22 @@ namespace JuiciosSimulator.API
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonUtility.FromJson<APIResponse<ServerStatus>>(request.downloadHandler.text);
-                    if (response.success)
+                    try
                     {
-                        Debug.Log($"Servidor Unity disponible: {response.data.server_status}");
+                        string responseText = request.downloadHandler.text;
+                        if (!string.IsNullOrEmpty(responseText))
+                        {
+                            var response = JsonUtility.FromJson<APIResponse<ServerStatus>>(responseText);
+                            if (response != null && response.success && response.data != null)
+                            {
+                                Debug.Log($"Servidor Unity disponible: {response.data.server_status}");
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning($"Error parseando estado del servidor: {e.Message}");
+                        // No crítico, solo loguear
                     }
                 }
                 else
@@ -190,22 +220,64 @@ namespace JuiciosSimulator.API
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonUtility.FromJson<APIResponse<SessionData>>(request.downloadHandler.text);
-
-                    if (response.success)
+                    try
                     {
-                        currentSesionId = response.data.session.id;
-                        currentSessionData = response.data;
-                        OnActiveSessionReceived?.Invoke(response.data);
-                        Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
+                        string responseText = request.downloadHandler.text;
+                        if (string.IsNullOrEmpty(responseText))
+                        {
+                            OnError?.Invoke("Respuesta vacía del servidor");
+                            Debug.LogError("Error obteniendo sesión activa: Respuesta vacía");
+                            yield break;
+                        }
 
-                        // Automáticamente cargar el diálogo de la sesión
-                        GetSessionDialogue(response.data.session.id);
+                        var response = JsonUtility.FromJson<APIResponse<SessionData>>(responseText);
+
+                        if (response != null && response.success && response.data != null)
+                        {
+                            // Validar que los datos esenciales no sean null
+                            if (response.data.session == null)
+                            {
+                                Debug.LogWarning("Sesión activa recibida pero session es null");
+                                OnError?.Invoke("Datos de sesión incompletos");
+                                yield break;
+                            }
+
+                            currentSesionId = response.data.session.id;
+                            currentSessionData = response.data;
+                            
+                            // Validar que el rol no sea null antes de invocar el evento
+                            if (response.data.role == null)
+                            {
+                                Debug.LogWarning("Sesión activa recibida pero role es null - usando rol por defecto");
+                                // Crear un rol por defecto temporal
+                                response.data.role = new RoleInfo
+                                {
+                                    id = 0,
+                                    nombre = "Observador",
+                                    descripcion = "Rol temporal",
+                                    color = "#808080",
+                                    icono = ""
+                                };
+                            }
+
+                            OnActiveSessionReceived?.Invoke(response.data);
+                            Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
+
+                            // Automáticamente cargar el diálogo de la sesión
+                            GetSessionDialogue(response.data.session.id);
+                        }
+                        else
+                        {
+                            string errorMsg = response?.message ?? "Error desconocido obteniendo sesión activa";
+                            OnError?.Invoke(errorMsg);
+                            Debug.LogError($"Error obteniendo sesión activa: {errorMsg}");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        OnError?.Invoke(response.message);
-                        Debug.LogError($"Error obteniendo sesión activa: {response.message}");
+                        string errorMsg = $"Error parseando respuesta de sesión activa: {e.Message}";
+                        OnError?.Invoke(errorMsg);
+                        Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
                     }
                 }
                 else
@@ -236,17 +308,39 @@ namespace JuiciosSimulator.API
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonUtility.FromJson<APIResponse<DialogueData>>(request.downloadHandler.text);
+                    try
+                    {
+                        string responseText = request.downloadHandler.text;
+                        if (string.IsNullOrEmpty(responseText))
+                        {
+                            Debug.LogWarning("Respuesta vacía al obtener diálogo de sesión");
+                            yield break;
+                        }
 
-                    if (response.success)
-                    {
-                        OnDialogueDataReceived?.Invoke(response.data);
-                        Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre}");
+                        var response = JsonUtility.FromJson<APIResponse<DialogueData>>(responseText);
+
+                        if (response != null && response.success && response.data != null)
+                        {
+                            // Validar que dialogue no sea null antes de invocar el evento
+                            if (response.data.dialogue == null)
+                            {
+                                Debug.LogWarning("Diálogo de sesión recibido pero dialogue es null");
+                                yield break;
+                            }
+
+                            OnDialogueDataReceived?.Invoke(response.data);
+                            Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre ?? "Sin nombre"}");
+                        }
+                        else
+                        {
+                            string errorMsg = response?.message ?? "Error desconocido obteniendo diálogo";
+                            Debug.LogWarning($"Error obteniendo diálogo de sesión: {errorMsg}");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        OnError?.Invoke(response.message);
-                        Debug.LogError($"Error obteniendo diálogo de sesión: {response.message}");
+                        Debug.LogError($"Error parseando respuesta de diálogo de sesión: {e.Message}");
+                        // No detener el flujo, solo loguear el error
                     }
                 }
                 else
@@ -282,15 +376,31 @@ namespace JuiciosSimulator.API
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    var response = JsonUtility.FromJson<APIResponse<DialogoEstado>>(request.downloadHandler.text);
+                    try
+                    {
+                        string responseText = request.downloadHandler.text;
+                        if (string.IsNullOrEmpty(responseText))
+                        {
+                            Debug.LogWarning("Respuesta vacía al obtener estado del diálogo");
+                            yield break;
+                        }
 
-                    if (response.success)
-                    {
-                        OnDialogoUpdated?.Invoke(response.data);
+                        var response = JsonUtility.FromJson<APIResponse<DialogoEstado>>(responseText);
+
+                        if (response != null && response.success && response.data != null)
+                        {
+                            OnDialogoUpdated?.Invoke(response.data);
+                        }
+                        else
+                        {
+                            string errorMsg = response?.message ?? "Error desconocido obteniendo estado del diálogo";
+                            Debug.LogWarning($"Error obteniendo estado del diálogo: {errorMsg}");
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        OnError?.Invoke(response.message);
+                        Debug.LogError($"Error parseando respuesta de estado del diálogo: {e.Message}");
+                        // No detener el flujo, solo loguear el error
                     }
                 }
                 else

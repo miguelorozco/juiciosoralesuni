@@ -213,18 +213,24 @@ Route::get('/unity-build/{path}', function ($path) {
 Route::middleware(['web.auth'])->group(function () {
     Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
     
-    // Ruta para el juego Unity (requiere autenticación)
+    // Ruta para el juego Unity - Servir index.html directamente desde storage/unity-build
+    // Este archivo incluye todo el código de PeerJS y configuración de audio
+    // El index.html detecta automáticamente si está en /unity-game y ajusta las rutas
     Route::get('/unity-game', function () {
-        return view('unity.game');
-    })->name('unity.game');
-});
-
-// Rutas protegidas para generar enlaces de Unity
-Route::middleware(['web.auth'])->group(function () {
-    Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
-    
-    // Ruta para el juego Unity (requiere autenticación)
-    Route::get('/unity-game', function () {
-        return view('unity.game');
+        $indexPath = storage_path('unity-build/index.html');
+        
+        if (!file_exists($indexPath)) {
+            \Log::error('Unity index.html not found at: ' . $indexPath);
+            abort(404, 'Unity build not found. Please compile Unity project first.');
+        }
+        
+        \Log::info('Serving Unity index.html from: ' . $indexPath);
+        
+        // Leer el contenido y servir como respuesta HTML
+        // El JavaScript en el index.html detecta automáticamente la URL base
+        $content = file_get_contents($indexPath);
+        
+        return response($content, 200)
+            ->header('Content-Type', 'text/html; charset=utf-8');
     })->name('unity.game');
 });

@@ -201,12 +201,35 @@ namespace JuiciosSimulator
 
         private void OnActiveSessionReceived(SessionData sessionData)
         {
+            // Validaciones null críticas para evitar memory access out of bounds
+            if (sessionData == null)
+            {
+                Debug.LogError("❌ OnActiveSessionReceived: sessionData es null");
+                return;
+            }
+
+            if (sessionData.session == null)
+            {
+                Debug.LogError("❌ OnActiveSessionReceived: sessionData.session es null");
+                return;
+            }
+
             currentSessionData = sessionData;
             sesionId = sessionData.session.id;
 
-            Debug.Log($"✅ Sesión activa obtenida: {sessionData.session.nombre}");
-            Debug.Log($"Rol asignado: {sessionData.role.nombre}");
-            Debug.Log($"Estado: {sessionData.session.estado}");
+            Debug.Log($"✅ Sesión activa obtenida: {sessionData.session.nombre ?? "Sin nombre"}");
+            
+            // Validar role antes de acceder
+            if (sessionData.role != null)
+            {
+                Debug.Log($"Rol asignado: {sessionData.role.nombre ?? "Sin nombre"}");
+            }
+            else
+            {
+                Debug.LogWarning("⚠️ Rol no asignado en sesión activa");
+            }
+            
+            Debug.Log($"Estado: {sessionData.session.estado ?? "Desconocido"}");
 
             // Actualizar componentes con la nueva sesión
             UpdateComponentsWithSession();
@@ -214,10 +237,32 @@ namespace JuiciosSimulator
 
         private void OnDialogueDataReceived(DialogueData dialogueData)
         {
+            // Validaciones null críticas para evitar memory access out of bounds
+            if (dialogueData == null)
+            {
+                Debug.LogError("❌ OnDialogueDataReceived: dialogueData es null");
+                return;
+            }
+
+            if (dialogueData.dialogue == null)
+            {
+                Debug.LogError("❌ OnDialogueDataReceived: dialogueData.dialogue es null");
+                return;
+            }
+
             currentDialogueData = dialogueData;
 
-            Debug.Log($"✅ Diálogo cargado: {dialogueData.dialogue.nombre}");
-            Debug.Log($"Roles disponibles: {dialogueData.dialogue.roles.Count}");
+            Debug.Log($"✅ Diálogo cargado: {dialogueData.dialogue.nombre ?? "Sin nombre"}");
+            
+            // Validar roles antes de acceder
+            if (dialogueData.dialogue.roles != null)
+            {
+                Debug.Log($"Roles disponibles: {dialogueData.dialogue.roles.Count}");
+            }
+            else
+            {
+                Debug.LogWarning("⚠️ Roles no disponibles en diálogo");
+            }
 
             // Configurar UI con los datos del diálogo
             SetupDialogueUI();
