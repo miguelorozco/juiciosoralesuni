@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use App\Services\ProcesamientoAutomaticoService;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class SesionController extends Controller
 {
@@ -74,57 +75,183 @@ class SesionController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
-            'tipo' => 'required|in:civil,penal,laboral,administrativo',
-            'fecha_inicio' => 'required|date',
-            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
-            'max_participantes' => 'nullable|integer|min:1|max:20',
-            'dialogo_id' => 'required|exists:dialogos_v2,id',
-        ]);
+        \Log::info('=== INICIO STORE SESIÓN ===');
+        \Log::info('Method: ' . $request->method());
+        \Log::info('URL: ' . $request->fullUrl());
+        \Log::info('User ID: ' . (auth()->id() ?? 'null'));
+        \Log::info('Request All: ' . json_encode($request->all()));
+        \Log::info('CSRF Token Present: ' . ($request->has('_token') ? 'yes' : 'no'));
+        
+        try {
+            \Log::info('Iniciando validación...');
+            
+            // Validar campos básicos primero
+            $request->validate([
+                'nombre' => 'required|string|max:255',
+                'descripcion' => 'nullable|string',
+                'tipo' => 'required|in:civil,penal,laboral,administrativo',
+                'fecha_inicio' => 'required|date_format:Y-m-d\TH:i',
+                'fecha_fin' => 'nullable|date_format:Y-m-d\TH:i',
+                'max_participantes' => 'nullable|integer|min:1|max:20',
+                'dialogo_id' => 'required|exists:dialogos_v2,id',
+            ]);
+            
+            // Validar que fecha_fin sea mayor o igual que fecha_inicio manualmente
+            if ($request->fecha_fin) {
+                try {
+                    $fechaInicio = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_inicio);
+                    $fechaFin = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_fin);
+                    
+                    if ($fechaFin->lt($fechaInicio)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'fecha_fin' => 'La fecha de fin debe ser mayor o igual a la fecha de inicio.'
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Si hay error parseando, ya fue validado con date_format arriba
+                    \Log::warning('Error en validación manual de fechas: ' . $e->getMessage());
+                }
+            }
+            
+            \Log::info('Validación exitosa');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Error de validación: ' . json_encode($e->errors()));
+            throw $e;
+        }
 
         try {
+            \Log::info('Iniciando transacción de base de datos...');
             \DB::beginTransaction();
 
+            // Parsear fechas correctamente con timezone
+            // datetime-local envía formato "Y-m-d\TH:i" sin timezone, lo parseamos como local y luego convertimos a UTC
+            \Log::info('Parseando fechas...');
+            \Log::info('fecha_inicio raw: ' . ($request->fecha_inicio ?? 'null'));
+            \Log::info('fecha_fin raw: ' . ($request->fecha_fin ?? 'null'));
+            
+            $fechaInicio = null;
+            $fechaFin = null;
+            
+            if ($request->fecha_inicio) {
+                try {
+                    \Log::info('Intentando parsear fecha_inicio con formato específico...');
+                    // datetime-local envía formato "Y-m-d\TH:i" sin timezone
+                    // Parseamos sin timezone primero, luego establecemos UTC
+                    $fechaInicio = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_inicio);
+                    // Asumimos que la fecha viene en UTC (o la zona horaria del servidor)
+                    // y la mantenemos en UTC para guardar en la base de datos
+                    $fechaInicio->setTimezone('UTC');
+                    \Log::info('fecha_inicio parseada: ' . $fechaInicio->toDateTimeString() . ' (UTC)');
+                } catch (\Exception $e) {
+                    \Log::warning('Error parseando fecha_inicio con formato específico: ' . $e->getMessage());
+                    // Si falla el formato específico, intentar parseo genérico
+                    try {
+                        // Parsear sin timezone y luego establecer UTC
+                        $fechaInicio = Carbon::parse($request->fecha_inicio);
+                        $fechaInicio->setTimezone('UTC');
+                        \Log::info('fecha_inicio parseada con método genérico: ' . $fechaInicio->toDateTimeString() . ' (UTC)');
+                    } catch (\Exception $e2) {
+                        \Log::error('Error parseando fecha_inicio con método genérico: ' . $e2->getMessage());
+                        throw $e2;
+                    }
+                }
+            }
+            
+            if ($request->fecha_fin) {
+                try {
+                    \Log::info('Intentando parsear fecha_fin con formato específico...');
+                    // datetime-local envía formato "Y-m-d\TH:i" sin timezone
+                    // Parseamos sin timezone primero, luego establecemos UTC
+                    $fechaFin = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_fin);
+                    // Asumimos que la fecha viene en UTC (o la zona horaria del servidor)
+                    // y la mantenemos en UTC para guardar en la base de datos
+                    $fechaFin->setTimezone('UTC');
+                    \Log::info('fecha_fin parseada: ' . $fechaFin->toDateTimeString() . ' (UTC)');
+                } catch (\Exception $e) {
+                    \Log::warning('Error parseando fecha_fin con formato específico: ' . $e->getMessage());
+                    // Si falla el formato específico, intentar parseo genérico
+                    try {
+                        // Parsear sin timezone y luego establecer UTC
+                        $fechaFin = Carbon::parse($request->fecha_fin);
+                        $fechaFin->setTimezone('UTC');
+                        \Log::info('fecha_fin parseada con método genérico: ' . $fechaFin->toDateTimeString() . ' (UTC)');
+                    } catch (\Exception $e2) {
+                        \Log::error('Error parseando fecha_fin con método genérico: ' . $e2->getMessage());
+                        throw $e2;
+                    }
+                }
+            }
+
             // Crear la sesión
-            $sesion = SesionJuicio::create([
+            \Log::info('Creando sesión en base de datos...');
+            $dataSesion = [
                 'nombre' => $request->nombre,
                 'descripcion' => $request->descripcion,
                 'tipo' => $request->tipo,
-                'fecha_inicio' => $request->fecha_inicio,
-                'fecha_fin' => $request->fecha_fin,
+                'fecha_inicio' => $fechaInicio,
+                'fecha_fin' => $fechaFin,
                 'max_participantes' => $request->max_participantes ?? 10,
                 'instructor_id' => auth()->id(),
                 'estado' => 'programada',
-            ]);
+            ];
+            \Log::info('Datos de sesión a crear: ' . json_encode($dataSesion));
+            
+            $sesion = SesionJuicio::create($dataSesion);
+            \Log::info('Sesión creada con ID: ' . $sesion->id);
 
             // Obtener roles del diálogo seleccionado
+            \Log::info('Obteniendo diálogo con ID: ' . $request->dialogo_id);
             $dialogo = \App\Models\DialogoV2::find($request->dialogo_id);
+            \Log::info('Diálogo encontrado: ' . ($dialogo ? 'Sí - ' . $dialogo->nombre : 'No'));
+            
             // Nota: Los roles ahora se obtienen de roles_disponibles directamente
             $rolesDialogo = collect(); // Se puede obtener de otra forma si es necesario
 
             // Procesar asignaciones automáticas de roles del diálogo
+            \Log::info('Procesando asignaciones automáticas...');
             $procesamientoService = new ProcesamientoAutomaticoService();
             $asignacionesRealizadas = $procesamientoService->procesarAsignacionesAutomaticasDialogo($sesion, $rolesDialogo);
+            \Log::info('Asignaciones realizadas: ' . count($asignacionesRealizadas));
 
             // Crear sesión de diálogo
+            \Log::info('Creando sesión de diálogo...');
             $this->crearSesionDialogo($sesion, $request->dialogo_id);
+            \Log::info('Sesión de diálogo creada');
 
+            \Log::info('Haciendo commit de la transacción...');
             \DB::commit();
+            \Log::info('Transacción completada exitosamente');
 
             $mensaje = 'Sesión creada exitosamente. ';
             if (count($asignacionesRealizadas) > 0) {
                 $mensaje .= 'Asignaciones automáticas realizadas: ' . count($asignacionesRealizadas) . ' roles asignados.';
             }
 
+            \Log::info('Redirigiendo a sesiones.show con ID: ' . $sesion->id);
+            \Log::info('=== FIN STORE SESIÓN (ÉXITO) ===');
+            
             return redirect()
                 ->route('sesiones.show', $sesion)
                 ->with('success', $mensaje);
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('=== ERROR DE VALIDACIÓN ===');
+            \Log::error('Errores: ' . json_encode($e->errors()));
+            \Log::error('Request: ' . json_encode($request->all()));
             \DB::rollback();
-            \Log::error('Error creando sesión: ' . $e->getMessage());
+            \Log::info('=== FIN STORE SESIÓN (VALIDACIÓN FALLIDA) ===');
+            return redirect()
+                ->back()
+                ->withErrors($e->errors())
+                ->withInput();
+        } catch (\Exception $e) {
+            \Log::error('=== ERROR GENERAL EN STORE SESIÓN ===');
+            \Log::error('Mensaje: ' . $e->getMessage());
+            \Log::error('Archivo: ' . $e->getFile() . ':' . $e->getLine());
+            \Log::error('Trace: ' . $e->getTraceAsString());
+            \Log::error('Request: ' . json_encode($request->all()));
+            \DB::rollback();
+            \Log::info('=== FIN STORE SESIÓN (ERROR) ===');
             return redirect()
                 ->back()
                 ->withInput()
@@ -161,23 +288,43 @@ class SesionController extends Controller
      */
     private function crearSesionDialogo($sesion, $dialogoId)
     {
-        $dialogo = \App\Models\DialogoV2::findOrFail($dialogoId);
-        $nodoInicial = $dialogo->nodo_inicial;
+        \Log::info('=== CREAR SESIÓN DIÁLOGO ===');
+        \Log::info('Sesión ID: ' . $sesion->id);
+        \Log::info('Diálogo ID: ' . $dialogoId);
         
-        \App\Models\SesionDialogoV2::create([
-            'sesion_id' => $sesion->id,
-            'dialogo_id' => $dialogoId,
-            'estado' => 'iniciado',
-            'nodo_actual_id' => $nodoInicial ? $nodoInicial->id : null,
-            'configuracion' => [
-                'modo_automatico' => true,
-                'tiempo_respuesta' => 30,
-                'permite_pausa' => true
-            ],
-            'variables' => [],
-            'historial_nodos' => [],
-            'audio_habilitado' => false,
-        ]);
+        try {
+            $dialogo = \App\Models\DialogoV2::findOrFail($dialogoId);
+            \Log::info('Diálogo encontrado: ' . $dialogo->nombre);
+            
+            $nodoInicial = $dialogo->nodo_inicial;
+            \Log::info('Nodo inicial ID: ' . ($nodoInicial ? $nodoInicial->id : 'null'));
+            
+            $dataSesionDialogo = [
+                'sesion_id' => $sesion->id,
+                'dialogo_id' => $dialogoId,
+                'estado' => 'iniciado',
+                'nodo_actual_id' => $nodoInicial ? $nodoInicial->id : null,
+                'configuracion' => [
+                    'modo_automatico' => true,
+                    'tiempo_respuesta' => 30,
+                    'permite_pausa' => true
+                ],
+                'variables' => [],
+                'historial_nodos' => [],
+                'audio_habilitado' => false,
+            ];
+            
+            \Log::info('Creando SesionDialogoV2 con datos: ' . json_encode($dataSesionDialogo));
+            $sesionDialogo = \App\Models\SesionDialogoV2::create($dataSesionDialogo);
+            \Log::info('SesionDialogoV2 creada con ID: ' . $sesionDialogo->id);
+            \Log::info('=== FIN CREAR SESIÓN DIÁLOGO (ÉXITO) ===');
+        } catch (\Exception $e) {
+            \Log::error('=== ERROR EN CREAR SESIÓN DIÁLOGO ===');
+            \Log::error('Mensaje: ' . $e->getMessage());
+            \Log::error('Archivo: ' . $e->getFile() . ':' . $e->getLine());
+            \Log::error('Trace: ' . $e->getTraceAsString());
+            throw $e;
+        }
     }
     
     /**
@@ -273,23 +420,54 @@ class SesionController extends Controller
      */
     public function update(Request $request, SesionJuicio $sesion)
     {
+        // Validar campos básicos primero
         $request->validate([
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
             'tipo' => 'required|in:civil,penal,laboral,administrativo',
-            'fecha_inicio' => 'required|date',
-            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
+            'fecha_inicio' => 'required|date_format:Y-m-d\TH:i',
+            'fecha_fin' => 'nullable|date_format:Y-m-d\TH:i',
             'max_participantes' => 'nullable|integer|min:1|max:20',
             'estado' => 'required|in:programada,en_curso,finalizada,cancelada',
             'dialogo_id' => 'required|exists:dialogos_v2,id',
             'asignaciones' => 'nullable|array',
             'asignaciones.*' => 'nullable|exists:users,id',
         ]);
+        
+        // Validar que fecha_fin sea mayor o igual que fecha_inicio manualmente
+        if ($request->fecha_fin) {
+            try {
+                $fechaInicio = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_inicio);
+                $fechaFin = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_fin);
+                
+                if ($fechaFin->lt($fechaInicio)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'fecha_fin' => 'La fecha de fin debe ser mayor o igual a la fecha de inicio.'
+                    ]);
+                }
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                throw $e;
+            } catch (\Exception $e) {
+                // Si hay error parseando, ya fue validado con date_format arriba
+            }
+        }
 
         try {
-            $sesion->update($request->only([
-                'nombre','descripcion','tipo','fecha_inicio','fecha_fin','max_participantes','estado'
-            ]));
+            // Parsear fechas correctamente con timezone
+            // datetime-local envía formato "Y-m-d\TH:i" sin timezone, lo parseamos como local y luego convertimos a UTC
+            $data = $request->only(['nombre','descripcion','tipo','max_participantes','estado']);
+            
+            if ($request->fecha_inicio) {
+                // Parsear sin timezone primero, luego establecer UTC
+                $data['fecha_inicio'] = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_inicio)->setTimezone('UTC');
+            }
+            
+            if ($request->fecha_fin) {
+                // Parsear sin timezone primero, luego establecer UTC
+                $data['fecha_fin'] = Carbon::createFromFormat('Y-m-d\TH:i', $request->fecha_fin)->setTimezone('UTC');
+            }
+            
+            $sesion->update($data);
 
             $dialogoId = $request->input('dialogo_id');
             if ($dialogoId) {

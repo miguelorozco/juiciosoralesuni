@@ -534,11 +534,14 @@ function toggleView(view) {
 }
 
 // Select all functionality
-document.getElementById('selectAll').addEventListener('change', function() {
-    const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = this.checked;
+const selectAllElement = document.getElementById('selectAll');
+if (selectAllElement) {
+    selectAllElement.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
     });
-});
+}
 </script>
 @endsection

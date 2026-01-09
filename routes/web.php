@@ -144,12 +144,87 @@ Route::middleware(['web.auth'])->group(function () {
 Route::get('/unity-entry', [App\Http\Controllers\UnityEntryController::class, 'unityEntryPage'])->name('unity.entry');
 Route::get('/api/unity-entry-info', [App\Http\Controllers\UnityEntryController::class, 'getUnityEntryInfo'])->name('unity.entry-info');
 
-        // Rutas protegidas para generar enlaces de Unity
-        Route::middleware(['web.auth'])->group(function () {
-            Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
-        });
+// Ruta para servir archivos Unity con headers correctos (PÚBLICA - sin middleware)
+// Los archivos están en storage/unity-build para evitar que php artisan serve los sirva directamente
+Route::get('/unity-build/{path}', function ($path) {
+    \Log::info('Unity asset requested: ' . $path);
+    
+    // Los archivos están en storage (fuera de public para evitar servido directo)
+    $filePath = storage_path('unity-build/' . $path);
+    
+    // Verificar seguridad - asegurar que el path está dentro de unity-build
+    $realPath = realpath($filePath);
+    $basePathStorage = realpath(storage_path('unity-build'));
+    
+    $isValid = false;
+    if ($realPath && $basePathStorage && strpos($realPath, $basePathStorage) === 0) {
+        $isValid = true;
+    }
+    
+    if (!$isValid || !file_exists($realPath)) {
+        \Log::error('Unity asset not found: ' . $path . ' (realPath: ' . ($realPath ?: 'null') . ')');
+        abort(404, 'File not found: ' . $path);
+    }
+    
+    \Log::info('Serving Unity asset: ' . $realPath);
+    
+    $response = response()->file($realPath);
+    
+    // Detectar archivos comprimidos con Brotli (.br)
+    if (preg_match('/\.(js|data|wasm)\.br$/', $path)) {
+        \Log::info('Setting Brotli headers for: ' . $path);
+        $response->headers->set('Content-Encoding', 'br');
+        
+        // Establecer Content-Type apropiado
+        if (str_ends_with($path, '.js.br')) {
+            $response->headers->set('Content-Type', 'application/javascript');
+        } elseif (str_ends_with($path, '.wasm.br')) {
+            $response->headers->set('Content-Type', 'application/wasm');
+        } elseif (str_ends_with($path, '.data.br')) {
+            $response->headers->set('Content-Type', 'application/octet-stream');
+        }
+        
+        // Headers de cache
+        $response->headers->set('Cache-Control', 'public, max-age=31536000, immutable');
+    } else {
+        // Para archivos no comprimidos, establecer Content-Type apropiado
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $mimeTypes = [
+            'js' => 'application/javascript',
+            'wasm' => 'application/wasm',
+            'json' => 'application/json',
+        ];
+        if (isset($mimeTypes[$extension])) {
+            $response->headers->set('Content-Type', $mimeTypes[$extension]);
+        }
+    }
+    
+    // Headers CORS para Unity
+    $response->headers->set('Access-Control-Allow-Origin', '*');
+    $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Unity-Version, X-Unity-Platform');
+    
+    \Log::info('Unity asset served with headers: Content-Encoding=' . ($response->headers->get('Content-Encoding') ?: 'none') . ', Content-Type=' . $response->headers->get('Content-Type'));
+    
+    return $response;
+})->where('path', '.*')->name('unity.assets');
 
-        // Ruta para el juego Unity
-        Route::get('/unity-game', function () {
-            return view('unity.game');
-        })->name('unity.game');
+// Rutas protegidas para generar enlaces de Unity
+Route::middleware(['web.auth'])->group(function () {
+    Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
+    
+    // Ruta para el juego Unity (requiere autenticación)
+    Route::get('/unity-game', function () {
+        return view('unity.game');
+    })->name('unity.game');
+});
+
+// Rutas protegidas para generar enlaces de Unity
+Route::middleware(['web.auth'])->group(function () {
+    Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
+    
+    // Ruta para el juego Unity (requiere autenticación)
+    Route::get('/unity-game', function () {
+        return view('unity.game');
+    })->name('unity.game');
+});

@@ -25,6 +25,27 @@
         </div>
     </div>
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Por favor corrige los siguientes errores:</strong>
+            <ul class="mb-0 mt-2">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <form action="{{ route('sesiones.store') }}" method="POST">
         @csrf
         
@@ -142,23 +163,31 @@
                         <div class="row">
                             <div class="col-md-8">
                                 <label for="dialogo_id" class="form-label">Diálogo a Utilizar <span class="text-danger">*</span></label>
-                                <select class="form-select @error('dialogo_id') is-invalid @enderror" 
-                                        id="dialogo_id" 
-                                        name="dialogo_id" 
-                                        required>
-                                    <option value="">Seleccionar diálogo...</option>
-                                    @foreach($dialogos as $dialogo)
-                                        <option value="{{ $dialogo->id }}" {{ old('dialogo_id') == $dialogo->id ? 'selected' : '' }}>
-                                            {{ $dialogo->nombre }} 
-                                            @if($dialogo->descripcion)
-                                                - {{ Str::limit($dialogo->descripcion, 50) }}
-                                            @endif
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('dialogo_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
+                                @if($dialogos->count() > 0)
+                                    <select class="form-select @error('dialogo_id') is-invalid @enderror" 
+                                            id="dialogo_id" 
+                                            name="dialogo_id" 
+                                            required>
+                                        <option value="">Seleccionar diálogo...</option>
+                                        @foreach($dialogos as $dialogo)
+                                            <option value="{{ $dialogo->id }}" {{ old('dialogo_id') == $dialogo->id ? 'selected' : '' }}>
+                                                {{ $dialogo->nombre }} 
+                                                @if($dialogo->descripcion)
+                                                    - {{ Str::limit($dialogo->descripcion, 50) }}
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('dialogo_id')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                @else
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        No hay diálogos disponibles. Por favor <a href="{{ route('dialogos-v2.create') }}">crea un diálogo</a> primero.
+                                    </div>
+                                    <input type="hidden" name="dialogo_id" value="">
+                                @endif
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">&nbsp;</label>
@@ -265,6 +294,46 @@
 </div>
 
 <script>
+// Log cuando se carga la página
+console.log('=== FORMULARIO DE CREACIÓN DE SESIÓN CARGADO ===');
+console.log('Form action:', '{{ route('sesiones.store') }}');
+console.log('CSRF Token presente:', document.querySelector('input[name="_token"]') ? 'Sí' : 'No');
+
+// Interceptar el envío del formulario para logging y validación
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[action="{{ route('sesiones.store') }}"]');
+    if (form) {
+        console.log('Formulario encontrado');
+        
+        form.addEventListener('submit', function(e) {
+            console.log('=== FORMULARIO ENVIADO ===');
+            console.log('Method:', form.method);
+            console.log('Action:', form.action);
+            
+            const formData = new FormData(form);
+            console.log('Datos del formulario:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}: ${value}`);
+            }
+            
+            // Validar que se haya seleccionado un diálogo
+            const dialogoId = document.getElementById('dialogo_id');
+            if (dialogoId && !dialogoId.value) {
+                e.preventDefault();
+                alert('Por favor selecciona un diálogo antes de crear la sesión.');
+                dialogoId.focus();
+                dialogoId.classList.add('is-invalid');
+                console.error('ERROR: dialogo_id no seleccionado');
+                return false;
+            }
+            
+            // No prevenir el envío si todo está bien
+        });
+    } else {
+        console.error('Formulario NO encontrado');
+    }
+});
+
 async function previewDialogo() {
     const dialogoId = document.getElementById('dialogo_id').value;
     if (!dialogoId) {

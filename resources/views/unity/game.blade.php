@@ -118,20 +118,34 @@
         #unity-logo {
             width: 154px;
             height: 130px;
-            background: url('{{ asset('unity-build/TemplateData/logo.png') }}') no-repeat center / contain;
+            background: #007bff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        #unity-logo::before {
+            content: "⚖️";
+            font-size: 48px;
         }
         
         #unity-progress-bar-empty {
             width: 141px;
             height: 18px;
             margin-top: 10px;
-            background: url('{{ asset('unity-build/TemplateData/progress-bar-empty-dark.png') }}') no-repeat center / contain;
+            background: #333;
+            border-radius: 9px;
         }
         
         #unity-progress-bar-full {
             width: 0%;
             height: 18px;
-            background: url('{{ asset('unity-build/TemplateData/progress-bar-full-dark.png') }}') no-repeat center / contain;
+            background: #007bff;
+            border-radius: 9px;
         }
         
         #unity-footer {
@@ -187,7 +201,7 @@
     </div>
 
     <!-- Scripts de Unity -->
-    <script src="{{ asset('unity-build/Build/juicio.loader.js') }}"></script>
+    <script src="{{ route('unity.assets', 'Build/juicio.loader.js') }}"></script>
     <script>
         // Configuración de Unity
         var container = document.querySelector("#unity-container");
@@ -202,12 +216,14 @@
         loadingBar.style.display = "block";
 
         // Configuración del módulo Unity
-        var buildUrl = "{{ asset('unity-build/Build') }}";
+        // Usar ruta de Laravel para archivos con headers correctos
+        var buildUrl = "{{ route('unity.assets', 'Build') }}";
+        var streamingAssetsUrl = "{{ route('unity.assets', 'StreamingAssets') }}";
         var config = {
             dataUrl: buildUrl + "/juicio.data.br",
             frameworkUrl: buildUrl + "/juicio.framework.js.br",
             codeUrl: buildUrl + "/juicio.wasm.br",
-            streamingAssetsUrl: "StreamingAssets",
+            streamingAssetsUrl: streamingAssetsUrl,
             companyName: "JuiciosSimulator",
             productName: "JuiciosSimulator",
             productVersion: "1.0.0",
@@ -259,7 +275,7 @@
 
         // Cargar configuración de manejo de errores
         function loadErrorHandlingConfig() {
-            fetch('{{ asset('unity-build/StreamingAssets/unity-error-handling.json') }}')
+            fetch('{{ route('unity.assets', 'StreamingAssets/unity-error-handling.json') }}')
                 .then(response => response.json())
                 .then(config => {
                     errorHandlingConfig = config;
