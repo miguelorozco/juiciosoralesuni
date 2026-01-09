@@ -127,6 +127,15 @@
                 return rol && rol.color ? rol.color : '#666';
             },
 
+            colorNodo(nodo) {
+                if (!nodo) return '#666';
+                if (nodo.tipo === 'respuesta') {
+                    // Color especial para nodos de tipo respuesta
+                    return '#ffb347';
+                }
+                return this.obtenerColorRol(nodo.rol_id);
+            },
+
             rolNombre(rolId) {
                 if (!rolId) return null;
                 const rol = this.rolesDisponibles.find(r => r.id === rolId);
@@ -145,7 +154,8 @@
             allowOutput(tipo) {
                 if (tipo === 'final') return 0;
                 if (tipo === 'decision') return 3; // máximo 3 salidas visibles
-                return 1; // inicio y desarrollo
+                // respuesta y desarrollo: 1 salida
+                return 1;
             },
 
             configurarEndpoints() {
@@ -156,7 +166,7 @@
                         this.jsPlumbInstance.removeAllEndpoints(elId);
                     } catch (_) {}
 
-                    const color = this.obtenerColorRol(nodo.rol_id);
+                    const color = this.colorNodo(nodo);
                     const common = {
                         endpoint: 'Dot',
                         paintStyle: { fill: color, strokeWidth: 0, radius: 6 },
@@ -298,7 +308,7 @@
                         // jsPlumb 2.x usa jsPlumb.getInstance() directamente
                         this.jsPlumbInstance = jsPlumbLib.getInstance({
                             PaintStyle: { stroke: '#007bff', strokeWidth: 2 },
-                            EndpointStyle: { fill: '#007bff' },
+                        EndpointStyle: { fill: '#007bff' },
                             Connector: ['Bezier', { curviness: 50 }],
                             Anchors: ['Top', 'Bottom', 'Left', 'Right'],
                             Container: canvas
@@ -415,7 +425,7 @@
                                                         this.jsPlumbInstance.connect({
                                                             source: 'node-' + nodo.id,
                                                             target: 'node-' + respuesta.nodo_siguiente_id,
-                                                            paintStyle: { stroke: respuesta.color || '#007bff', strokeWidth: 2 },
+                                                        paintStyle: { stroke: respuesta.color || this.colorNodo(this.nodos.find(n => n.id == nodo.id)), strokeWidth: 2 },
                                                             parameters: { skipSave: true }
                                                         }, {
                                                             connector: ['Bezier', { curviness: 50 }],
@@ -451,10 +461,22 @@
                 if (!source) return;
                 if (!source.respuestas) source.respuestas = [];
 
-                // Forzar rol heredado para hijos de decisión
                 const target = this.nodos.find(n => n.id == targetId);
-                if (source.tipo === 'decision' && source.rol_id && target && target.rol_id !== source.rol_id) {
-                    target.rol_id = source.rol_id;
+
+                // Reglas de herencia/transformación por conexión
+                if (source.tipo === 'decision' && target) {
+                    // Al conectarse desde decisión: el hijo se vuelve tipo respuesta,
+                    // hereda el rol del padre y usa color de respuesta
+                    target.tipo = 'respuesta';
+                    if (source.rol_id) {
+                        target.rol_id = source.rol_id;
+                    }
+                    this.persistirNodoTipoRol(target);
+                } else if (source.tipo !== 'decision' && target && target.tipo === 'respuesta') {
+                    // Si se reconecta a salida de nodo NO decisión y el hijo era respuesta,
+                    // vuelve a desarrollo (conserva rol actual)
+                    target.tipo = 'desarrollo';
+                    this.persistirNodoTipoRol(target);
                 }
 
                 // Evitar duplicados
@@ -562,6 +584,44 @@
                     }
                 } catch (e) {
                     console.warn('No se pudo persistir respuesta:', e);
+                }
+            },
+
+            async persistirNodoTipoRol(nodo) {
+                // Solo persistir si ya es un nodo real
+                if (!nodo || !this.dialogoId || nodo.id.toString().startsWith('temp-')) return;
+                try {
+                    const url = '/api/dialogos-v2/' + this.dialogoId + '/nodos/' + nodo.id;
+                    const payload = {
+                        id: nodo.id,
+                        tipo: nodo.tipo,
+                        titulo: nodo.titulo || '',
+                        contenido: nodo.contenido || '',
+                        menu_text: nodo.menu_text || '',
+                        rol_id: nodo.rol_id || null,
+                        conversant_id: nodo.conversant_id || null,
+                        posicion_x: parseInt(nodo.posicion_x) || 0,
+                        posicion_y: parseInt(nodo.posicion_y) || 0,
+                        es_inicial: !!nodo.es_inicial,
+                        es_final: !!nodo.es_final,
+                        instrucciones: nodo.instrucciones || '',
+                        activo: nodo.activo !== undefined ? nodo.activo : true,
+                        condiciones: nodo.condiciones || [],
+                        consecuencias: nodo.consecuencias || [],
+                    };
+                    await fetch(url, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.warn('No se pudo persistir tipo/rol del nodo', nodo?.id, e);
                 }
             },
 
@@ -1459,9 +1519,10 @@
                                     'selected': nodoSeleccionado && nodoSeleccionado.id === nodo.id,
                                     'inicial': nodo.tipo === 'inicio' || nodo.es_inicial,
                                     'final': nodo.tipo === 'final' || nodo.es_final,
-                                    'decision': nodo.tipo === 'decision'
+                        'decision': nodo.tipo === 'decision',
+                        'respuesta': nodo.tipo === 'respuesta'
                                 }"
-                                :style="'position: absolute !important; left: ' + (nodo.posicion_x || 100) + 'px !important; top: ' + (nodo.posicion_y || 100) + 'px !important; z-index: 10 !important; --node-color:' + obtenerColorRol(nodo.rol_id)"
+                    :style="'position: absolute !important; left: ' + (nodo.posicion_x || 100) + 'px !important; top: ' + (nodo.posicion_y || 100) + 'px !important; z-index: 10 !important; --node-color:' + colorNodo(nodo)"
                                 @click.stop="seleccionarNodo(nodo)"
                                 @dblclick.stop="editarNodo(nodo)"
                             >
@@ -1527,6 +1588,7 @@
                                     <option value="decision">Decisión</option>
                                     <option value="final">Final</option>
                                     <option value="agrupacion">Agrupación</option>
+                        <option value="respuesta">Respuesta</option>
                                 </select>
                             </div>
 

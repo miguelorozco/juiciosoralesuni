@@ -8,7 +8,7 @@
 
     <!-- Sesiones -->
     <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('sesiones.*') ? 'bg-primary text-white' : 'text-dark' }}" 
-       href="/sesiones">
+       href="{{ route('sesiones.index') }}">
         <i class="bi bi-calendar-event me-3 fs-5"></i>
         <span class="fw-medium">Sesiones</span>
     </a>

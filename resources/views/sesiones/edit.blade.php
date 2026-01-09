@@ -72,6 +72,25 @@
                                 @enderror
                             </div>
                             
+                            <div class="col-md-6">
+                                <label for="dialogo_id" class="form-label">Diálogo a utilizar <span class="text-danger">*</span></label>
+                                <select class="form-select @error('dialogo_id') is-invalid @enderror"
+                                        id="dialogo_id"
+                                        name="dialogo_id"
+                                        required>
+                                    <option value="">Selecciona un diálogo</option>
+                                    @foreach($dialogos as $dialogo)
+                                        <option value="{{ $dialogo->id }}" {{ (string)old('dialogo_id', $dialogoId) === (string)$dialogo->id ? 'selected' : '' }}>
+                                            {{ $dialogo->nombre }} @if($dialogo->descripcion) - {{ Str::limit($dialogo->descripcion, 60) }} @endif
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('dialogo_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Los roles disponibles se basan en este diálogo.</small>
+                            </div>
+                            
                             <div class="col-12">
                                 <label for="descripcion" class="form-label">Descripción del Caso</label>
                                 <textarea class="form-control @error('descripcion') is-invalid @enderror" 
@@ -160,62 +179,66 @@
             </div>
         </div>
 
-        <!-- Asignaciones de Roles -->
+        <!-- Asignación de Roles del Diálogo -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-people me-2"></i>
-                            Asignaciones de Roles
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-people me-2"></i>
+                                Asignación de Roles del Diálogo
+                            </span>
+                            <small class="text-white-50">
+                                {{ $dialogoActivo ? 'Diálogo: '.$dialogoActivo->nombre : 'Sin diálogo activo' }}
+                            </small>
                         </h5>
                     </div>
                     <div class="card-body">
-                        @if($sesion->asignaciones->count() > 0)
+                        @if(isset($roles) && $roles->count())
                             <div class="table-responsive">
-                                <table class="table table-striped">
+                                <table class="table align-middle">
                                     <thead>
                                         <tr>
                                             <th>Rol</th>
-                                            <th>Estudiante Asignado</th>
+                                            <th>Asignar a estudiante</th>
                                             <th>Estado</th>
-                                            <th>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($sesion->asignaciones as $asignacion)
+                                        @foreach($roles as $rol)
+                                            @php
+                                                $asig = $asignaciones->get($rol->id);
+                                                $selectedUsuario = $asig ? $asig->usuario_id : null;
+                                            @endphp
                                             <tr>
                                                 <td>
-                                                    <i class="bi bi-{{ $asignacion->rol->icono ?? 'person' }} me-2"></i>
-                                                    <strong>{{ $asignacion->rol->nombre }}</strong>
+                                                    <span class="badge rounded-pill" style="background-color: {{ $rol->color ?? '#0d6efd' }}; color: #fff;">
+                                                        {{ $rol->nombre }}
+                                                    </span>
+                                                    <div class="text-muted small">{{ $rol->descripcion }}</div>
+                                                </td>
+                                                <td style="min-width: 260px;">
+                                                    <select class="form-select"
+                                                            name="asignaciones[{{ $rol->id }}]">
+                                                        <option value="">Sin asignar</option>
+                                                        @foreach($alumnos as $alumno)
+                                                            <option value="{{ $alumno->id }}" {{ (string)$selectedUsuario === (string)$alumno->id ? 'selected' : '' }}>
+                                                                {{ $alumno->name }} ({{ $alumno->email }})
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
                                                 </td>
                                                 <td>
-                                                    @if($asignacion->usuario)
-                                                        <i class="bi bi-person-circle me-2"></i>
-                                                        {{ $asignacion->usuario->name }} 
-                                                        <small class="text-muted">({{ $asignacion->usuario->email }})</small>
+                                                    @if($asig && $asig->usuario)
+                                                        <span class="badge bg-primary">Asignado</span>
+                                                        @if($asig->confirmado)
+                                                            <span class="badge bg-success ms-1">Confirmado</span>
+                                                        @else
+                                                            <span class="badge bg-warning text-dark ms-1">Pendiente</span>
+                                                        @endif
                                                     @else
-                                                        <span class="text-muted">Sin asignar</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    @if($asignacion->confirmado)
-                                                        <span class="badge bg-success">✅ Confirmado</span>
-                                                    @else
-                                                        <span class="badge bg-warning">⏳ Pendiente</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    @if($asignacion->usuario)
-                                                        <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                                onclick="removerAsignacion({{ $asignacion->id }})">
-                                                            <i class="bi bi-x-circle"></i>
-                                                        </button>
-                                                    @else
-                                                        <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                                onclick="asignarEstudiante({{ $asignacion->rol->id }})">
-                                                            <i class="bi bi-plus-circle"></i>
-                                                        </button>
+                                                        <span class="badge bg-secondary">Libre</span>
                                                     @endif
                                                 </td>
                                             </tr>
@@ -223,16 +246,20 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <small class="text-muted">Puedes dejar roles sin asignar; el sistema los resolverá en automático.</small>
                         @else
-                            <div class="alert alert-info">
+                            <div class="alert alert-info mb-0">
                                 <i class="bi bi-info-circle me-2"></i>
-                                No hay asignaciones de roles para esta sesión.
+                                No hay roles activos disponibles.
                             </div>
                         @endif
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Asignaciones de Roles -->
+        <!-- (Se sustituye por el bloque anterior con selectores) -->
 
         <!-- Botones de Acción -->
         <div class="row">

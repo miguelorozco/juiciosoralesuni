@@ -5,6 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\SesionJuicio;
 use App\Models\AsignacionRol;
+use App\Models\RolDisponible;
+use App\Models\DialogoV2;
+use App\Models\NodoDialogoV2;
+use App\Models\SesionDialogoV2;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use App\Services\ProcesamientoAutomaticoService;
 use Illuminate\Support\Facades\Log;
@@ -16,20 +21,15 @@ class SesionController extends Controller
      */
     public function index(Request $request)
     {
-        $query = SesionJuicio::with(['instructor', 'plantilla']);
+        $base = SesionJuicio::with(['instructor', 'plantilla'])->orderBy('fecha_inicio', 'desc');
 
-        // Filtros
-        if ($request->has('estado')) {
-            $query->where('estado', $request->estado);
+        // Filtros opcionales
+        if ($request->filled('tipo')) {
+            $base->where('tipo', $request->tipo);
         }
-
-        if ($request->has('tipo')) {
-            $query->where('tipo', $request->tipo);
-        }
-
-        if ($request->has('buscar')) {
+        if ($request->filled('buscar')) {
             $buscar = $request->buscar;
-            $query->where(function($q) use ($buscar) {
+            $base->where(function($q) use ($buscar) {
                 $q->where('nombre', 'like', '%' . $buscar . '%')
                   ->orWhere('descripcion', 'like', '%' . $buscar . '%')
                   ->orWhereHas('instructor', function($instructorQuery) use ($buscar) {
@@ -38,16 +38,22 @@ class SesionController extends Controller
             });
         }
 
-        // Ordenamiento
-        $sortBy = $request->get('sort_by', 'fecha_inicio');
-        $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
+        // Colecciones por estado
+        $sesionesPorIniciar = (clone $base)->where('estado', 'programada')->get();
+        $sesionesIniciadas  = (clone $base)->where('estado', 'en_curso')->get();
+        $sesionesTerminadas = (clone $base)->where('estado', 'finalizada')->get();
+        $sesionesCanceladas = (clone $base)->where('estado', 'cancelada')->get();
 
-        // Paginación
-        $perPage = $request->get('per_page', 20);
-        $sesiones = $query->paginate($perPage);
+        // Listado general (mantener vista existente)
+        $sesiones = $base->paginate($request->get('per_page', 20));
 
-        return view('sesiones.index', compact('sesiones'));
+        return view('sesiones.index', compact(
+            'sesiones',
+            'sesionesPorIniciar',
+            'sesionesIniciadas',
+            'sesionesTerminadas',
+            'sesionesCanceladas'
+        ));
     }
     
     /**
@@ -72,7 +78,8 @@ class SesionController extends Controller
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
             'tipo' => 'required|in:civil,penal,laboral,administrativo',
-            'fecha_inicio' => 'required|date|after:now',
+            'fecha_inicio' => 'required|date',
+            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
             'max_participantes' => 'nullable|integer|min:1|max:20',
             'dialogo_id' => 'required|exists:dialogos_v2,id',
         ]);
@@ -86,6 +93,7 @@ class SesionController extends Controller
                 'descripcion' => $request->descripcion,
                 'tipo' => $request->tipo,
                 'fecha_inicio' => $request->fecha_inicio,
+                'fecha_fin' => $request->fecha_fin,
                 'max_participantes' => $request->max_participantes ?? 10,
                 'instructor_id' => auth()->id(),
                 'estado' => 'programada',
@@ -237,7 +245,27 @@ class SesionController extends Controller
      */
     public function edit(SesionJuicio $sesion)
     {
-        return view('sesiones.edit', compact('sesion'));
+        $dialogos = DialogoV2::activos()->publicos()->orderBy('nombre')->get();
+        $dialogoActivo = optional($sesion->dialogos()->with('dialogo')->latest()->first())->dialogo;
+        $dialogoId = $dialogoActivo?->id;
+
+        // Roles usados en el diálogo seleccionado (por rol_id de nodos)
+        $roles = collect();
+        if ($dialogoId) {
+            $rolesEnDialogo = NodoDialogoV2::where('dialogo_id', $dialogoId)
+                ->whereNotNull('rol_id')
+                ->pluck('rol_id')
+                ->unique()
+                ->toArray();
+            if (!empty($rolesEnDialogo)) {
+                $roles = RolDisponible::activos()->ordenados()->whereIn('id', $rolesEnDialogo)->get();
+            }
+        }
+
+        $alumnos = User::where('tipo', 'alumno')->where('activo', true)->orderBy('name')->get();
+        $asignaciones = $sesion->asignaciones()->with('usuario')->get()->keyBy('rol_id');
+
+        return view('sesiones.edit', compact('sesion', 'roles', 'alumnos', 'asignaciones', 'dialogoActivo', 'dialogos', 'dialogoId'));
     }
 
     /**
@@ -250,12 +278,79 @@ class SesionController extends Controller
             'descripcion' => 'nullable|string',
             'tipo' => 'required|in:civil,penal,laboral,administrativo',
             'fecha_inicio' => 'required|date',
+            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
             'max_participantes' => 'nullable|integer|min:1|max:20',
             'estado' => 'required|in:programada,en_curso,finalizada,cancelada',
+            'dialogo_id' => 'required|exists:dialogos_v2,id',
+            'asignaciones' => 'nullable|array',
+            'asignaciones.*' => 'nullable|exists:users,id',
         ]);
 
         try {
-            $sesion->update($request->all());
+            $sesion->update($request->only([
+                'nombre','descripcion','tipo','fecha_inicio','fecha_fin','max_participantes','estado'
+            ]));
+
+            $dialogoId = $request->input('dialogo_id');
+            if ($dialogoId) {
+                $dialogo = DialogoV2::find($dialogoId);
+                $nodoInicial = $dialogo?->nodo_inicial;
+
+                $sesionDialogo = SesionDialogoV2::firstOrNew(['sesion_id' => $sesion->id]);
+                $sesionDialogo->dialogo_id = $dialogoId;
+                $sesionDialogo->nodo_actual_id = $nodoInicial?->id;
+                $sesionDialogo->estado = $sesionDialogo->estado ?? 'iniciado';
+                $sesionDialogo->configuracion = $sesionDialogo->configuracion ?? ['modo_automatico' => true, 'tiempo_respuesta' => 30, 'permite_pausa' => true];
+                $sesionDialogo->save();
+            }
+
+            // Roles válidos según el diálogo seleccionado
+            $rolesValidos = [];
+            if ($dialogoId) {
+                $rolesValidos = NodoDialogoV2::where('dialogo_id', $dialogoId)
+                    ->whereNotNull('rol_id')
+                    ->pluck('rol_id')
+                    ->unique()
+                    ->toArray();
+            }
+
+            // Limpiar asignaciones que no estén en roles válidos
+            if (!empty($rolesValidos)) {
+                AsignacionRol::where('sesion_id', $sesion->id)
+                    ->whereNotIn('rol_id', $rolesValidos)
+                    ->delete();
+            }
+
+            // Actualizar asignaciones de roles (rol_id => usuario_id | null)
+            $asignaciones = $request->input('asignaciones', []);
+            // Filtrar solo roles válidos del diálogo
+            if (!empty($rolesValidos)) {
+                $asignaciones = array_filter($asignaciones, function($usuarioId, $rolId) use ($rolesValidos) {
+                    return in_array((int)$rolId, $rolesValidos);
+                }, ARRAY_FILTER_USE_BOTH);
+            }
+
+            foreach ($asignaciones as $rolId => $usuarioId) {
+                if (empty($usuarioId)) {
+                    AsignacionRol::where('sesion_id', $sesion->id)
+                        ->where('rol_id', $rolId)
+                        ->delete();
+                    continue;
+                }
+
+                AsignacionRol::updateOrCreate(
+                    [
+                        'sesion_id' => $sesion->id,
+                        'rol_id' => $rolId,
+                    ],
+                    [
+                        'usuario_id' => $usuarioId,
+                        'asignado_por' => auth()->id(),
+                        'fecha_asignacion' => now(),
+                        'confirmado' => false,
+                    ]
+                );
+            }
 
             return redirect()
                 ->route('sesiones.show', $sesion)

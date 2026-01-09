@@ -196,7 +196,7 @@ class DialogoV2EditorController extends Controller
         
         // Preparar reglas de validación
         $rules = [
-            'tipo' => 'required|in:inicio,desarrollo,decision,final,agrupacion',
+            'tipo' => 'required|in:inicio,desarrollo,decision,final,agrupacion,respuesta',
             'titulo' => 'required|string|max:200',
             'contenido' => 'nullable|string',
             'menu_text' => 'nullable|string|max:200',

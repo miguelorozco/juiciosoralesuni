@@ -97,6 +97,19 @@
                             </div>
                             
                             <div class="col-md-6">
+                                <label for="fecha_fin" class="form-label">Fecha y Hora de Cierre</label>
+                                <input type="datetime-local" 
+                                       class="form-control @error('fecha_fin') is-invalid @enderror" 
+                                       id="fecha_fin" 
+                                       name="fecha_fin" 
+                                       value="{{ old('fecha_fin') }}">
+                                @error('fecha_fin')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Opcional: si se define, la sesión se considera cerrada a partir de esta fecha.</small>
+                            </div>
+                            
+                            <div class="col-md-6">
                                 <label for="max_participantes" class="form-label">Máximo de Participantes</label>
                                 <input type="number" 
                                        class="form-control @error('max_participantes') is-invalid @enderror" 

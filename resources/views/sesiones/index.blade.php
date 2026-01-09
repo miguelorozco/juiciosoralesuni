@@ -17,14 +17,63 @@
                 </div>
                 <div>
                     @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearSesionModal">
+                    <a class="btn btn-primary" href="{{ route('sesiones.create') }}">
                         <i class="bi bi-plus-circle me-2"></i>
                         Nueva Sesión
-                    </button>
+                    </a>
                     @endif
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Resumen por estado -->
+    <div class="row mb-4">
+        @php
+            $estadoCards = [
+                ['title' => 'Por iniciar', 'data' => $sesionesPorIniciar ?? collect(), 'icon' => 'clock', 'bg' => 'warning'],
+                ['title' => 'Iniciadas', 'data' => $sesionesIniciadas ?? collect(), 'icon' => 'play-circle', 'bg' => 'success'],
+                ['title' => 'Terminadas', 'data' => $sesionesTerminadas ?? collect(), 'icon' => 'flag', 'bg' => 'secondary'],
+            ];
+        @endphp
+        @foreach($estadoCards as $card)
+        <div class="col-lg-4 mb-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-{{ $card['bg'] }} text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-{{ $card['icon'] }} me-2"></i>{{ $card['title'] }}</span>
+                        <span class="badge bg-light text-dark">{{ $card['data']->count() }}</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    @if($card['data']->count())
+                        <ul class="list-group list-group-flush">
+                            @foreach($card['data'] as $item)
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong>{{ $item->nombre }}</strong>
+                                            <div class="text-muted small">
+                                                {{ $item->fecha_inicio?->format('d/m H:i') ?? 'Sin fecha' }} · {{ ucfirst($item->tipo) }}
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ route('sesiones.show', $item) }}" class="btn btn-sm btn-outline-info">Ver</a>
+                                            @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                            <a href="{{ route('sesiones.edit', $item) }}" class="btn btn-sm btn-outline-warning">Editar</a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <div class="p-3 text-muted small">No hay sesiones en este estado.</div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endforeach
     </div>
 
     <!-- Estadísticas rápidas -->
