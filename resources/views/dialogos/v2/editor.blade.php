@@ -30,6 +30,7 @@
             nodoSeleccionado: null,
             guardando: false,
             jsPlumbInstance: null,
+                jsPlumbReady: false,
             zoom: 1.0,
             validacionResultado: null,
             showModalNodo: false,
@@ -332,6 +333,14 @@
                             this.eliminarRespuestaDesdeConexion(sourceId, targetId);
                         });
 
+                        this.jsPlumbReady = true;
+
+                        // En cuanto jsPlumb esté listo, asegurar render y endpoints
+                        this.$nextTick(() => {
+                            this.hacerNodosArrastrables();
+                            this.renderizarConexiones();
+                        });
+
                         console.log('✓ jsPlumb inicializado correctamente');
                     } catch (error) {
                         console.error('Error al inicializar jsPlumb:', error);
@@ -368,9 +377,17 @@
 
             renderizarConexiones() {
                 if (!this.jsPlumbInstance) {
-                    console.warn('jsPlumb no está inicializado');
+                    // Reintentar suavemente hasta que jsPlumb esté listo
+                    if (!this._renderRetry) this._renderRetry = 0;
+                    if (this._renderRetry < 20) {
+                        this._renderRetry++;
+                        setTimeout(() => this.renderizarConexiones(), 80);
+                    } else {
+                        console.warn('jsPlumb no está inicializado; se agotaron reintentos');
+                    }
                     return;
                 }
+                this._renderRetry = 0;
 
                 // Esperar a DOM y dar un pequeño margen para montar nodos antes de conectar
                 this.$nextTick(() => {
