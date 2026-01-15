@@ -5,8 +5,130 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <title>Unity Web Player | JuiciosOralesMultiplayerv1.0</title>
-  <link rel="shortcut icon" href="TemplateData/favicon.ico">
-  <link rel="stylesheet" href="TemplateData/style.css">
+  <!-- CSS inline para evitar dependencia de TemplateData/style.css -->
+  <style>
+    /* Estilos básicos de Unity WebGL */
+    body { margin: 0; padding: 0; background: #000; font-family: Arial, sans-serif; }
+    #unity-container { width: 100vw; height: 100vh; }
+    #unity-canvas { width: 100%; height: 100%; display: block; }
+    #unity-loading-bar { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    #unity-warning { position: absolute; left: 50%; top: 5%; transform: translate(-50%, 0); background: rgba(0, 0, 0, 0.8); color: #ffcccc; padding: 5px 10px; border-radius: 5px; display: none; }
+    
+    /* Ventana de Logs de Debug */
+    #debug-log-window {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      width: 600px;
+      max-height: 500px;
+      background: rgba(20, 20, 20, 0.95);
+      border: 2px solid #4CAF50;
+      border-radius: 8px;
+      z-index: 100000;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+    }
+    
+    #debug-log-header {
+      background: #2d2d2d;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #4CAF50;
+      cursor: move;
+      user-select: none;
+    }
+    
+    #debug-log-title {
+      color: #4CAF50;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    
+    #debug-log-controls {
+      display: flex;
+      gap: 5px;
+    }
+    
+    .debug-log-btn {
+      background: #444;
+      border: 1px solid #666;
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 10px;
+    }
+    
+    .debug-log-btn:hover {
+      background: #555;
+    }
+    
+    #debug-log-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      color: #e0e0e0;
+      max-height: 450px;
+    }
+    
+    .debug-log-entry {
+      margin: 2px 0;
+      padding: 2px 4px;
+      border-left: 2px solid transparent;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    
+    .debug-log-entry.debug { border-left-color: #888; color: #aaa; }
+    .debug-log-entry.info { border-left-color: #2196F3; color: #90caf9; }
+    .debug-log-entry.warning { border-left-color: #ff9800; color: #ffb74d; }
+    .debug-log-entry.error { border-left-color: #f44336; color: #ef5350; }
+    .debug-log-entry.phase { border-left-color: #4CAF50; color: #81c784; font-weight: bold; }
+    .debug-log-entry.api { border-left-color: #9c27b0; color: #ba68c8; }
+    .debug-log-entry.event { border-left-color: #00bcd4; color: #4dd0e1; }
+    
+    .debug-log-entry .timestamp {
+      color: #666;
+      margin-right: 5px;
+    }
+    
+    .debug-log-entry .category {
+      color: #888;
+      margin-right: 5px;
+      font-weight: bold;
+    }
+    
+    #debug-log-window.minimized {
+      height: auto;
+      max-height: 40px;
+    }
+    
+    #debug-log-window.minimized #debug-log-content {
+      display: none;
+    }
+    
+    #debug-log-content::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #debug-log-content::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    
+    #debug-log-content::-webkit-scrollbar-thumb {
+      background: #4CAF50;
+      border-radius: 4px;
+    }
+    
+    #debug-log-content::-webkit-scrollbar-thumb:hover {
+      background: #66bb6a;
+    }
+  </style>
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <style>
     .audio-status-container {
@@ -42,6 +164,19 @@
 </head>
 
 <body>
+  <!-- Ventana de Logs de Debug -->
+  <div id="debug-log-window">
+    <div id="debug-log-header">
+      <div id="debug-log-title">📋 DEBUG LOGS</div>
+      <div id="debug-log-controls">
+        <button class="debug-log-btn" onclick="clearDebugLogs()">Limpiar</button>
+        <button class="debug-log-btn" onclick="toggleDebugLogWindow()">Minimizar</button>
+        <button class="debug-log-btn" onclick="toggleDebugLogEnabled()" id="toggle-log-btn">Desactivar</button>
+      </div>
+    </div>
+    <div id="debug-log-content"></div>
+  </div>
+
   <div class="audio-status-container">
     <div id="micCard" class="audio-card" title="Emitiendo">
       <img src="https://img.icons8.com/ios-filled/50/microphone.png" />
@@ -88,27 +223,61 @@
     let peer = null, localStream = null, myId = null, connections = {}, roomId = null, dialInterval = null;
     const MAX_SLOTS = 20; // <- 20 espacios por sala
 
-    // Hacer la función disponible globalmente para Unity
+    // Función original para compatibilidad (llama a initVoiceCallFromUnity con configuración por defecto)
     window.initVoiceCall = async function(_roomId, actorId) {
-      console.log("Init Voice Call:", _roomId, actorId);
+      console.log("Init Voice Call (compatibilidad):", _roomId, actorId);
+      // Llamar a la nueva función con configuración por defecto (JSON vacío)
+      return window.initVoiceCallFromUnity(_roomId, actorId, '{}');
+    };
+
+    // Función para inicializar PeerJS desde Unity con configuración personalizada
+    window.initVoiceCallFromUnity = async function(_roomId, actorId, configJson) {
+      console.log("Init Voice Call from Unity:", _roomId, actorId, configJson);
       roomId = _roomId; myId = `${roomId}_${actorId}`;
+      
+      // Parsear configuración desde Unity
+      let unityConfig = null;
+      try {
+        unityConfig = JSON.parse(configJson);
+      } catch (e) {
+        console.warn("No se pudo parsear configuración de Unity, usando valores por defecto");
+      }
+      
+      // Configuración de audio desde Unity o valores por defecto
+      const audioConfig = unityConfig?.audio || {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 44100,
+        channelCount: 1,
+        latency: 0.01
+      };
+      
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100,
-            channelCount: 1,
-            latency: 0.01
-          }
+          audio: audioConfig
         });
         activarIndicadorVolumen(localStream, document.getElementById("micCard"));
-      } catch (err) { alert("No se pudo acceder al micrófono."); console.error(err); return; }
+      } catch (err) { 
+        alert("No se pudo acceder al micrófono."); 
+        console.error(err); 
+        // Notificar error a Unity
+        if (window.unityInstance) {
+          window.unityInstance.SendMessage('PeerJSManager', 'OnPeerJSErrorCallback', err.message);
+        }
+        return; 
+      }
 
-      // Configuración de servidores PeerJS
-      // Primero intenta con el servidor local, luego usa servidores públicos como fallback
-      const peerConfigs = [
+      // Configuración de servidores PeerJS desde Unity o valores por defecto
+      const primaryConfig = unityConfig ? {
+        host: unityConfig.host || 'peerjs.com',
+        port: unityConfig.port || 443,
+        secure: unityConfig.secure !== undefined ? unityConfig.secure : true,
+        path: unityConfig.path || '/peerjs',
+        debug: 2
+      } : null;
+      
+      const peerConfigs = primaryConfig ? [primaryConfig] : [
         {
           host: 'localhost',
           port: 9000,
@@ -178,15 +347,21 @@
         const notifyUnity = () => {
           try {
             if (window.unityInstance) {
-              // Intentar encontrar el objeto GestionRedJugador
-              const gameObjects = unityInstance.SendMessage('FindObjectsOfType', 'GestionRedJugador');
-              if (gameObjects && gameObjects.length > 0) {
-                unityInstance.SendMessage('GestionRedJugador', 'OnVoiceReady', id);
-                console.log("✅ Notificación enviada a Unity:", id);
+              // Intentar notificar a PeerJSManager primero (nuevo sistema)
+              try {
+                window.unityInstance.SendMessage('PeerJSManager', 'OnPeerJSReadyCallback', id);
+                console.log("✅ Notificación enviada a PeerJSManager:", id);
                 return true;
-              } else {
-                console.log("⚠️ GestionRedJugador no encontrado, reintentando...");
-                return false;
+              } catch (e) {
+                // Si no existe PeerJSManager, intentar con GestionRedJugador (compatibilidad)
+                try {
+                  window.unityInstance.SendMessage('GestionRedJugador', 'OnVoiceReady', id);
+                  console.log("✅ Notificación enviada a GestionRedJugador:", id);
+                  return true;
+                } catch (e2) {
+                  console.log("⚠️ No se encontró PeerJSManager ni GestionRedJugador, reintentando...");
+                  return false;
+                }
               }
             }
           } catch (e) {
@@ -287,12 +462,30 @@
         console.log("✅ Audio recibido de:", peerId);
         addDiscoveredPeer(peerId); // Marcar como descubierto
         playStream(rs, peerId);
+        
+        // Notificar a Unity
+        if (window.unityInstance) {
+          try {
+            window.unityInstance.SendMessage('PeerJSManager', 'OnPeerConnectedCallback', peerId);
+          } catch (e) {
+            // Ignorar si no existe PeerJSManager
+          }
+        }
       });
 
       call.on('close', () => {
         console.log("❌ Conexión cerrada con:", peerId);
         cleanupPeer(peerId);
         discoveredPeers.delete(peerId); // Remover de descubiertos
+        
+        // Notificar a Unity
+        if (window.unityInstance) {
+          try {
+            window.unityInstance.SendMessage('PeerJSManager', 'OnPeerDisconnectedCallback', peerId);
+          } catch (e) {
+            // Ignorar si no existe PeerJSManager
+          }
+        }
       });
 
       call.on('error', e => {
@@ -313,6 +506,34 @@
       if (c) { try { c.close(); } catch { } delete connections[peerId]; }
       const el = document.getElementById('audio-' + peerId); if (el) el.remove();
     }
+    window.cleanupPeer = cleanupPeer; // Hacer disponible globalmente para Unity
+    
+    // Función para limpiar todas las conexiones
+    window.cleanupAllPeers = function() {
+      console.log("🧹 Limpiando todas las conexiones PeerJS");
+      for (const peerId in connections) {
+        cleanupPeer(peerId);
+      }
+      if (peer) {
+        try {
+          peer.destroy();
+        } catch (e) {
+          console.warn("Error al destruir peer:", e);
+        }
+        peer = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      if (dialInterval) {
+        clearInterval(dialInterval);
+        dialInterval = null;
+      }
+      roomId = null;
+      myId = null;
+      console.log("✅ Todas las conexiones limpiadas");
+    };
 
     function startAutoDial() {
       if (dialInterval) clearInterval(dialInterval);
@@ -877,6 +1098,172 @@
   </script>
 
   <script>
+    // ===== SISTEMA DE LOGGING EN HTML (DEBE ESTAR PRIMERO) =====
+    let debugLogEnabled = true;
+    let debugLogs = [];
+    const MAX_LOG_ENTRIES = 1000;
+    
+    // Función para agregar log a la ventana
+    function addDebugLog(level, category, message, data = null) {
+      if (!debugLogEnabled) return;
+      
+      const timestamp = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+      const logEntry = {
+        timestamp,
+        level,
+        category,
+        message,
+        data
+      };
+      
+      debugLogs.push(logEntry);
+      
+      // Limitar número de logs
+      if (debugLogs.length > MAX_LOG_ENTRIES) {
+        debugLogs.shift();
+      }
+      
+      // Agregar a la ventana
+      const content = document.getElementById('debug-log-content');
+      if (content) {
+        const entry = document.createElement('div');
+        entry.className = `debug-log-entry ${level}`;
+        
+        let html = `<span class="timestamp">[${timestamp}]</span>`;
+        html += `<span class="category">[${category}]</span>`;
+        html += `<span>${escapeHtml(message)}</span>`;
+        
+        if (data) {
+          try {
+            html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(JSON.stringify(data, null, 2))}</span>`;
+          } catch (e) {
+            html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(String(data))}</span>`;
+          }
+        }
+        
+        entry.innerHTML = html;
+        content.appendChild(entry);
+        
+        // Auto-scroll al final
+        content.scrollTop = content.scrollHeight;
+      }
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function clearDebugLogs() {
+      debugLogs = [];
+      const content = document.getElementById('debug-log-content');
+      if (content) {
+        content.innerHTML = '';
+      }
+      addDebugLog('info', 'SYSTEM', 'Logs limpiados');
+    }
+    
+    function toggleDebugLogWindow() {
+      const window = document.getElementById('debug-log-window');
+      if (window) {
+        window.classList.toggle('minimized');
+      }
+    }
+    
+    function toggleDebugLogEnabled() {
+      debugLogEnabled = !debugLogEnabled;
+      const btn = document.getElementById('toggle-log-btn');
+      if (btn) {
+        btn.textContent = debugLogEnabled ? 'Desactivar' : 'Activar';
+      }
+      addDebugLog('info', 'SYSTEM', `Logging ${debugLogEnabled ? 'activado' : 'desactivado'}`);
+    }
+    
+    // Interceptar console.log, console.error, console.warn
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    const originalInfo = console.info;
+    
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+      addDebugLog('info', 'CONSOLE', message);
+    };
+    
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+      addDebugLog('error', 'CONSOLE', message);
+    };
+    
+    console.warn = function(...args) {
+      originalWarn.apply(console, args);
+      const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+      addDebugLog('warning', 'CONSOLE', message);
+    };
+    
+    console.info = function(...args) {
+      originalInfo.apply(console, args);
+      const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+      addDebugLog('info', 'CONSOLE', message);
+    };
+    
+    // Capturar errores globales
+    window.addEventListener('error', function(e) {
+      addDebugLog('error', 'GLOBAL_ERROR', `${e.message}`, {
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        stack: e.error?.stack
+      });
+    });
+    
+    window.addEventListener('unhandledrejection', function(e) {
+      addDebugLog('error', 'PROMISE_REJECTION', `Promise rechazada: ${e.reason}`, {
+        reason: String(e.reason),
+        stack: e.reason?.stack
+      });
+    });
+    
+    // Función global para que Unity pueda llamar
+    window.unityDebugLog = function(level, category, message, data) {
+      addDebugLog(level || 'info', category || 'UNITY', message || '', data);
+    };
+    
+    // Función específica para fases
+    window.unityLogPhase = function(phaseName, status, data) {
+      addDebugLog('phase', 'PHASE', `[${phaseName}] ${status}`, data);
+    };
+    
+    // Función específica para API
+    window.unityLogAPI = function(method, url, status, data) {
+      addDebugLog('api', 'API', `[${method}] ${url} - ${status}`, data);
+    };
+    
+    // Función específica para eventos
+    window.unityLogEvent = function(eventName, message, data) {
+      addDebugLog('event', 'EVENT', `[${eventName}] ${message}`, data);
+    };
+    
+    // Hacer funciones disponibles globalmente
+    window.addDebugLog = addDebugLog;
+    window.clearDebugLogs = clearDebugLogs;
+    window.toggleDebugLogWindow = toggleDebugLogWindow;
+    window.toggleDebugLogEnabled = toggleDebugLogEnabled;
+    
+    // Log inicial
+    addDebugLog('info', 'SYSTEM', 'Sistema de logging inicializado');
+    addDebugLog('phase', 'INIT', 'Página cargada', {
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+    // ===== FIN SISTEMA DE LOGGING =====
+  </script>
+
+  <script>
     var canvas = document.querySelector("#unity-canvas");
     function unityShowBanner(msg, type) {
       var warningBanner = document.querySelector("#unity-warning");
@@ -885,13 +1272,64 @@
       if (type == 'error') div.style = 'background:red;padding:10px;'; else { if (type == 'warning') div.style = 'background:yellow;padding:10px;'; setTimeout(function () { warningBanner.removeChild(div); update(); }, 5000); }
       update();
     }
-    var buildUrl = "Build";
-    var loaderUrl = buildUrl + "/juiciosorales.loader.js";
+    // Detectar automáticamente si estamos siendo servidos desde Laravel (/unity-game)
+    // y ajustar las rutas base según corresponda
+    var baseUrl = "";
+    var isFileProtocol = window.location.protocol === 'file:';
+    
+    if (window.location.pathname.includes('/unity-game')) {
+      // Si estamos en /unity-game, usar /unity-build como base
+      baseUrl = "/unity-build";
+      console.log("🔗 Detectado servidor Laravel - usando baseUrl: " + baseUrl);
+    } else if (isFileProtocol) {
+      // Si estamos abriendo directamente desde el sistema de archivos (file://)
+      // Usar rutas relativas desde el directorio actual
+      baseUrl = "./";
+      console.log("🔗 Modo file:// - usando rutas relativas: " + baseUrl);
+      console.warn("⚠️ ADVERTENCIA: Abrir Unity WebGL directamente desde file:// puede causar problemas de CORS.");
+      console.warn("⚠️ Se recomienda usar un servidor web (http://localhost:8000/unity-game)");
+    } else {
+      // Si estamos en desarrollo local con servidor web, usar rutas relativas
+      baseUrl = "";
+      console.log("🔗 Modo desarrollo/local - usando rutas relativas");
+    }
+    
+    // Detectar automáticamente el nombre del build (puede ser juiciosorales, unity-build, juicio, etc.)
+    // Unity puede generar diferentes nombres según la configuración del proyecto
+    // IMPORTANTE: El nombre del build debe coincidir con el nombre del proyecto en Unity
+    var buildName = "unity-build"; // Nombre por defecto (debe coincidir con el nombre del build)
+    
+    // Construir buildUrl de forma segura, asegurando que siempre haya un "/" entre baseUrl y "Build"
+    // Esto previene rutas mal formadas como "/unity-buildBuild" o "./Build" sin separador
+    var buildUrl;
+    if (!baseUrl) {
+      // Si baseUrl está vacío, usar "Build" directamente
+      buildUrl = "Build";
+    } else if (baseUrl.endsWith("/")) {
+      // Si baseUrl termina con "/", concatenar directamente
+      buildUrl = baseUrl + "Build";
+    } else {
+      // Si baseUrl no termina con "/", agregar "/" antes de "Build"
+      buildUrl = baseUrl + "/Build";
+    }
+    
+    // Intentar detectar el nombre real del build verificando qué archivos existen
+    // Esto se hace de forma asíncrona, pero por ahora usamos nombres comunes
+    // Los nombres más comunes son: unity-build, juiciosorales, juicio
+    var possibleNames = ["unity-build", "juiciosorales", "juicio"];
+    
+    // Por defecto, usar "unity-build" que es el nombre actual del proyecto
+    buildName = possibleNames[0]; // Empezar con "unity-build"
+    
+    // Construir URLs con soporte para archivos comprimidos (.br)
+    // Unity puede generar archivos con o sin compresión Brotli
+    var loaderUrl = buildUrl + "/" + buildName + ".loader.js";
     var config = {
-      dataUrl: buildUrl + "/juiciosorales.data",
-      frameworkUrl: buildUrl + "/juiciosorales.framework.js",
-      codeUrl: buildUrl + "/juiciosorales.wasm",
-      streamingAssetsUrl: "StreamingAssets",
+      // Intentar primero con .br (comprimido), si no existe, Unity intentará sin .br
+      dataUrl: buildUrl + "/" + buildName + ".data.br",
+      frameworkUrl: buildUrl + "/" + buildName + ".framework.js.br",
+      codeUrl: buildUrl + "/" + buildName + ".wasm.br",
+      streamingAssetsUrl: baseUrl ? (baseUrl.endsWith("/") ? baseUrl + "StreamingAssets" : baseUrl + "/StreamingAssets") : "StreamingAssets",
       companyName: "DefaultCompany",
       productName: "JuiciosOralesMultiplayerv1.0",
       productVersion: "0.1.0",
@@ -905,18 +1343,58 @@
     document.querySelector("#unity-loading-bar").style.display = "block";
     var script = document.createElement("script"); script.src = loaderUrl;
     script.onload = () => {
-      createUnityInstance(canvas, config, (p) => { document.querySelector("#unity-progress-bar-full").style.width = 100 * p + "%"; }).then((unityInstance) => {
-        window.unityInstance = unityInstance; document.querySelector("#unity-loading-bar").style.display = "none";
+      if (typeof addDebugLog === 'function') {
+        addDebugLog('phase', 'UNITY', 'Loader script cargado');
+      }
+      createUnityInstance(canvas, config, (p) => { 
+        document.querySelector("#unity-progress-bar-full").style.width = 100 * p + "%";
+        if (typeof addDebugLog === 'function') {
+          addDebugLog('debug', 'UNITY', `Progreso de carga: ${(p * 100).toFixed(1)}%`);
+        }
+      }).then((unityInstance) => {
+        if (typeof addDebugLog === 'function') {
+          addDebugLog('phase', 'UNITY', 'Instancia de Unity creada exitosamente');
+        }
+        window.unityInstance = unityInstance; 
+        document.querySelector("#unity-loading-bar").style.display = "none";
         document.querySelector("#unity-fullscreen-button").onclick = () => { unityInstance.SetFullscreen(1); };
         var quit = document.createElement("button"); quit.style = "margin-left:5px;background-color:lightgray;border:none;padding:5px;cursor:pointer"; quit.innerHTML = "Unload";
         document.querySelector("#unity-build-title").appendChild(quit);
         quit.onclick = () => { unityInstance.Quit().then(() => { document.querySelector("#unity-container").remove(); canvas = null; script.remove(); script = null; }); };
-      }).catch((message) => { alert(message); });
+      }).catch((message) => { 
+        if (typeof addDebugLog === 'function') {
+          addDebugLog('error', 'UNITY', `Error al crear instancia: ${message}`);
+        }
+        alert(message); 
+      });
+    };
+    
+    script.onerror = (error) => {
+      console.error('Error al cargar el loader script:', error);
+      console.error('Loader URL intentada:', loaderUrl);
+      console.error('Protocolo:', window.location.protocol);
+      console.error('Pathname:', window.location.pathname);
+      
+      if (typeof addDebugLog === 'function') {
+        addDebugLog('error', 'UNITY', 'Error al cargar el loader script', {
+          error: String(error),
+          loaderUrl: loaderUrl,
+          protocol: window.location.protocol,
+          pathname: window.location.pathname,
+          message: isFileProtocol 
+            ? 'No puedes abrir Unity WebGL directamente desde file://. Usa un servidor web (http://localhost:8000/unity-game)'
+            : 'Verifica que el archivo exista y que las rutas sean correctas'
+        });
+      } else {
+        // Si addDebugLog no está disponible, mostrar alerta
+        var errorMsg = isFileProtocol
+          ? 'Error: No puedes abrir Unity WebGL directamente desde el sistema de archivos (file://).\n\nPor favor, usa un servidor web:\n- Laravel: http://localhost:8000/unity-game\n- O un servidor local: python -m http.server 8000'
+          : 'Error al cargar Unity loader. Verifica que el archivo exista y que las rutas sean correctas.';
+        alert(errorMsg);
+      }
     };
     document.body.appendChild(script);
   </script>
 </body>
-
-</html>
 
 </html>

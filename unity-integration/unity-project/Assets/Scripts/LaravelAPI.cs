@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using System.Text;
+using JuiciosSimulator.Utils;
 
 namespace JuiciosSimulator.API
 {
@@ -18,14 +19,32 @@ namespace JuiciosSimulator.API
         public string unityPlatform = "WebGL";
         public string deviceId = "UNITY_DEVICE_001";
 
+        [Header("Debug")]
+        [Tooltip("Activar logging detallado para debug (se muestra en consola del navegador)")]
+        public bool enableDebugLogging = true;
+        
+        [Tooltip("Verificar estado del servidor al iniciar (deshabilitar si causa problemas de inicialización)")]
+        public bool checkServerStatusOnStart = true;
+
         [Header("Autenticación")]
         public string authToken = "";
         public UserData currentUser;
         public SessionData currentSessionData;
+        public DialogueData currentDialogueData;
 
         [Header("Sesión Actual")]
         public int currentSesionId = 0;
         public bool isConnected = false;
+
+        // Flags para prevenir llamadas recursivas
+        private bool isGettingActiveSession = false;
+        private bool isGettingSessionDialogue = false;
+        
+        // Flag para prevenir múltiples inicializaciones
+        private static bool hasInitialized = false;
+        
+        // ID de la última sesión procesada para evitar procesamiento duplicado
+        private static int? lastProcessedSessionId = null;
 
         // Eventos
         public static event Action<bool> OnConnectionStatusChanged;
@@ -48,13 +67,68 @@ namespace JuiciosSimulator.API
             else
             {
                 Destroy(gameObject);
+                return;
             }
+            
+            // NO hacer nada más en Awake - esperar a que Unity esté completamente cargado
         }
+
+        // Flag para indicar que LaravelAPI está completamente inicializado
+        public static bool IsInitialized { get; private set; } = false;
 
         private void Start()
         {
-            // Verificar estado del servidor al iniciar
-            StartCoroutine(CheckServerStatus());
+            // Retrasar la inicialización para evitar problemas con el runtime de Unity WebGL
+            // Esperar varios frames para que Unity esté completamente inicializado
+            StartCoroutine(InitializeLaravelAPIDelayed());
+        }
+
+        private IEnumerator InitializeLaravelAPIDelayed()
+        {
+            // Esperar varios frames para que Unity WebGL esté completamente cargado
+            // Esto previene problemas de recursión en el runtime de Unity
+            yield return null; // Frame 1
+            yield return null; // Frame 2
+            yield return null; // Frame 3
+            yield return new WaitForEndOfFrame(); // Frame completo
+            
+            // Ahora inicializar
+            InitializeLaravelAPI();
+        }
+
+        private void InitializeLaravelAPI()
+        {
+            // Prevenir múltiples inicializaciones
+            if (hasInitialized)
+            {
+                Debug.LogWarning("[LaravelAPI] Ya fue inicializado anteriormente. Ignorando inicialización duplicada.");
+                IsInitialized = true; // Asegurar que el flag esté en true
+                return;
+            }
+
+            hasInitialized = true;
+
+            // Configurar sistema de logging
+            if (enableDebugLogging)
+            {
+                DebugLogger.SetEnabled(true);
+                DebugLogger.SetShowInBrowser(true);
+                DebugLogger.LogPhase("LaravelAPI", "Inicializando", new { baseURL, unityVersion, unityPlatform });
+            }
+
+            // Marcar como inicializado ANTES de hacer cualquier llamada
+            IsInitialized = true;
+
+            // Verificar estado del servidor al iniciar (en coroutine para no bloquear)
+            // Solo si está habilitado (puede deshabilitarse para debugging)
+            if (checkServerStatusOnStart)
+            {
+                StartCoroutine(CheckServerStatus());
+            }
+            else
+            {
+                Debug.Log("[LaravelAPI] CheckServerStatus deshabilitado para debugging");
+            }
         }
 
         #region Autenticación
@@ -205,86 +279,150 @@ namespace JuiciosSimulator.API
         /// </summary>
         public void GetActiveSession()
         {
+            // Prevenir llamadas recursivas
+            if (isGettingActiveSession)
+            {
+                Debug.LogWarning("[LaravelAPI] GetActiveSession() ya está en progreso. Ignorando llamada duplicada.");
+                return;
+            }
+
             StartCoroutine(GetActiveSessionCoroutine());
         }
 
         private IEnumerator GetActiveSessionCoroutine()
         {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/session/active"))
+            // Marcar como en progreso
+            isGettingActiveSession = true;
+            DebugLogger.LogPhase("LaravelAPI", "GetActiveSessionCoroutine INICIADO");
+
+            try
             {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
+                // Construir URL completa y validar
+                string url = $"{baseURL}/unity/auth/session/active";
+                
+                // Limpiar URL de posibles duplicados de /api
+                url = url.Replace("/api/api/", "/api/");
+                
+                DebugLogger.LogAPI("GET", url, "INITIATED", new { baseURL, finalUrl = url });
+                Debug.Log($"[LaravelAPI] Obteniendo sesión activa desde: {url}");
+                
+                using (UnityWebRequest request = UnityWebRequest.Get(url))
                 {
-                    try
+                    request.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    request.SetRequestHeader("X-Unity-Version", unityVersion);
+                    request.SetRequestHeader("X-Unity-Platform", unityPlatform);
+                    request.timeout = 30; // Timeout de 30 segundos
+
+                    yield return request.SendWebRequest();
+
+                    if (request.result == UnityWebRequest.Result.Success)
                     {
-                        string responseText = request.downloadHandler.text;
-                        if (string.IsNullOrEmpty(responseText))
+                        try
                         {
-                            OnError?.Invoke("Respuesta vacía del servidor");
-                            Debug.LogError("Error obteniendo sesión activa: Respuesta vacía");
-                            yield break;
-                        }
-
-                        var response = JsonUtility.FromJson<APIResponse<SessionData>>(responseText);
-
-                        if (response != null && response.success && response.data != null)
-                        {
-                            // Validar que los datos esenciales no sean null
-                            if (response.data.session == null)
+                            string responseText = request.downloadHandler.text;
+                            if (string.IsNullOrEmpty(responseText))
                             {
-                                Debug.LogWarning("Sesión activa recibida pero session es null");
-                                OnError?.Invoke("Datos de sesión incompletos");
+                                OnError?.Invoke("Respuesta vacía del servidor");
+                                Debug.LogError("Error obteniendo sesión activa: Respuesta vacía");
                                 yield break;
                             }
 
-                            currentSesionId = response.data.session.id;
-                            currentSessionData = response.data;
-                            
-                            // Validar que el rol no sea null antes de invocar el evento
-                            if (response.data.role == null)
+                            var response = JsonUtility.FromJson<APIResponse<SessionData>>(responseText);
+
+                            if (response != null && response.success && response.data != null)
                             {
-                                Debug.LogWarning("Sesión activa recibida pero role es null - usando rol por defecto");
-                                // Crear un rol por defecto temporal
-                                response.data.role = new RoleInfo
+                                // Validar que los datos esenciales no sean null
+                                if (response.data.session == null)
                                 {
-                                    id = 0,
-                                    nombre = "Observador",
-                                    descripcion = "Rol temporal",
-                                    color = "#808080",
-                                    icono = ""
-                                };
+                                    Debug.LogWarning("Sesión activa recibida pero session es null");
+                                    OnError?.Invoke("Datos de sesión incompletos");
+                                    yield break;
+                                }
+
+                                // Prevenir procesamiento duplicado de la misma sesión
+                                if (lastProcessedSessionId.HasValue && 
+                                    lastProcessedSessionId.Value == response.data.session.id)
+                                {
+                                    DebugLogger.LogWarning("LaravelAPI", $"Sesión {response.data.session.id} ya fue procesada. Ignorando respuesta duplicada.");
+                                    Debug.LogWarning($"[LaravelAPI] Sesión {response.data.session.id} ya fue procesada. Ignorando respuesta duplicada.");
+                                    yield break;
+                                }
+
+                                lastProcessedSessionId = response.data.session.id;
+                                currentSesionId = response.data.session.id;
+                                currentSessionData = response.data;
+                                
+                                // Validar que el rol no sea null antes de invocar el evento
+                                if (response.data.role == null)
+                                {
+                                    Debug.LogWarning("Sesión activa recibida pero role es null - usando rol por defecto");
+                                    // Crear un rol por defecto temporal
+                                    response.data.role = new RoleInfo
+                                    {
+                                        id = 0,
+                                        nombre = "Observador",
+                                        descripcion = "Rol temporal",
+                                        color = "#808080",
+                                        icono = ""
+                                    };
+                                }
+
+                                DebugLogger.LogAPIResponse(url, true, $"Sesión: {response.data.session.nombre}", new { 
+                                    sessionId = response.data.session.id,
+                                    sessionName = response.data.session.nombre,
+                                    roleName = response.data.role?.nombre
+                                });
+                                
+                                DebugLogger.LogEventInvocation("OnActiveSessionReceived", OnActiveSessionReceived?.GetInvocationList()?.Length ?? 0, new {
+                                    sessionId = response.data.session.id
+                                });
+                                
+                                // Invocar evento solo si no se ha procesado esta sesión antes
+                                OnActiveSessionReceived?.Invoke(response.data);
+                                Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
+
+                                // Automáticamente cargar el diálogo de la sesión (solo si no está ya en progreso)
+                                // Y solo si no se ha cargado ya el diálogo para esta sesión
+                                if (!isGettingSessionDialogue && 
+                                    (currentDialogueData == null || 
+                                     currentDialogueData.dialogue == null || 
+                                     currentDialogueData.dialogue.id == 0))
+                                {
+                                    DebugLogger.LogPhase("LaravelAPI", "Llamando GetSessionDialogue automáticamente", new { sessionId = response.data.session.id });
+                                    GetSessionDialogue(response.data.session.id);
+                                }
+                                else
+                                {
+                                    DebugLogger.LogWarning("LaravelAPI", "GetSessionDialogue ya está en progreso o ya se cargó. Ignorando llamada automática.");
+                                    Debug.LogWarning("[LaravelAPI] GetSessionDialogue ya está en progreso o ya se cargó. Ignorando llamada automática.");
+                                }
                             }
-
-                            OnActiveSessionReceived?.Invoke(response.data);
-                            Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
-
-                            // Automáticamente cargar el diálogo de la sesión
-                            GetSessionDialogue(response.data.session.id);
+                            else
+                            {
+                                string errorMsg = response?.message ?? "Error desconocido obteniendo sesión activa";
+                                OnError?.Invoke(errorMsg);
+                                Debug.LogError($"Error obteniendo sesión activa: {errorMsg}");
+                            }
                         }
-                        else
+                        catch (Exception e)
                         {
-                            string errorMsg = response?.message ?? "Error desconocido obteniendo sesión activa";
+                            string errorMsg = $"Error parseando respuesta de sesión activa: {e.Message}";
                             OnError?.Invoke(errorMsg);
-                            Debug.LogError($"Error obteniendo sesión activa: {errorMsg}");
+                            Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
                         }
                     }
-                    catch (Exception e)
+                    else
                     {
-                        string errorMsg = $"Error parseando respuesta de sesión activa: {e.Message}";
-                        OnError?.Invoke(errorMsg);
-                        Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
+                        OnError?.Invoke($"Error obteniendo sesión activa: {request.error}");
+                        Debug.LogError($"Error obteniendo sesión activa: {request.error}");
                     }
                 }
-                else
-                {
-                    OnError?.Invoke($"Error obteniendo sesión activa: {request.error}");
-                    Debug.LogError($"Error obteniendo sesión activa: {request.error}");
-                }
+            }
+            finally
+            {
+                // Resetear flag al finalizar
+                isGettingActiveSession = false;
+                DebugLogger.LogPhase("LaravelAPI", "GetActiveSessionCoroutine FINALIZADO");
             }
         }
 
@@ -293,61 +431,144 @@ namespace JuiciosSimulator.API
         /// </summary>
         public void GetSessionDialogue(int sessionId)
         {
+            DebugLogger.LogMethodEntry("LaravelAPI.GetSessionDialogue", isGettingSessionDialogue);
+
+            // Prevenir llamadas recursivas
+            if (isGettingSessionDialogue)
+            {
+                DebugLogger.LogWarning("LaravelAPI", $"GetSessionDialogue() ya está en progreso. Ignorando llamada duplicada para sesión {sessionId}.");
+                Debug.LogWarning($"[LaravelAPI] GetSessionDialogue() ya está en progreso. Ignorando llamada duplicada para sesión {sessionId}.");
+                return;
+            }
+
+            // Validar parámetros
+            if (sessionId <= 0)
+            {
+                DebugLogger.LogError("LaravelAPI", $"ID de sesión inválido: {sessionId}");
+                Debug.LogError($"[LaravelAPI] ID de sesión inválido: {sessionId}");
+                OnError?.Invoke("ID de sesión inválido");
+                return;
+            }
+
+            // Validar que haya token antes de hacer la petición
+            if (string.IsNullOrEmpty(authToken))
+            {
+                DebugLogger.LogError("LaravelAPI", "No hay token de autenticación. No se puede obtener el diálogo de sesión.");
+                Debug.LogError("[LaravelAPI] No hay token de autenticación. No se puede obtener el diálogo de sesión.");
+                OnError?.Invoke("No hay token de autenticación");
+                return;
+            }
+
+            // Validar que la URL base esté configurada
+            if (string.IsNullOrEmpty(baseURL))
+            {
+                DebugLogger.LogError("LaravelAPI", "baseURL no está configurada.");
+                Debug.LogError("[LaravelAPI] baseURL no está configurada.");
+                OnError?.Invoke("URL base no configurada");
+                return;
+            }
+
+            DebugLogger.LogPhase("LaravelAPI", "Iniciando GetSessionDialogue", new { sessionId });
             StartCoroutine(GetSessionDialogueCoroutine(sessionId));
         }
 
         private IEnumerator GetSessionDialogueCoroutine(int sessionId)
         {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/session/{sessionId}/dialogue"))
+            // Marcar como en progreso
+            isGettingSessionDialogue = true;
+            DebugLogger.LogPhase("LaravelAPI", "GetSessionDialogueCoroutine INICIADO", new { sessionId });
+
+            try
             {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
+                // Construir URL completa y validar
+                string url = $"{baseURL}/unity/auth/session/{sessionId}/dialogue";
+                
+                // Limpiar URL de posibles duplicados de /api
+                url = url.Replace("/api/api/", "/api/");
+                
+                DebugLogger.LogAPI("GET", url, "INITIATED", new { sessionId, baseURL, finalUrl = url });
+                Debug.Log($"[LaravelAPI] Obteniendo diálogo de sesión desde: {url}");
+                
+                using (UnityWebRequest request = UnityWebRequest.Get(url))
                 {
-                    try
+                    request.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    request.SetRequestHeader("X-Unity-Version", unityVersion);
+                    request.SetRequestHeader("X-Unity-Platform", unityPlatform);
+                    request.timeout = 30; // Timeout de 30 segundos
+
+                    DebugLogger.LogPhase("LaravelAPI", "Enviando petición GetSessionDialogue", new { url, sessionId });
+                    yield return request.SendWebRequest();
+                    
+                    DebugLogger.LogPhase("LaravelAPI", $"Respuesta recibida: {request.result}", new { 
+                        result = request.result.ToString(),
+                        responseCode = request.responseCode,
+                        error = request.error
+                    });
+
+                    if (request.result == UnityWebRequest.Result.Success)
                     {
-                        string responseText = request.downloadHandler.text;
-                        if (string.IsNullOrEmpty(responseText))
+                        try
                         {
-                            Debug.LogWarning("Respuesta vacía al obtener diálogo de sesión");
-                            yield break;
-                        }
-
-                        var response = JsonUtility.FromJson<APIResponse<DialogueData>>(responseText);
-
-                        if (response != null && response.success && response.data != null)
-                        {
-                            // Validar que dialogue no sea null antes de invocar el evento
-                            if (response.data.dialogue == null)
+                            string responseText = request.downloadHandler.text;
+                            if (string.IsNullOrEmpty(responseText))
                             {
-                                Debug.LogWarning("Diálogo de sesión recibido pero dialogue es null");
+                                DebugLogger.LogWarning("LaravelAPI", "Respuesta vacía al obtener diálogo de sesión");
+                                Debug.LogWarning("Respuesta vacía al obtener diálogo de sesión");
                                 yield break;
                             }
 
-                            OnDialogueDataReceived?.Invoke(response.data);
-                            Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre ?? "Sin nombre"}");
+                            var response = JsonUtility.FromJson<APIResponse<DialogueData>>(responseText);
+
+                            if (response != null && response.success && response.data != null)
+                            {
+                                // Validar que dialogue no sea null antes de invocar el evento
+                                if (response.data.dialogue == null)
+                                {
+                                    DebugLogger.LogWarning("LaravelAPI", "Diálogo de sesión recibido pero dialogue es null");
+                                    Debug.LogWarning("Diálogo de sesión recibido pero dialogue es null");
+                                    yield break;
+                                }
+
+                                // Guardar datos del diálogo
+                                currentDialogueData = response.data;
+                                
+                                DebugLogger.LogAPIResponse(url, true, $"Diálogo: {response.data.dialogue.nombre ?? "Sin nombre"}", new {
+                                    dialogueId = response.data.dialogue.id,
+                                    dialogueName = response.data.dialogue.nombre,
+                                    rolesCount = response.data.dialogue.roles?.Count ?? 0
+                                });
+                                
+                                DebugLogger.LogEventInvocation("OnDialogueDataReceived", OnDialogueDataReceived?.GetInvocationList()?.Length ?? 0, new {
+                                    dialogueId = response.data.dialogue.id
+                                });
+                                
+                                OnDialogueDataReceived?.Invoke(response.data);
+                                Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre ?? "Sin nombre"}");
+                            }
+                            else
+                            {
+                                string errorMsg = response?.message ?? "Error desconocido obteniendo diálogo";
+                                Debug.LogWarning($"Error obteniendo diálogo de sesión: {errorMsg}");
+                            }
                         }
-                        else
+                        catch (Exception e)
                         {
-                            string errorMsg = response?.message ?? "Error desconocido obteniendo diálogo";
-                            Debug.LogWarning($"Error obteniendo diálogo de sesión: {errorMsg}");
+                            Debug.LogError($"Error parseando respuesta de diálogo de sesión: {e.Message}");
+                            // No detener el flujo, solo loguear el error
                         }
                     }
-                    catch (Exception e)
+                    else
                     {
-                        Debug.LogError($"Error parseando respuesta de diálogo de sesión: {e.Message}");
-                        // No detener el flujo, solo loguear el error
+                        OnError?.Invoke($"Error obteniendo diálogo de sesión: {request.error}");
+                        Debug.LogError($"Error obteniendo diálogo de sesión: {request.error}");
                     }
                 }
-                else
-                {
-                    OnError?.Invoke($"Error obteniendo diálogo de sesión: {request.error}");
-                    Debug.LogError($"Error obteniendo diálogo de sesión: {request.error}");
-                }
+            }
+            finally
+            {
+                // Resetear flag al finalizar
+                isGettingSessionDialogue = false;
+                DebugLogger.LogPhase("LaravelAPI", "GetSessionDialogueCoroutine FINALIZADO", new { sessionId });
             }
         }
 

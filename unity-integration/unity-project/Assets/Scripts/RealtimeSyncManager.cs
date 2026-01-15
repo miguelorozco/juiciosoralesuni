@@ -47,6 +47,26 @@ namespace JuiciosSimulator.Realtime
 
         private void Start()
         {
+            // Retrasar inicialización para esperar a LaravelAPI
+            StartCoroutine(InitializeDelayed());
+        }
+
+        private System.Collections.IEnumerator InitializeDelayed()
+        {
+            // ESPERAR a que LaravelAPI esté completamente inicializado
+            float timeout = 5f;
+            float elapsed = 0f;
+            
+            while (!LaravelAPI.IsInitialized && elapsed < timeout)
+            {
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
+
+            // Esperar varios frames adicionales
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+
             InitializeReferences();
             SubscribeToEvents();
             StartCoroutine(SyncLoop());
@@ -143,7 +163,7 @@ namespace JuiciosSimulator.Realtime
             var session = sessionManager.GetCurrentSession();
             if (session == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/api/unity/sesion/{session.id}/dialogo-estado", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/unity/sesion/{session.id}/dialogo-estado", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {laravelAPI.authToken}");
                 request.SetRequestHeader("X-Unity-Version", Application.unityVersion);
@@ -199,7 +219,7 @@ namespace JuiciosSimulator.Realtime
             var session = sessionManager.GetCurrentSession();
             if (session == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/api/unity/sesion/{session.id}/participantes", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/unity/sesion/{session.id}/participantes", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {laravelAPI.authToken}");
                 request.SetRequestHeader("X-Unity-Version", Application.unityVersion);
@@ -262,7 +282,7 @@ namespace JuiciosSimulator.Realtime
             var session = sessionManager.GetCurrentSession();
             if (session == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/api/unity/sesion/{session.id}", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/unity/sesion/{session.id}", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {laravelAPI.authToken}");
                 request.SetRequestHeader("X-Unity-Version", Application.unityVersion);
@@ -329,7 +349,7 @@ namespace JuiciosSimulator.Realtime
             var session = sessionManager.GetCurrentSession();
             if (session == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/api/unity/sesion/{session.id}/heartbeat", "POST"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{laravelAPI.baseURL}/unity/sesion/{session.id}/heartbeat", "POST"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {laravelAPI.authToken}");
                 request.SetRequestHeader("Content-Type", "application/json");

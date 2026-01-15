@@ -30,13 +30,40 @@ namespace JuiciosSimulator.Scene
         public DialogueManager dialogueManager;
         public SessionInfoUI sessionInfoUI;
 
+        // Flag para prevenir múltiples inicializaciones
+        private bool isConfigured = false;
+        private static HashSet<int> configuredScenes = new HashSet<int>(); // Rastrear escenas ya configuradas
+        private int sceneInstanceId;
+
+        private void Awake()
+        {
+            // Obtener ID único de esta instancia de escena
+            sceneInstanceId = gameObject.GetInstanceID();
+        }
+
         private void Start()
         {
+            // Prevenir configuración múltiple incluso si hay múltiples instancias
+            if (isConfigured || configuredScenes.Contains(sceneInstanceId))
+            {
+                Debug.LogWarning($"[SceneDialogueConfigurator] Escena {sceneInstanceId} ya configurada. Ignorando Start().");
+                return;
+            }
+
             ConfigureScene();
         }
 
         private void ConfigureScene()
         {
+            // Prevenir múltiples ejecuciones
+            if (isConfigured || configuredScenes.Contains(sceneInstanceId))
+            {
+                Debug.LogWarning($"[SceneDialogueConfigurator] La escena {sceneInstanceId} ya ha sido configurada. Ignorando llamada duplicada.");
+                return;
+            }
+
+            isConfigured = true;
+            configuredScenes.Add(sceneInstanceId);
             Debug.Log("Configurando escena para sistema de diálogos...");
 
             // Configurar personajes

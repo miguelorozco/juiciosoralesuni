@@ -2155,8 +2155,6 @@ GameObject:
   - component: {fileID: 7860885705581069871}
   - component: {fileID: 1557906189047688123}
   - component: {fileID: 5789412050221148629}
-  - component: {fileID: 9999999999999999997}
-  - component: {fileID: 9999999999999999996}
   m_Layer: 8
   m_Name: Player
   m_TagString: Player
@@ -2480,8 +2478,8 @@ MonoBehaviour:
   codigosQueIgnorar:
   - {fileID: 2840157095201029707}
   - {fileID: 2272841437497272179}
-  - {fileID: 9999999999999999997}
-  - {fileID: 9999999999999999996}
+  - {fileID: 0}
+  - {fileID: 0}
 --- !u!114 &7860885705581069871
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3189,40 +3187,3 @@ Transform:
   - {fileID: 930655026958062787}
   m_Father: {fileID: 1090338875548962865}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &9999999999999999997
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7817522644383677342}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 588d916efbece4da184d8a24d317fea6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  playerRole: 
-  roleColor: {r: 1, g: 1, b: 1, a: 1}
-  roleLabel: {fileID: 0}
-  roleCanvas: {fileID: 0}
-  moveSpeed: 5
-  rotationSpeed: 100
-  avatarPrefab: {fileID: 0}
-  avatarSpawnPoint: {fileID: 0}
---- !u!114 &9999999999999999996
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7817522644383677342}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2caa70b7344d54b03bab7a07c8aefb9d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  playerController: {fileID: 9999999999999999997}
-  forwardKey: 119
-  backwardKey: 115
-  leftKey: 97
-  rightKey: 100

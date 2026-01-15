@@ -137,7 +137,7 @@ namespace JuiciosSimulator.Session
 
         private IEnumerator GetSessionInfo(string sessionCode)
         {
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/api/unity/sesiones/buscar-por-codigo/{sessionCode}", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/unity/sesiones/buscar-por-codigo/{sessionCode}", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {LaravelAPI.Instance.authToken}");
                 request.SetRequestHeader("X-Unity-Version", Application.unityVersion);
@@ -169,7 +169,7 @@ namespace JuiciosSimulator.Session
         {
             if (currentSession == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/api/unity/sesiones/{currentSession.id}/mi-rol", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/unity/sesiones/{currentSession.id}/mi-rol", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {LaravelAPI.Instance.authToken}");
                 request.SetRequestHeader("X-Unity-Version", Application.unityVersion);
@@ -261,7 +261,7 @@ namespace JuiciosSimulator.Session
         {
             if (currentRoleAssignment == null) yield break;
 
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/api/unity/sesiones/{currentSession.id}/confirmar-rol", "POST"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/unity/sesiones/{currentSession.id}/confirmar-rol", "POST"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {LaravelAPI.Instance.authToken}");
                 request.SetRequestHeader("Content-Type", "application/json");
@@ -303,7 +303,7 @@ namespace JuiciosSimulator.Session
 
         private IEnumerator RefreshAvailableSessions()
         {
-            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/api/unity/sesiones/disponibles", "GET"))
+            using (var request = new UnityEngine.Networking.UnityWebRequest($"{LaravelAPI.Instance.baseURL}/unity/sesiones/disponibles", "GET"))
             {
                 request.SetRequestHeader("Authorization", $"Bearer {LaravelAPI.Instance.authToken}");
 

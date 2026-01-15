@@ -70,6 +70,26 @@ namespace DialogueSystem.Storage
 
         private void Start()
         {
+            // Retrasar inicialización para esperar a LaravelAPI
+            StartCoroutine(InitializeDelayed());
+        }
+
+        private System.Collections.IEnumerator InitializeDelayed()
+        {
+            // ESPERAR a que LaravelAPI esté completamente inicializado
+            float timeout = 5f;
+            float elapsed = 0f;
+            
+            while (!LaravelAPI.IsInitialized && elapsed < timeout)
+            {
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
+
+            // Esperar varios frames adicionales
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+
             // Obtener referencia a LaravelAPI
             laravelAPI = LaravelAPI.Instance;
             if (laravelAPI == null)

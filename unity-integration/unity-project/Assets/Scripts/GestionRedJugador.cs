@@ -6,6 +6,7 @@ using ExitGames.Client.Photon;
 using JuiciosSimulator.API;
 using JuiciosSimulator;
 using JuiciosSimulator.Dialogue;
+using JuiciosSimulator.Utils;
 
 public class GestionRedJugador : MonoBehaviourPunCallbacks
 {
@@ -18,20 +19,58 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     private bool hasAssignedRole = false;
     private string assignedRole = "";
+    private bool isConnecting = false; // Flag para evitar múltiples conexiones
+    private bool hasConnected = false; // Flag para evitar reconexiones
+    private bool playerInstantiated = false; // Flag para evitar múltiples instanciaciones del Player
+
+    private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
 
     void Start()
     {
-        // Obtener referencias si no están asignadas
+        // Retrasar inicialización para evitar recursión durante la carga de Unity
+        StartCoroutine(InitializeDelayed());
+    }
+
+    private System.Collections.IEnumerator InitializeDelayed()
+    {
+        // ESPERAR a que LaravelAPI esté completamente inicializado
+        float timeout = 5f;
+        float elapsed = 0f;
+        
+        while (!LaravelAPI.IsInitialized && elapsed < timeout)
+        {
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+
+        // Esperar varios frames adicionales para que Unity termine de inicializar todos los scripts
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForEndOfFrame();
+        
+        // Obtener referencias si no están asignadas (usar Instance cuando sea posible)
         if (laravelAPI == null)
-            laravelAPI = FindObjectOfType<LaravelAPI>();
+            laravelAPI = LaravelAPI.Instance;
+        
+        // Esperar otro frame antes de buscar más objetos
+        yield return new WaitForEndOfFrame();
+        
         if (gameInitializer == null)
             gameInitializer = FindObjectOfType<GameInitializer>();
 
-        // Suscribirse a eventos de LaravelAPI para obtener el rol cuando esté disponible
-        LaravelAPI.OnActiveSessionReceived += OnActiveSessionReceived;
-        LaravelAPI.OnUserLoggedIn += OnUserLoggedIn;
+        // Suscribirse a eventos de LaravelAPI para obtener el rol cuando esté disponible (solo una vez)
+        if (!isSubscribedToEvents)
+        {
+            LaravelAPI.OnActiveSessionReceived += OnActiveSessionReceived;
+            LaravelAPI.OnUserLoggedIn += OnUserLoggedIn;
+            isSubscribedToEvents = true;
+        }
 
-        ConnectToPhoton();
+        // Solo conectar si no hay otra instancia conectándose
+        if (!isConnecting && !hasConnected && !PhotonNetwork.IsConnected)
+        {
+            ConnectToPhoton();
+        }
     }
 
     void OnDestroy()
@@ -46,6 +85,9 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         Debug.Log($"Usuario logueado en GestionRedJugador: {user.name}");
         // La sesión se obtendrá automáticamente después del login
     }
+
+    private int sessionReceivedCount = 0; // Contador para detectar múltiples llamadas
+    private int? lastProcessedSessionId = null; // ID de la última sesión procesada
 
     private void OnActiveSessionReceived(SessionData sessionData)
     {
@@ -62,6 +104,21 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
             return;
         }
 
+        // Prevenir procesamiento múltiple de la misma sesión
+        if (lastProcessedSessionId.HasValue && 
+            lastProcessedSessionId.Value == sessionData.session.id)
+        {
+            Debug.LogWarning($"[GestionRedJugador] Sesión {sessionData.session.id} ya procesada. Ignorando evento duplicado.");
+            return;
+        }
+
+        sessionReceivedCount++;
+        if (sessionReceivedCount > 1)
+        {
+            Debug.LogWarning($"[GestionRedJugador] OnActiveSessionReceived llamado {sessionReceivedCount} veces. Posible recursión.");
+        }
+
+        lastProcessedSessionId = sessionData.session.id;
         Debug.Log($"Sesión activa recibida en GestionRedJugador: {sessionData.session.nombre ?? "Sin nombre"}");
         
         // Actualizar el rol asignado
@@ -94,16 +151,29 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     void ConnectToPhoton()
     {
-        if (!PhotonNetwork.IsConnected)
+        // Prevenir múltiples conexiones simultáneas
+        if (isConnecting || hasConnected || PhotonNetwork.IsConnected)
         {
-            Debug.Log("Conectando a Photon...");
-            PhotonNetwork.ConnectUsingSettings();
+            Debug.LogWarning("[GestionRedJugador] Ya hay una conexión en progreso o activa. Ignorando llamada.");
+            return;
         }
+
+        isConnecting = true;
+        Debug.Log("[GestionRedJugador] Conectando a Photon...");
+        PhotonNetwork.ConnectUsingSettings();
     }
 
     public override void OnConnectedToMaster()
     {
-        Debug.Log("Conectado al Master Server. Entrando al lobby...");
+        if (hasConnected)
+        {
+            Debug.LogWarning("[GestionRedJugador] Ya conectado al Master Server. Ignorando callback duplicado.");
+            return;
+        }
+
+        isConnecting = false;
+        hasConnected = true;
+        Debug.Log("[GestionRedJugador] Conectado al Master Server. Entrando al lobby...");
         PhotonNetwork.JoinLobby();
     }
 
@@ -154,7 +224,20 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     public void JoinSessionRoom()
     {
-        Debug.Log($"Uniéndose a la sala de sesión: {sessionRoomName}");
+        // Prevenir múltiples intentos de unirse a la sala
+        if (PhotonNetwork.InRoom)
+        {
+            Debug.LogWarning($"[GestionRedJugador] Ya estamos en una sala: {PhotonNetwork.CurrentRoom.Name}. Ignorando llamada.");
+            return;
+        }
+
+        if (!PhotonNetwork.InLobby)
+        {
+            Debug.LogWarning("[GestionRedJugador] No estamos en el lobby. Esperando a unirse al lobby primero.");
+            return;
+        }
+
+        Debug.Log($"[GestionRedJugador] Uniéndose a la sala de sesión: {sessionRoomName}");
 
         // Intentar unirse a la sala existente primero
         PhotonNetwork.JoinRoom(sessionRoomName);
@@ -186,7 +269,40 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
-        Debug.Log("Unido a una sala. Configurando jugador con rol asignado...");
+        DebugLogger.LogEvent("GestionRedJugador.OnJoinedRoom", $"Sala: {PhotonNetwork.CurrentRoom?.Name ?? "N/A"}", new {
+            roomName = PhotonNetwork.CurrentRoom?.Name,
+            playerCount = PhotonNetwork.CurrentRoom?.PlayerCount ?? 0,
+            playerInstantiated,
+            assignedRole
+        });
+
+        // Protección contra recursión
+        if (!RecursionProtection.CanInitialize("GestionRedJugador.OnJoinedRoom"))
+        {
+            DebugLogger.LogError("GestionRedJugador", "⚠️ Recursión detectada en OnJoinedRoom(). Abortando.");
+            Debug.LogError("[GestionRedJugador] ⚠️ Recursión detectada en OnJoinedRoom(). Abortando.");
+            return;
+        }
+
+        RecursionProtection.BeginInitialization("GestionRedJugador.OnJoinedRoom");
+
+        try
+        {
+            // Prevenir múltiples llamadas
+            if (PhotonNetwork.CurrentRoom == null)
+            {
+                Debug.LogWarning("[GestionRedJugador] OnJoinedRoom llamado pero CurrentRoom es null. Ignorando.");
+                return;
+            }
+
+            // Prevenir múltiples instanciaciones del Player
+            if (playerInstantiated)
+            {
+                Debug.LogWarning("[GestionRedJugador] ⚠️ Player ya fue instanciado. Ignorando OnJoinedRoom() duplicado.");
+                return;
+            }
+
+            Debug.Log($"[GestionRedJugador] Unido a una sala: {PhotonNetwork.CurrentRoom.Name}. Configurando jugador con rol asignado...");
 
         // Asegurar que tenemos un rol asignado
         if (string.IsNullOrEmpty(assignedRole))
@@ -235,19 +351,32 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         Vector3 spawnPosition = GetSpawnPositionForRole(assignedRole);
         Quaternion spawnRotation = Quaternion.Euler(0, 180, 0);
 
-        // Instanciar el prefab del jugador
-        Debug.Log($"[GestionRedJugador] Instanciando prefab 'Player' en posición: {spawnPosition}");
-        GameObject playerPrefab = PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
-
-        // IMPORTANTE: Esperar un frame para que PhotonView se configure correctamente
-        // PhotonNetwork.Instantiate puede no tener IsMine configurado inmediatamente
-        if (playerPrefab != null)
+        // Instanciar el prefab del jugador (solo una vez)
+        if (!playerInstantiated)
         {
-            StartCoroutine(ConfigurePlayerAfterInstantiate(playerPrefab, assignedRole));
+            DebugLogger.LogPhase("GestionRedJugador", "Instanciando Player prefab", new { 
+                position = spawnPosition, 
+                role = assignedRole,
+                roomName = PhotonNetwork.CurrentRoom?.Name
+            });
+            Debug.Log($"[GestionRedJugador] Instanciando prefab 'Player' en posición: {spawnPosition}");
+            GameObject playerPrefab = PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
+
+            // IMPORTANTE: Esperar un frame para que PhotonView se configure correctamente
+            // PhotonNetwork.Instantiate puede no tener IsMine configurado inmediatamente
+            if (playerPrefab != null)
+            {
+                playerInstantiated = true; // Marcar como instanciado ANTES de configurar
+                StartCoroutine(ConfigurePlayerAfterInstantiate(playerPrefab, assignedRole));
+            }
+            else
+            {
+                Debug.LogError($"[GestionRedJugador] ❌ No se pudo instanciar el prefab 'Player'!");
+            }
         }
         else
         {
-            Debug.LogError($"[GestionRedJugador] ❌ No se pudo instanciar el prefab 'Player'!");
+            Debug.LogWarning("[GestionRedJugador] ⚠️ Player ya fue instanciado. Ignorando instanciación duplicada.");
         }
 
         // Inicializar el sistema de audio
@@ -255,6 +384,11 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
         // Notificar al sistema de diálogos que un jugador se unió
         NotifyPlayerJoined(assignedRole);
+        }
+        finally
+        {
+            RecursionProtection.EndInitialization("GestionRedJugador.OnJoinedRoom");
+        }
     }
 
     /// <summary>

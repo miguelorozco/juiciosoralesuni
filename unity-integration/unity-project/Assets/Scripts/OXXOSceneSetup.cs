@@ -33,6 +33,9 @@ namespace JuiciosSimulator.Scene
         public SceneDialogueConfigurator sceneConfigurator;
         public DialogueManager dialogueManager;
 
+        // Flag para prevenir múltiples inicializaciones
+        private bool isSetup = false;
+
         // IDs de roles del diálogo OXXO
         private readonly Dictionary<string, int> roleIds = new Dictionary<string, int>
         {
@@ -55,11 +58,23 @@ namespace JuiciosSimulator.Scene
 
         private void Start()
         {
-            SetupOXXOScene();
+            // Solo ejecutar si no se ha configurado ya
+            if (!isSetup)
+            {
+                SetupOXXOScene();
+            }
         }
 
         public void SetupOXXOScene()
         {
+            // Prevenir múltiples ejecuciones
+            if (isSetup)
+            {
+                Debug.LogWarning("[OXXOSceneSetup] La escena ya ha sido configurada. Ignorando llamada duplicada.");
+                return;
+            }
+
+            isSetup = true;
             Debug.Log("Configurando escena del caso OXXO...");
 
             // Crear personajes

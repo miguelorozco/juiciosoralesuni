@@ -85,6 +85,26 @@ namespace JuiciosSimulator.Dialogue
 
         private void Start()
         {
+            // Retrasar inicialización para esperar a LaravelAPI
+            StartCoroutine(InitializeDelayed());
+        }
+
+        private System.Collections.IEnumerator InitializeDelayed()
+        {
+            // ESPERAR a que LaravelAPI esté completamente inicializado
+            float timeout = 5f;
+            float elapsed = 0f;
+            
+            while (!LaravelAPI.IsInitialized && elapsed < timeout)
+            {
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
+
+            // Esperar varios frames adicionales
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+
             InitializeDialogueSystem();
         }
 
@@ -116,8 +136,19 @@ namespace JuiciosSimulator.Dialogue
             Debug.Log("Sistema de diálogos inicializado");
         }
 
+        private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
+
         private void SubscribeToEvents()
         {
+            // Prevenir múltiples suscripciones
+            if (isSubscribedToEvents)
+            {
+                Debug.LogWarning("[DialogueManager] Ya está suscrito a eventos. Ignorando suscripción duplicada.");
+                return;
+            }
+
+            isSubscribedToEvents = true;
+
             if (laravelAPI != null)
             {
                 LaravelAPI.OnDialogueDataReceived += OnDialogueDataReceived;
@@ -146,12 +177,34 @@ namespace JuiciosSimulator.Dialogue
 
         #region Configuración de Diálogo
 
+        private bool isSettingUpDialogue = false; // Flag para prevenir recursión en SetupDialogueSystem
+
         /// <summary>
         /// Configurar el sistema con los datos del diálogo
         /// </summary>
         public void SetupDialogueSystem(DialogueData dialogueData)
         {
-            currentDialogueData = dialogueData;
+            // Prevenir recursión
+            if (isSettingUpDialogue)
+            {
+                Debug.LogWarning("[DialogueManager] SetupDialogueSystem ya está en progreso. Ignorando llamada duplicada.");
+                return;
+            }
+
+            // Prevenir configuración del mismo diálogo múltiples veces
+            if (currentDialogueData != null && dialogueData != null && 
+                currentDialogueData.dialogue != null && dialogueData.dialogue != null &&
+                currentDialogueData.dialogue.id == dialogueData.dialogue.id)
+            {
+                Debug.LogWarning($"[DialogueManager] Diálogo {dialogueData.dialogue.id} ya está configurado. Ignorando llamada duplicada.");
+                return;
+            }
+
+            isSettingUpDialogue = true;
+
+            try
+            {
+                currentDialogueData = dialogueData;
 
             // Encontrar el flujo del rol del usuario
             var userRole = dialogueData.user_role;
@@ -169,6 +222,11 @@ namespace JuiciosSimulator.Dialogue
             else
             {
                 Debug.LogError($"No se encontró el flujo para el rol: {userRole.nombre}");
+            }
+            }
+            finally
+            {
+                isSettingUpDialogue = false;
             }
         }
 
@@ -515,8 +573,21 @@ namespace JuiciosSimulator.Dialogue
 
         #region Event Handlers
 
+        private bool hasReceivedDialogue = false; // Flag para prevenir procesamiento múltiple
+
         private void OnDialogueDataReceived(DialogueData dialogueData)
         {
+            // Prevenir procesamiento múltiple del mismo evento
+            if (hasReceivedDialogue && currentDialogueData != null && 
+                currentDialogueData.dialogue != null && dialogueData != null && 
+                dialogueData.dialogue != null && 
+                currentDialogueData.dialogue.id == dialogueData.dialogue.id)
+            {
+                Debug.LogWarning("[DialogueManager] Diálogo ya recibido y procesado. Ignorando evento duplicado.");
+                return;
+            }
+
+            hasReceivedDialogue = true;
             SetupDialogueSystem(dialogueData);
         }
 

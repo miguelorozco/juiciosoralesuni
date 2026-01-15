@@ -23,6 +23,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     private bool isLocalPlayer = false;
     private GameObject currentAvatar;
+    private bool isInitialized = false; // Flag para prevenir múltiples inicializaciones
 
     void Awake()
     {
@@ -36,11 +37,21 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     void Start()
     {
+        // Prevenir múltiples inicializaciones
+        if (isInitialized)
+        {
+            Debug.LogWarning($"[PlayerController] ⚠️ Start() ya fue ejecutado. Ignorando llamada duplicada en {gameObject.name}");
+            return;
+        }
+
         Debug.Log($"[PlayerController] 🚀 Start() ejecutado en GameObject: {gameObject.name}");
 
         // Configurar como jugador local
-        isLocalPlayer = photonView.IsMine;
+        isLocalPlayer = photonView != null && photonView.IsMine;
         Debug.Log($"[PlayerController] photonView.IsMine: {isLocalPlayer} | GameObject: {gameObject.name}");
+
+        // Marcar como inicializado ANTES de configurar para evitar recursión
+        isInitialized = true;
 
         // Configurar cámara para jugador local
         if (isLocalPlayer)
@@ -60,9 +71,16 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     void SetupLocalPlayer()
     {
+        // Prevenir múltiples ejecuciones
+        if (!isLocalPlayer)
+        {
+            Debug.LogWarning($"[PlayerController] ⚠️ SetupLocalPlayer() llamado pero no es jugador local");
+            return;
+        }
 
         // Deshabilitar todos los AudioListeners excepto el del jugador local
-        DisableAllAudioListenersExceptLocal();
+        // Usar coroutine para evitar ejecutarse en el mismo frame que Start()
+        StartCoroutine(DisableAudioListenersCoroutine());
 
         // Configurar cámara para seguir al jugador local
         // Nota: El target se asignará después de crear el avatar en CreateAvatar()
@@ -92,6 +110,18 @@ public class PlayerController : MonoBehaviourPunCallbacks
         }
         inputHandler.playerController = this;
         Debug.Log($"[PlayerController] playerController asignado al inputHandler: {inputHandler != null}");
+    }
+
+    /// <summary>
+    /// Coroutine para deshabilitar AudioListeners después de un frame
+    /// Evita problemas de recursión si se ejecuta en el mismo frame que Start()
+    /// </summary>
+    private System.Collections.IEnumerator DisableAudioListenersCoroutine()
+    {
+        // Esperar un frame para que todos los Start() se ejecuten
+        yield return null;
+        
+        DisableAllAudioListenersExceptLocal();
     }
 
     /// <summary>

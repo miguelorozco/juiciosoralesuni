@@ -30,13 +30,44 @@ namespace JuiciosSimulator.Integration
         public static event System.Action<bool> OnIntegrationReady;
         public static event System.Action<string> OnIntegrationError;
 
+        private bool isInitializing = false; // Flag para evitar múltiples inicializaciones
+
         private void Start()
         {
+            // Retrasar inicialización para evitar recursión durante la carga de Unity
+            StartCoroutine(StartDelayed());
+        }
+
+        private System.Collections.IEnumerator StartDelayed()
+        {
+            // ESPERAR a que LaravelAPI esté completamente inicializado
+            float timeout = 5f;
+            float elapsed = 0f;
+            
+            while (!LaravelAPI.IsInitialized && elapsed < timeout)
+            {
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
+
+            // Esperar varios frames adicionales para que Unity termine de inicializar todos los scripts
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+            
+            // Prevenir múltiples inicializaciones
+            if (isInitializing || PhotonNetwork.IsConnected)
+            {
+                Debug.LogWarning("[UnityLaravelIntegration] Ya hay una inicialización en progreso o Photon ya está conectado. Ignorando Start().");
+                yield break;
+            }
+
             // Suscribirse a eventos de Laravel
             LaravelAPI.OnUserLoggedIn += OnLaravelUserLoggedIn;
             LaravelAPI.OnError += OnLaravelError;
 
             // Inicializar integración
+            isInitializing = true;
             StartCoroutine(InitializeIntegration());
         }
 
@@ -71,14 +102,26 @@ namespace JuiciosSimulator.Integration
 
         private IEnumerator ConnectToPhoton()
         {
-            if (!PhotonNetwork.IsConnected)
+            // Prevenir múltiples conexiones
+            if (PhotonNetwork.IsConnected || isPhotonConnected)
             {
-                PhotonNetwork.ConnectUsingSettings();
-                yield return new WaitUntil(() => PhotonNetwork.IsConnected);
+                Debug.LogWarning("[UnityLaravelIntegration] Photon ya está conectado. Ignorando ConnectToPhoton().");
+                isPhotonConnected = true;
+                yield break;
             }
 
-            isPhotonConnected = true;
-            Debug.Log("Conectado a Photon");
+            PhotonNetwork.ConnectUsingSettings();
+            yield return new WaitUntil(() => PhotonNetwork.IsConnected || !PhotonNetwork.IsConnectedAndReady);
+
+            if (PhotonNetwork.IsConnected)
+            {
+                isPhotonConnected = true;
+                Debug.Log("[UnityLaravelIntegration] Conectado a Photon");
+            }
+            else
+            {
+                Debug.LogError("[UnityLaravelIntegration] No se pudo conectar a Photon");
+            }
         }
 
         private IEnumerator SetupRoom()
@@ -114,7 +157,14 @@ namespace JuiciosSimulator.Integration
 
         public override void OnJoinedRoom()
         {
-            Debug.Log($"Unido a sala: {PhotonNetwork.CurrentRoom.Name}");
+            // Prevenir múltiples llamadas
+            if (PhotonNetwork.CurrentRoom == null)
+            {
+                Debug.LogWarning("[UnityLaravelIntegration] OnJoinedRoom llamado pero CurrentRoom es null. Ignorando.");
+                return;
+            }
+
+            Debug.Log($"[UnityLaravelIntegration] Unido a sala: {PhotonNetwork.CurrentRoom.Name}");
 
             // Notificar a Laravel que estamos en la sala
             if (laravelAPI != null)

@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Auto Login</title>
+</head>
+<body>
+  <p>Iniciando sesión automáticamente...</p>
+  <pre id="log"></pre>
+  <script>
+    const log = (t)=>{ document.getElementById('log').textContent += t + '\n'; };
+
+    async function run() {
+      try {
+        log('Fetching /login to get CSRF token...');
+        const r = await fetch('/login', { credentials: 'same-origin' });
+        const text = await r.text();
+        const m = text.match(/name="_token"\s+value="([^"]+)"/);
+        if (!m) { log('CSRF token not found'); return; }
+        const token = m[1];
+        log('CSRF token: ' + token);
+
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/login';
+
+        const tInput = document.createElement('input');
+        tInput.type = 'hidden'; tInput.name = '_token'; tInput.value = token; form.appendChild(tInput);
+        const eInput = document.createElement('input');
+        eInput.type = 'hidden'; eInput.name = 'email'; eInput.value = 'miguel.orozco@me.com'; form.appendChild(eInput);
+        const pInput = document.createElement('input');
+        pInput.type = 'hidden'; pInput.name = 'password'; pInput.value = 'm1gu314ng31'; form.appendChild(pInput);
+
+        document.body.appendChild(form);
+        log('Submitting login form...');
+        form.submit();
+      } catch (e) {
+        log('Error: ' + e.message);
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

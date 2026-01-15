@@ -1,9 +1,11 @@
 using UnityEngine;
+using System.Collections;
 using JuiciosSimulator.Config;
 using JuiciosSimulator.API;
 using JuiciosSimulator.Integration;
 using JuiciosSimulator.UI;
 using JuiciosSimulator.Dialogue;
+using JuiciosSimulator.Utils;
 
 namespace JuiciosSimulator
 {
@@ -48,16 +50,34 @@ namespace JuiciosSimulator
 
         private void Start()
         {
-            // Inicializar juego
+            // Retrasar inicialización para evitar recursión durante la carga de Unity
+            StartCoroutine(InitializeGameDelayed());
+        }
+
+        private System.Collections.IEnumerator InitializeGameDelayed()
+        {
+            // Esperar varios frames para que Unity termine de inicializar todos los scripts
+            yield return null; // Frame 1
+            yield return null; // Frame 2
+            yield return null; // Frame 3
+            
             InitializeGame();
         }
 
         private void InitializeGame()
         {
+            // ESPERAR a que LaravelAPI esté completamente inicializado
+            if (!LaravelAPI.IsInitialized)
+            {
+                Debug.LogWarning("[GameInitializer] LaravelAPI aún no está inicializado. Reintentando en el siguiente frame...");
+                StartCoroutine(WaitForLaravelAPIAndInitialize());
+                return;
+            }
+
             Debug.Log("Inicializando Simulador de Juicios Orales...");
 
-            // Configurar componentes
-            SetupComponents();
+            // Configurar componentes (con delay para evitar recursión)
+            StartCoroutine(SetupComponentsDelayed());
 
             // Suscribirse a eventos
             SubscribeToEvents();
@@ -66,12 +86,40 @@ namespace JuiciosSimulator
             StartConnectionProcess();
         }
 
-        private void SetupComponents()
+        private IEnumerator WaitForLaravelAPIAndInitialize()
         {
-            // Configurar LaravelAPI
+            // Esperar hasta que LaravelAPI esté inicializado (máximo 5 segundos)
+            float timeout = 5f;
+            float elapsed = 0f;
+            
+            while (!LaravelAPI.IsInitialized && elapsed < timeout)
+            {
+                yield return null;
+                elapsed += Time.deltaTime;
+            }
+
+            if (!LaravelAPI.IsInitialized)
+            {
+                Debug.LogError("[GameInitializer] Timeout esperando LaravelAPI. Inicializando de todas formas...");
+            }
+
+            // Ahora inicializar
+            StartCoroutine(SetupComponentsDelayed());
+            SubscribeToEvents();
+            StartConnectionProcess();
+        }
+
+        private IEnumerator SetupComponentsDelayed()
+        {
+            // Esperar varios frames adicionales antes de buscar objetos
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+
+            // Configurar LaravelAPI (usar Instance en lugar de FindObjectOfType)
             if (laravelAPI == null)
             {
-                laravelAPI = FindObjectOfType<LaravelAPI>();
+                laravelAPI = LaravelAPI.Instance;
             }
 
             if (laravelAPI != null && config != null)
@@ -80,6 +128,9 @@ namespace JuiciosSimulator
                 laravelAPI.unityVersion = config.unityVersion;
                 laravelAPI.unityPlatform = config.unityPlatform;
             }
+
+            // Esperar otro frame antes de buscar más objetos
+            yield return new WaitForEndOfFrame();
 
             // Configurar DialogoUI
             if (dialogoUI == null)
@@ -116,8 +167,19 @@ namespace JuiciosSimulator
             }
         }
 
+        private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
+
         private void SubscribeToEvents()
         {
+            // Prevenir múltiples suscripciones
+            if (isSubscribedToEvents)
+            {
+                Debug.LogWarning("[GameInitializer] Ya está suscrito a eventos. Ignorando suscripción duplicada.");
+                return;
+            }
+
+            isSubscribedToEvents = true;
+
             // Eventos de integración
             if (integration != null)
             {
@@ -182,13 +244,26 @@ namespace JuiciosSimulator
             Debug.LogError($"❌ Error en integración: {error}");
         }
 
+        private bool hasRequestedSession = false; // Flag para prevenir múltiples solicitudes
+
         private void OnUserLoggedIn(UserData user)
         {
+            DebugLogger.LogEvent("OnUserLoggedIn", $"Usuario: {user.name} (ID: {user.id})", new { userId = user.id, userName = user.name });
             Debug.Log($"✅ Usuario logueado: {user.name} (ID: {user.id})");
 
-            // Obtener sesión activa del usuario
-            if (laravelAPI != null)
+            // Prevenir múltiples solicitudes de sesión
+            if (hasRequestedSession)
             {
+                DebugLogger.LogWarning("GameInitializer", "Ya se solicitó la sesión activa. Ignorando llamada duplicada.");
+                Debug.LogWarning("[GameInitializer] Ya se solicitó la sesión activa. Ignorando llamada duplicada.");
+                return;
+            }
+
+            // Obtener sesión activa del usuario (solo una vez)
+            if (laravelAPI != null && !hasRequestedSession)
+            {
+                hasRequestedSession = true;
+                DebugLogger.LogPhase("GameInitializer", "Solicitando sesión activa", new { userId = user.id });
                 Debug.Log("Obteniendo sesión activa del usuario...");
                 laravelAPI.GetActiveSession();
             }
@@ -199,8 +274,27 @@ namespace JuiciosSimulator
             Debug.LogError($"❌ Error de Laravel: {error}");
         }
 
+        private bool hasReceivedSession = false; // Flag para prevenir procesamiento múltiple
+
         private void OnActiveSessionReceived(SessionData sessionData)
         {
+            DebugLogger.LogEvent("OnActiveSessionReceived", $"Sesión: {sessionData?.session?.nombre ?? "N/A"} (ID: {sessionData?.session?.id ?? 0})", new {
+                sessionId = sessionData?.session?.id,
+                sessionName = sessionData?.session?.nombre,
+                roleName = sessionData?.role?.nombre
+            });
+
+            // Prevenir procesamiento múltiple del mismo evento
+            if (hasReceivedSession && currentSessionData != null && 
+                currentSessionData.session != null && sessionData != null && 
+                sessionData.session != null && 
+                currentSessionData.session.id == sessionData.session.id)
+            {
+                DebugLogger.LogWarning("GameInitializer", $"Sesión {sessionData.session.id} ya recibida y procesada. Ignorando evento duplicado.");
+                Debug.LogWarning("[GameInitializer] Sesión ya recibida y procesada. Ignorando evento duplicado.");
+                return;
+            }
+
             // Validaciones null críticas para evitar memory access out of bounds
             if (sessionData == null)
             {
@@ -214,6 +308,7 @@ namespace JuiciosSimulator
                 return;
             }
 
+            hasReceivedSession = true;
             currentSessionData = sessionData;
             sesionId = sessionData.session.id;
 
@@ -235,8 +330,27 @@ namespace JuiciosSimulator
             UpdateComponentsWithSession();
         }
 
+        private bool hasReceivedDialogue = false; // Flag para prevenir procesamiento múltiple
+
         private void OnDialogueDataReceived(DialogueData dialogueData)
         {
+            DebugLogger.LogEvent("OnDialogueDataReceived", $"Diálogo: {dialogueData?.dialogue?.nombre ?? "N/A"} (ID: {dialogueData?.dialogue?.id ?? 0})", new {
+                dialogueId = dialogueData?.dialogue?.id,
+                dialogueName = dialogueData?.dialogue?.nombre,
+                rolesCount = dialogueData?.dialogue?.roles?.Count ?? 0
+            });
+
+            // Prevenir procesamiento múltiple del mismo evento
+            if (hasReceivedDialogue && currentDialogueData != null && 
+                currentDialogueData.dialogue != null && dialogueData != null && 
+                dialogueData.dialogue != null && 
+                currentDialogueData.dialogue.id == dialogueData.dialogue.id)
+            {
+                DebugLogger.LogWarning("GameInitializer", $"Diálogo {dialogueData.dialogue.id} ya recibido y procesado. Ignorando evento duplicado.");
+                Debug.LogWarning("[GameInitializer] Diálogo ya recibido y procesado. Ignorando evento duplicado.");
+                return;
+            }
+
             // Validaciones null críticas para evitar memory access out of bounds
             if (dialogueData == null)
             {
@@ -250,6 +364,7 @@ namespace JuiciosSimulator
                 return;
             }
 
+            hasReceivedDialogue = true;
             currentDialogueData = dialogueData;
 
             Debug.Log($"✅ Diálogo cargado: {dialogueData.dialogue.nombre ?? "Sin nombre"}");

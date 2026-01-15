@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Unity MCP Web Tester</title>
+  <style>body{font-family:system-ui,Segoe UI,Roboto,Arial;padding:16px}button{margin:6px}</style>
+</head>
+<body>
+  <h2>Unity MCP Web Tester</h2>
+  <div id="status">Connecting...</div>
+  <button id="sendPing" disabled>Send ping</button>
+  <button id="sendInitialize" disabled>Send initialize</button>
+  <pre id="log" style="height:60vh;overflow:auto;border:1px solid #ccc;padding:8px"></pre>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const sendPing = document.getElementById('sendPing');
+    const sendInit = document.getElementById('sendInitialize');
+
+    function log(...args) { logEl.textContent += args.map(a=>typeof a==='object'?JSON.stringify(a,null,2):a).join(' ') + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
+    const ws = new WebSocket('ws://' + location.host);
+    ws.onopen = () => { statusEl.textContent = 'WS connected'; sendPing.disabled=false; sendInit.disabled=false; log('WS open'); };
+    ws.onmessage = (ev) => { try { const j = JSON.parse(ev.data); log('<<', j); } catch(e){ log('<<', ev.data); } };
+    ws.onclose = ()=>{ statusEl.textContent='WS closed'; log('WS closed'); sendPing.disabled=true; sendInit.disabled=true; };
+    ws.onerror = (e)=> log('ws error', e);
+
+    sendPing.addEventListener('click', ()=>{
+      const msg = { id: `web-${Date.now()}`, type: 'ping' };
+      log('>>', msg);
+      ws.send(JSON.stringify(msg));
+    });
+
+    sendInit.addEventListener('click', ()=>{
+      const msg = { id: `web-${Date.now()}`, method: 'initialize', params: {} };
+      log('>>', msg);
+      ws.send(JSON.stringify(msg));
+    });
+  </script>
+</body>
+</html>

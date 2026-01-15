@@ -31,6 +31,7 @@ unity-integration/unity-project/UserSettings/
 unity-integration/unity-project/obj/
 unity-integration/unity-project/Build/
 unity-integration/unity-project/Builds/
+temp-unity-build/
 unity-integration/unity-project/*.tmp
 unity-integration/unity-project/*.user
 unity-integration/unity-project/*.pidb
@@ -49,3 +50,7 @@ unity-integration/unity-project/*.mdb
 
 # WARP documentation
 WARP.md
+
+# Ignore Unity WebGL build artifacts stored for local testing
+/storage/unity-build/
+
