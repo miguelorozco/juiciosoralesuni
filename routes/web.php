@@ -150,25 +150,115 @@ Route::get('/unity-build/{path}', function ($path) {
     \Log::info('Unity asset requested: ' . $path);
     
     // Los archivos están en storage (fuera de public para evitar servido directo)
-    $filePath = storage_path('unity-build/' . $path);
-    
+    // Soportar un modo temporal para servir los archivos sin compresión (.br)
+    // añadiendo ?raw=1 o ?no_compression=1 a la URL.
+    $serveRaw = request()->query('raw') == '1' || request()->query('no_compression') == '1';
+    $candidatePath = storage_path('unity-build/' . $path);
+
+    if ($serveRaw && preg_match('/\.br$/', $path)) {
+        $unbr = preg_replace('/\.br$/', '', $path);
+        $candidateUnbr = storage_path('unity-build/' . $unbr);
+        if (file_exists($candidateUnbr)) {
+            \Log::info('Unity asset raw requested, serving uncompressed: ' . $unbr);
+            $candidatePath = $candidateUnbr;
+            // update $path so later content-type detection picks correct extension
+            $path = $unbr;
+        } else {
+            \Log::info('Unity asset raw requested but uncompressed file not found: ' . $unbr);
+        }
+    }
+
+    // If the request targets a .br file but the .br does not exist and an uncompressed
+    // variant DOES exist, redirect the client to the uncompressed URL. We redirect
+    // instead of serving the uncompressed bytes with the .br URL to avoid mismatched
+    // Content-Encoding headers (the browser/loader expects a Brotli response for .br URLs).
+    if (preg_match('/\.br$/', $path)) {
+        $unbrFallback = preg_replace('/\.br$/', '', $path);
+        $candidateUnbrFallback = storage_path('unity-build/' . $unbrFallback);
+        if (file_exists($candidateUnbrFallback)) {
+            \Log::info('Requested .br but uncompressed exists, redirecting to uncompressed: ' . $unbrFallback);
+            $query = request()->getQueryString();
+            $target = url('unity-build/' . $unbrFallback) . ($query ? ('?' . $query) : '');
+            return redirect()->to($target);
+        }
+    }
+
+    $filePath = $candidatePath;
+
     // Verificar seguridad - asegurar que el path está dentro de unity-build
     $realPath = realpath($filePath);
     $basePathStorage = realpath(storage_path('unity-build'));
-    
+
     $isValid = false;
     if ($realPath && $basePathStorage && strpos($realPath, $basePathStorage) === 0) {
         $isValid = true;
     }
-    
+
+    // Si el archivo solicitado no existe, intentar servir la variante comprimida (.br)
+    if (!$isValid || !file_exists($realPath)) {
+        // Solo intentar fallback si la ruta solicitada no termina en .br
+        if (!preg_match('/\.br$/', $path)) {
+            $brCandidate = storage_path('unity-build/' . $path . '.br');
+            $brReal = realpath($brCandidate);
+            if ($brReal && $basePathStorage && strpos($brReal, $basePathStorage) === 0 && file_exists($brReal)) {
+                \Log::info('Fallback: serving compressed .br for requested: ' . $path);
+                $realPath = $brReal;
+                $path = $path . '.br';
+                $isValid = true;
+            }
+        }
+    }
+
     if (!$isValid || !file_exists($realPath)) {
         \Log::error('Unity asset not found: ' . $path . ' (realPath: ' . ($realPath ?: 'null') . ')');
         abort(404, 'File not found: ' . $path);
     }
-    
+
     \Log::info('Serving Unity asset: ' . $realPath);
     
+    // Allow a diagnostics mode to return metadata instead of the file
+    if (request()->query('diag') == '1') {
+        $meta = [
+            'requested' => $path,
+            'realPath' => $realPath,
+            'size' => filesize($realPath),
+            'exists' => file_exists($realPath),
+            'contentEncoding' => null,
+            'contentType' => null,
+        ];
+        if (preg_match('/\.(js|data|wasm)\.br$/', $path)) {
+            $meta['contentEncoding'] = 'br';
+            if (str_ends_with($path, '.js.br')) $meta['contentType'] = 'application/javascript';
+            elseif (str_ends_with($path, '.wasm.br')) $meta['contentType'] = 'application/wasm';
+            elseif (str_ends_with($path, '.data.br')) $meta['contentType'] = 'application/octet-stream';
+        } else {
+            $ext = pathinfo($path, PATHINFO_EXTENSION);
+            $mimeTypes = [
+                'js' => 'application/javascript',
+                'wasm' => 'application/wasm',
+                'json' => 'application/json',
+                'css' => 'text/css',
+                'ico' => 'image/x-icon',
+                'png' => 'image/png',
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+            ];
+            $meta['contentType'] = $mimeTypes[$ext] ?? 'application/octet-stream';
+        }
+        return response()->json($meta);
+    }
+
     $response = response()->file($realPath);
+
+    // Explicitly set Content-Length (response()->file usually handles it, but make explicit)
+    try {
+        $filesize = filesize($realPath);
+        if ($filesize !== false) {
+            $response->headers->set('Content-Length', (string) $filesize);
+        }
+    } catch (\Exception $e) {
+        \Log::warning('Could not set Content-Length for Unity asset: ' . ($realPath ?: 'null'));
+    }
     
     // Detectar archivos comprimidos con Brotli (.br)
     if (preg_match('/\.(js|data|wasm)\.br$/', $path)) {
@@ -193,6 +283,11 @@ Route::get('/unity-build/{path}', function ($path) {
             'js' => 'application/javascript',
             'wasm' => 'application/wasm',
             'json' => 'application/json',
+            'css' => 'text/css',
+            'ico' => 'image/x-icon',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
         ];
         if (isset($mimeTypes[$extension])) {
             $response->headers->set('Content-Type', $mimeTypes[$extension]);
@@ -203,6 +298,8 @@ Route::get('/unity-build/{path}', function ($path) {
     $response->headers->set('Access-Control-Allow-Origin', '*');
     $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Unity-Version, X-Unity-Platform');
+    // Expose Content-Length so diagnostics can read it from client-side if needed
+    $response->headers->set('Access-Control-Expose-Headers', 'Content-Length, Content-Encoding');
     
     \Log::info('Unity asset served with headers: Content-Encoding=' . ($response->headers->get('Content-Encoding') ?: 'none') . ', Content-Type=' . $response->headers->get('Content-Type'));
     
@@ -213,24 +310,10 @@ Route::get('/unity-build/{path}', function ($path) {
 Route::middleware(['web.auth'])->group(function () {
     Route::post('/api/unity-entry/generate', [App\Http\Controllers\UnityEntryController::class, 'generateUnityEntryLink'])->name('unity.generate-link');
     
-    // Ruta para el juego Unity - Servir index.html directamente desde storage/unity-build
-    // Este archivo incluye todo el código de PeerJS y configuración de audio
-    // El index.html detecta automáticamente si está en /unity-game y ajusta las rutas
+    // Ruta para el juego Unity - servir la vista Blade integrada
+    // La vista `resources/views/unity/game.blade.php` carga los assets
+    // mediante la ruta `unity.assets` y maneja mejor errores y logging.
     Route::get('/unity-game', function () {
-        $indexPath = storage_path('unity-build/index.html');
-        
-        if (!file_exists($indexPath)) {
-            \Log::error('Unity index.html not found at: ' . $indexPath);
-            abort(404, 'Unity build not found. Please compile Unity project first.');
-        }
-        
-        \Log::info('Serving Unity index.html from: ' . $indexPath);
-        
-        // Leer el contenido y servir como respuesta HTML
-        // El JavaScript en el index.html detecta automáticamente la URL base
-        $content = file_get_contents($indexPath);
-        
-        return response($content, 200)
-            ->header('Content-Type', 'text/html; charset=utf-8');
+        return view('unity.game');
     })->name('unity.game');
 });
