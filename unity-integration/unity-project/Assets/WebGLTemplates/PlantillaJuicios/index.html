@@ -198,6 +198,8 @@
     <div style="margin-top: 10px;">
       <button id="debug-toggle"
         style="background: #4CAF50; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Ocultar</button>
+      <button id="use-local-peer"
+        style="background: #1976D2; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-right: 5px;">Usar PeerJS local</button>
       <button id="debug-reset"
         style="background: #f44336; border: none; color: white; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Reset</button>
     </div>
@@ -849,9 +851,9 @@
 
       // Verificar configuración de PeerJS
       console.log('=== CONFIGURACIÓN PEERJS ===');
-      console.log('Host PeerJS:', 'juiciosorales.site');
-      console.log('Puerto PeerJS:', '443');
-      console.log('Secure:', true);
+      console.log('Host PeerJS (recomendado local para testing):', 'localhost');
+      console.log('Puerto PeerJS:', '9000');
+      console.log('Secure:', false);
       console.log('Path:', '/peerjs');
 
       // Verificar si hay problemas de CORS
@@ -935,6 +937,42 @@
         });
       });
     }
+
+    // Forzar conexión al servidor PeerJS local (http://localhost:9000/path=/peerjs)
+    window.connectToLocalPeerServer = function() {
+      if (!roomId) {
+        console.warn('No hay roomId asignado. Llama a initVoiceCall/initVoiceCallFromUnity primero.');
+        return;
+      }
+
+      // Si ya existe una conexión, destruirla
+      try {
+        if (peer) { peer.destroy(); peer = null; }
+      } catch (e) { console.warn('Error destruyendo Peer anterior:', e); }
+
+      // Construir nuevo Peer apuntando al servidor local
+      const localPeerConfig = {
+        host: 'localhost',
+        port: 9000,
+        secure: false,
+        path: '/peerjs',
+        debug: 2,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+          ]
+        }
+      };
+
+      const id = myId || (`local_${Date.now()}`);
+      console.log('🔌 Conectando a PeerJS local como ID:', id, localPeerConfig);
+      try {
+        peer = new Peer(id, localPeerConfig);
+        setupPeerEvents(peer);
+      } catch (e) {
+        console.error('❌ Error creando Peer local:', e);
+      }
+    };
 
     // Función para probar audio local
     function testLocalAudio() {
