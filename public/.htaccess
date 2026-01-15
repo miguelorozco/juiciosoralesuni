@@ -4,6 +4,9 @@
     </IfModule>
 
     RewriteEngine On
+    
+    # Set environment variables for Laravel
+    SetEnv LARAVEL_BASE_PATH "C:/Users/migue_pu8chth/Local/GitHub/juiciosorales"
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .

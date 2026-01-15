@@ -14,10 +14,10 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/SalaPrincipal.unity
     guid: f573bf788af0846e79bb02e8a5ea0555
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/SalondeJuiciosBase.unity
     guid: 4b287f1382ef644a597e6f8bb9ddc317
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/MinimalTestScene.unity
     guid: c70069a39a9eb24408ad1064540e3f2b
   m_configObjects:

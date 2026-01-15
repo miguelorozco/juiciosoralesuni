@@ -303,6 +303,59 @@
         </div>
         <div id="debug-log-content"></div>
     </div>
+    <!-- Indicadores de audio (micrófono / audio entrante) -->
+    <style>
+        .audio-status-fixed {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 10px;
+            z-index: 100002;
+            align-items: center;
+            pointer-events: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .audio-card-small {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .audio-card-small img { width: 24px; height: 24px; filter: invert(1); }
+        .audio-pill {
+            margin-left: 6px;
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.45);
+            color: #eee;
+            font-size: 12px;
+            pointer-events: auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .audio-pill.ok { background: #2e7d32; color: #e8f5e9; }
+        .audio-pill.off { background: #424242; color: #e0e0e0; }
+    </style>
+
+    <div class="audio-status-fixed" id="audio-status-fixed" aria-hidden="false">
+        <div id="micCardSmall" class="audio-card-small" title="Micrófono">
+            <img src="https://img.icons8.com/ios-filled/50/microphone.png" alt="mic" />
+        </div>
+        <div id="micPill" class="audio-pill off">Mic: sin señal</div>
+
+        <div id="speakerCardSmall" class="audio-card-small" title="Audio entrante">
+            <img src="https://img.icons8.com/ios-filled/50/speaker.png" alt="speaker" />
+        </div>
+        <div id="speakerPill" class="audio-pill off">Audio: inactivo</div>
+    </div>
+
     <div id="unity-container">
         <canvas id="unity-canvas" tabindex="-1"></canvas>
         
@@ -362,6 +415,94 @@
                 if (typeof config !== 'undefined' && config.onError) config.onError(errorMsg);
             };
             document.head.appendChild(loaderScript);
+        };
+    </script>
+    <script>
+        // Funciones globales para controlar los indicadores (para testing rápido)
+        window.setMicActive = function(active) {
+            try {
+                const pill = document.getElementById('micPill');
+                const card = document.getElementById('micCardSmall');
+                if (!pill || !card) return;
+                if (active) {
+                    pill.classList.add('ok'); pill.classList.remove('off'); pill.textContent = 'Mic: detectando';
+                    card.style.transform = 'scale(1.06)'; card.style.background = 'linear-gradient(135deg,#2e7d32,#66bb6a)';
+                } else {
+                    pill.classList.remove('ok'); pill.classList.add('off'); pill.textContent = 'Mic: sin señal';
+                    card.style.transform = 'scale(1)'; card.style.background = 'rgba(255,255,255,0.06)';
+                }
+            } catch(e) { console.warn(e); }
+        };
+
+        window.setSpeakerActive = function(active) {
+            try {
+                const pill = document.getElementById('speakerPill');
+                const card = document.getElementById('speakerCardSmall');
+                if (!pill || !card) return;
+                if (active) {
+                    pill.classList.add('ok'); pill.classList.remove('off'); pill.textContent = 'Audio: reproduciendo';
+                    card.style.transform = 'scale(1.06)'; card.style.background = 'linear-gradient(135deg,#1565c0,#42a5f5)';
+                } else {
+                    pill.classList.remove('ok'); pill.classList.add('off'); pill.textContent = 'Audio: inactivo';
+                    card.style.transform = 'scale(1)'; card.style.background = 'rgba(255,255,255,0.06)';
+                }
+            } catch(e) { console.warn(e); }
+        };
+
+        // Helper para solicitar micrófono de forma manual (solo para pruebas)
+        window.requestLocalMic = async function() {
+            try {
+                const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // medidor simple: usar AudioContext para detectar actividad y actualizar indicator
+                try {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    const ctx = new AC();
+                    const src = ctx.createMediaStreamSource(s);
+                    const an = ctx.createAnalyser(); an.fftSize = 512;
+                    const buf = new Uint8Array(an.frequencyBinCount);
+                    src.connect(an);
+                    (function upd() {
+                        an.getByteFrequencyData(buf);
+                        const v = buf.reduce((a,b)=>a+b,0)/buf.length;
+                        window.setMicActive(v > 8);
+                        requestAnimationFrame(upd);
+                    })();
+                } catch(e) { console.warn('Audio meter error', e); window.setMicActive(true); }
+            } catch (err) {
+                alert('No se pudo acceder al micrófono: ' + err.message);
+            }
+        };
+
+        // Exponer funciones sencillas para que Unity o pruebas las llamen
+        window.__test_setMicActive = window.setMicActive;
+        window.__test_setSpeakerActive = window.setSpeakerActive;
+
+        // Accesibilidad y binding de evento: solicitar micrófono al hacer clic en el icono
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                var mic = document.getElementById('micCardSmall');
+                if (mic) {
+                    mic.setAttribute('role', 'button');
+                    mic.setAttribute('tabindex', '0');
+                    mic.style.cursor = 'pointer';
+                    mic.addEventListener('click', function(e) {
+                        // User gesture -> prompt for mic
+                        window.requestLocalMic();
+                    });
+                    mic.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            window.requestLocalMic();
+                        }
+                    });
+                }
+            } catch (e) { console.warn('mic binding failed', e); }
+        });
+
+        // Utility: check microphone permission state (returns Promise)
+        window.checkMicPermission = function() {
+            if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
+            return navigator.permissions.query({ name: 'microphone' }).then(function(s) { return s.state; }).catch(function() { return 'unknown'; });
         };
     </script>
     <script>
