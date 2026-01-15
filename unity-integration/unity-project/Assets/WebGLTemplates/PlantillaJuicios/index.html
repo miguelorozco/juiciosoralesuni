@@ -160,6 +160,22 @@
       height: 32px;
       filter: invert(1)
     }
+
+    .audio-indicator {
+      margin-top: 4px;
+      text-align: center;
+      font-size: 11px;
+      color: #fff;
+      background: rgba(0,0,0,0.45);
+      padding: 2px 6px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      transition: background .15s, color .15s;
+      pointer-events: none;
+    }
+
+    .audio-indicator.ok { background: #2e7d32; color: #e8f5e9; }
+    .audio-indicator.off { background: #424242; color: #e0e0e0; }
   </style>
 </head>
 
@@ -181,9 +197,11 @@
     <div id="micCard" class="audio-card" title="Emitiendo">
       <img src="https://img.icons8.com/ios-filled/50/microphone.png" />
     </div>
+    <div id="micStatus" class="audio-indicator off" aria-live="polite">Mic: sin señal</div>
     <div id="speakerCard" class="audio-card" title="Recibiendo">
       <img src="https://img.icons8.com/ios-filled/50/speaker.png" />
     </div>
+    <div id="speakerStatus" class="audio-indicator off" aria-live="polite">Audio: inactivo</div>
   </div>
 
   <!-- Panel de Debug para Testing -->
@@ -259,7 +277,8 @@
         localStream = await navigator.mediaDevices.getUserMedia({
           audio: audioConfig
         });
-        activarIndicadorVolumen(localStream, document.getElementById("micCard"));
+        activarIndicadorVolumen(localStream, document.getElementById("micCard"), 'micStatus');
+        updateAudioStatus('micStatus', false); // inicializar
       } catch (err) { 
         alert("No se pudo acceder al micrófono."); 
         console.error(err); 
@@ -657,14 +676,49 @@
       }
       audio.srcObject = stream;
       console.log("🔊 Reproduciendo audio de:", peerId);
-      activarIndicadorVolumen(stream, document.getElementById("speakerCard"));
+      // activar el indicador global de audio entrante
+      activarIndicadorVolumen(stream, document.getElementById("speakerCard"), 'speakerStatus');
     }
 
-    function activarIndicadorVolumen(stream, cardElement) {
+    function updateAudioStatus(statusElementId, isActive) {
+      try {
+        const el = document.getElementById(statusElementId);
+        if (!el) return;
+        if (isActive) {
+          el.classList.add('ok'); el.classList.remove('off');
+          if (statusElementId === 'micStatus') el.textContent = 'Mic: detectando';
+          else el.textContent = 'Audio: reproduciendo';
+        } else {
+          el.classList.remove('ok'); el.classList.add('off');
+          if (statusElementId === 'micStatus') el.textContent = 'Mic: sin señal';
+          else el.textContent = 'Audio: inactivo';
+        }
+      } catch (e) { /* noop */ }
+    }
+
+    function activarIndicadorVolumen(stream, cardElement, statusElementId) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AC(); const src = ctx.createMediaStreamSource(stream); const an = ctx.createAnalyser();
-      an.fftSize = 1024; const buf = new Uint8Array(an.frequencyBinCount); src.connect(an);
-      (function upd() { an.getByteFrequencyData(buf); const v = buf.reduce((a, b) => a + b, 0) / buf.length; cardElement.classList.toggle("active", v > 10); requestAnimationFrame(upd); })();
+      try {
+        const ctx = new AC();
+        const src = ctx.createMediaStreamSource(stream);
+        const an = ctx.createAnalyser();
+        an.fftSize = 1024;
+        const buf = new Uint8Array(an.frequencyBinCount);
+        src.connect(an);
+        const THRESH = 10; // umbral de activación
+        (function upd() {
+          try {
+            an.getByteFrequencyData(buf);
+            const v = buf.reduce((a, b) => a + b, 0) / buf.length;
+            const isActive = v > THRESH;
+            if (cardElement) cardElement.classList.toggle('active', isActive);
+            if (statusElementId) updateAudioStatus(statusElementId, isActive);
+          } catch (e) { /* ignore */ }
+          requestAnimationFrame(upd);
+        })();
+      } catch (e) {
+        console.warn('AudioContext error:', e);
+      }
     }
 
     // ===== HERRAMIENTAS DE TESTING Y DEBUGGING =====
