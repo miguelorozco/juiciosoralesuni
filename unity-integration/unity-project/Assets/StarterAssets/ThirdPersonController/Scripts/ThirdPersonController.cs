@@ -255,18 +255,18 @@ namespace StarterAssets
             // if there is a move input rotate player when the player is moving
             if (_input.move != Vector2.zero)
             {
-                // MODIFICADO: Usar la rotación del avatar en lugar de la cámara para movimiento relativo al avatar
+                float mainCamY = (_mainCamera != null) ? _mainCamera.transform.eulerAngles.y : 0f;
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
-                                  transform.eulerAngles.y; // Usar transform.eulerAngles.y en lugar de _mainCamera.transform.eulerAngles.y
+                                  mainCamY;
                 float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
                     RotationSmoothTime);
 
-                // rotate to face input direction relative to avatar rotation
+                // rotate to face input direction relative to camera position
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
-            // MODIFICADO: Usar TransformDirection para movimiento relativo al avatar
-            Vector3 targetDirection = transform.TransformDirection(inputDirection);
+
+            Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
 
             // move the player
             _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +

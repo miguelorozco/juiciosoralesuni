@@ -10,18 +10,55 @@ public class RoleLabelDisplay : MonoBehaviourPunCallbacks
 
     void Start()
     {
-        UpdateRoleLabel();
+        // Verificar que el labelRole esté asignado
+        if (labelRole == null)
+        {
+            Debug.LogWarning("[RoleLabelDisplay] labelRole no está asignado en " + gameObject.name);
+            // Intentar encontrar el TextMeshPro hijo
+            labelRole = GetComponentInChildren<TextMeshPro>();
+            if (labelRole == null)
+            {
+                Debug.LogError("[RoleLabelDisplay] No se encontró TextMeshPro en " + gameObject.name);
+                enabled = false; // Desactivar el script si no hay label
+                return;
+            }
+        }
 
+        UpdateRoleLabel();
     }
 
 
     void UpdateRoleLabel()
     {
-        object rol;
-        if (photonView.Owner.CustomProperties.TryGetValue("Rol", out rol))
+        // Verificar que labelRole esté disponible
+        if (labelRole == null)
         {
-            Debug.Log("Rol asignado: " + rol.ToString());
+            return;
+        }
+
+        // Primero intentar obtener el rol de las Custom Properties de Photon
+        object rol;
+        if (photonView != null && photonView.Owner != null && photonView.Owner.CustomProperties.TryGetValue("Rol", out rol))
+        {
+            Debug.Log("[RoleLabelDisplay] Rol desde Custom Properties: " + rol.ToString());
             labelRole.text = rol.ToString();
+        }
+        else
+        {
+            // Si no hay Custom Properties, obtener el rol del nombre del GameObject
+            string objectName = gameObject.name;
+            if (objectName.StartsWith("Player_"))
+            {
+                string roleName = objectName.Replace("Player_", "").Replace("(Clone)", "").Trim();
+                Debug.Log("[RoleLabelDisplay] Rol desde nombre del GameObject: " + roleName);
+                labelRole.text = roleName;
+            }
+            else
+            {
+                // Valor por defecto si no se puede determinar
+                labelRole.text = "ROLE";
+                Debug.LogWarning("[RoleLabelDisplay] No se pudo determinar el rol para: " + objectName);
+            }
         }
     }
 

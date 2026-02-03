@@ -165,7 +165,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
     public void SetRole(string role)
     {
         playerRole = role;
-        roleColor = GetRoleColor(role);
+        // El color debe ser asignado desde la API de Laravel
+        roleColor = RoleColorManager.GetColorForRole(role);
 
         // Actualizar UI del rol
         if (roleLabel != null)
@@ -182,7 +183,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
     void UpdateRole(string role)
     {
         playerRole = role;
-        roleColor = GetRoleColor(role);
+        roleColor = RoleColorManager.GetColorForRole(role);
 
         if (roleLabel != null)
         {
@@ -193,21 +194,8 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     private Color GetRoleColor(string role)
     {
-        switch (role.ToLower())
-        {
-            case "juez":
-                return Color.red;
-            case "fiscal":
-                return Color.blue;
-            case "defensor":
-                return Color.green;
-            case "testigo":
-                return Color.yellow;
-            case "acusado":
-                return Color.magenta;
-            default:
-                return Color.white;
-        }
+        // El color ahora se obtiene desde RoleColorManager
+        return RoleColorManager.GetColorForRole(role);
     }
 
     private void CreateAvatar()
@@ -223,12 +211,48 @@ public class PlayerController : MonoBehaviourPunCallbacks
             if (avatarController != null)
             {
                 avatarController.SetRole(playerRole, roleColor);
+                // Aplicar color al avatar (ejemplo: cambiar color del material principal)
+                var renderer = currentAvatar.GetComponentInChildren<Renderer>();
+                if (renderer != null)
+                {
+                    renderer.material.color = roleColor;
+                }
             }
 
             // Si es el jugador local, actualizar el target de la cámara al avatar
             if (isLocalPlayer)
             {
                 UpdateCameraTarget();
+            }
+
+            // Network-safety: deshabilitar componentes de control/movimiento en avatares remotos
+            // Buscar ThirdPersonController en los hijos y deshabilitarlo si no es el jugador local
+            MonoBehaviour thirdPerson = null;
+            var monoBehaviours = currentAvatar.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in monoBehaviours)
+            {
+                if (mb == null) continue;
+                if (mb.GetType().Name == "ThirdPersonController")
+                {
+                    thirdPerson = mb;
+                    break;
+                }
+            }
+
+            if (thirdPerson != null)
+            {
+                thirdPerson.enabled = isLocalPlayer;
+            }
+
+            // También deshabilitar cualquier StarterAssetsInputs en el avatar para evitar que lea input local en avatares remotos
+            var starterInputs = currentAvatar.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in starterInputs)
+            {
+                if (mb == null) continue;
+                if (mb.GetType().Name == "StarterAssetsInputs" || mb.GetType().Name == "StarterAssetsInputs")
+                {
+                    mb.enabled = isLocalPlayer;
+                }
             }
         }
     }

@@ -45,6 +45,7 @@ MonoBehaviour:
   - SyncPlayerPosition
   - UpdateRole
   - ReceivePeerId
+  - RPC_NotifyRoleAssigned
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

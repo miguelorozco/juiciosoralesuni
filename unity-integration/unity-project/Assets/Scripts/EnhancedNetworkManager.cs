@@ -4,6 +4,7 @@ using Photon.Pun;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
 using TMPro;
+using System;
 using JuiciosSimulator.Session;
 using JuiciosSimulator.API;
 
@@ -405,17 +406,61 @@ namespace JuiciosSimulator.Integration
         {
             try
             {
-                PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
+                GameObject existingPlayer = FindExistingPlayerForRole(assignedRole);
+                if (existingPlayer == null)
+                {
+                    Debug.LogError($"EnhancedNetworkManager: No se encontró Player existente para el rol '{assignedRole}'. No se instanciará uno nuevo.");
+                    return;
+                }
+
+                var pv = existingPlayer.GetComponent<PhotonView>();
+                if (pv != null && !pv.IsMine)
+                {
+                    pv.TransferOwnership(PhotonNetwork.LocalPlayer);
+                }
 
                 if (showDebugLogs)
                 {
-                    Debug.Log("EnhancedNetworkManager: Jugador instanciado");
+                    Debug.Log($"EnhancedNetworkManager: Player existente asignado: {existingPlayer.name}");
                 }
             }
             catch (System.Exception e)
             {
                 Debug.LogError($"EnhancedNetworkManager: Error instanciando jugador: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// Busca un Player existente en la escena para el rol asignado (ej: Player_Juez).
+        /// </summary>
+        private GameObject FindExistingPlayerForRole(string role)
+        {
+            if (string.IsNullOrEmpty(role))
+            {
+                return null;
+            }
+
+            string expectedName = $"Player_{role}";
+            GameObject byName = GameObject.Find(expectedName);
+            if (byName != null)
+            {
+                return byName;
+            }
+
+            GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+            foreach (var player in players)
+            {
+                if (player == null) continue;
+                string name = player.name;
+                if (!name.StartsWith("Player_")) continue;
+                string foundRole = name.Replace("Player_", "").Replace("(Clone)", "").Trim();
+                if (string.Equals(foundRole, role, StringComparison.OrdinalIgnoreCase))
+                {
+                    return player;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>

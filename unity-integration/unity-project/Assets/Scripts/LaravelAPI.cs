@@ -8,9 +8,7 @@ using JuiciosSimulator.Utils;
 
 namespace JuiciosSimulator.API
 {
-    /// <summary>
-    /// Clase principal para comunicación con la API de Laravel
-    /// </summary>
+
     public class LaravelAPI : MonoBehaviour
     {
         [Header("Configuración de API")]
@@ -20,10 +18,7 @@ namespace JuiciosSimulator.API
         public string deviceId = "UNITY_DEVICE_001";
 
         [Header("Debug")]
-        [Tooltip("Activar logging detallado para debug (se muestra en consola del navegador)")]
         public bool enableDebugLogging = true;
-        
-        [Tooltip("Verificar estado del servidor al iniciar (deshabilitar si causa problemas de inicialización)")]
         public bool checkServerStatusOnStart = true;
 
         [Header("Autenticación")]
@@ -39,12 +34,12 @@ namespace JuiciosSimulator.API
         // Flags para prevenir llamadas recursivas
         private bool isGettingActiveSession = false;
         private bool isGettingSessionDialogue = false;
-        
-        // Flag para prevenir múltiples inicializaciones
         private static bool hasInitialized = false;
-        
-        // ID de la última sesión procesada para evitar procesamiento duplicado
         private static int? lastProcessedSessionId = null;
+
+        // Singleton
+        public static LaravelAPI Instance { get; private set; }
+        public static bool IsInitialized { get; private set; } = false;
 
         // Eventos
         public static event Action<bool> OnConnectionStatusChanged;
@@ -53,9 +48,8 @@ namespace JuiciosSimulator.API
         public static event Action<string> OnError;
         public static event Action<DialogoEstado> OnDialogoUpdated;
         public static event Action<List<RespuestaUsuario>> OnRespuestasReceived;
-
-        // Singleton
-        public static LaravelAPI Instance { get; private set; }
+        public static event Action<SessionData> OnActiveSessionReceived;
+        public static event Action<DialogueData> OnDialogueDataReceived;
 
         private void Awake()
         {
@@ -69,1126 +63,189 @@ namespace JuiciosSimulator.API
                 Destroy(gameObject);
                 return;
             }
-            
-            // NO hacer nada más en Awake - esperar a que Unity esté completamente cargado
         }
-
-        // Flag para indicar que LaravelAPI está completamente inicializado
-        public static bool IsInitialized { get; private set; } = false;
 
         private void Start()
         {
-            // Retrasar la inicialización para evitar problemas con el runtime de Unity WebGL
-            // Esperar varios frames para que Unity esté completamente inicializado
             StartCoroutine(InitializeLaravelAPIDelayed());
+            FetchRoleColorsFromBackend();
         }
 
         private IEnumerator InitializeLaravelAPIDelayed()
         {
-            // Esperar varios frames para que Unity WebGL esté completamente cargado
-            // Esto previene problemas de recursión en el runtime de Unity
-            yield return null; // Frame 1
-            yield return null; // Frame 2
-            yield return null; // Frame 3
-            yield return new WaitForEndOfFrame(); // Frame completo
-            
-            // Ahora inicializar
+            yield return null;
+            yield return null;
+            yield return null;
+            yield return new WaitForEndOfFrame();
             InitializeLaravelAPI();
         }
 
         private void InitializeLaravelAPI()
         {
-            // Prevenir múltiples inicializaciones
             if (hasInitialized)
             {
-                Debug.LogWarning("[LaravelAPI] Ya fue inicializado anteriormente. Ignorando inicialización duplicada.");
-                IsInitialized = true; // Asegurar que el flag esté en true
+                IsInitialized = true;
                 return;
             }
-
             hasInitialized = true;
-
-            // Configurar sistema de logging
+            IsInitialized = true;
             if (enableDebugLogging)
             {
                 DebugLogger.SetEnabled(true);
                 DebugLogger.SetShowInBrowser(true);
-                DebugLogger.LogPhase("LaravelAPI", "Inicializando", new { baseURL, unityVersion, unityPlatform });
             }
-
-            // Marcar como inicializado ANTES de hacer cualquier llamada
-            IsInitialized = true;
-
-            // Verificar estado del servidor al iniciar (en coroutine para no bloquear)
-            // Solo si está habilitado (puede deshabilitarse para debugging)
             if (checkServerStatusOnStart)
             {
                 StartCoroutine(CheckServerStatus());
             }
-            else
-            {
-                Debug.Log("[LaravelAPI] CheckServerStatus deshabilitado para debugging");
-            }
         }
 
-        #region Autenticación
-
-        /// <summary>
-        /// Login del usuario en la API
-        /// </summary>
-        public void Login(string email, string password)
+        public void FetchRoleColorsFromBackend()
         {
-            StartCoroutine(LoginCoroutine(email, password));
+            StartCoroutine(FetchRoleColorsCoroutine());
         }
 
-        private IEnumerator LoginCoroutine(string email, string password)
+        private IEnumerator FetchRoleColorsCoroutine()
         {
-            var loginData = new LoginRequest
+            string url = $"{baseURL}/roles/status";
+            using (UnityWebRequest www = UnityWebRequest.Get(url))
             {
-                email = email,
-                password = password,
-                unity_version = unityVersion,
-                unity_platform = unityPlatform,
-                device_id = deviceId,
-                session_data = new Dictionary<string, object>
+                yield return www.SendWebRequest();
+                if (www.result != UnityWebRequest.Result.Success)
                 {
-                    {"platform", Application.platform.ToString()},
-                    {"version", Application.version},
-                    {"device_model", SystemInfo.deviceModel},
-                    {"device_name", SystemInfo.deviceName}
-                }
-            };
-
-            string jsonData = JsonUtility.ToJson(loginData);
-
-            using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/auth/login", "POST"))
-            {
-                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
-                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                request.downloadHandler = new DownloadHandlerBuffer();
-                request.SetRequestHeader("Content-Type", "application/json");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    try
-                    {
-                        string responseText = request.downloadHandler.text;
-                        if (string.IsNullOrEmpty(responseText))
-                        {
-                            OnError?.Invoke("Respuesta vacía del servidor");
-                            Debug.LogError("Error en login: Respuesta vacía del servidor");
-                            yield break;
-                        }
-
-                        var response = JsonUtility.FromJson<APIResponse<LoginResponse>>(responseText);
-
-                        if (response != null && response.success && response.data != null)
-                        {
-                            authToken = response.data.token;
-                            currentUser = response.data.user;
-                            isConnected = true;
-
-                            OnUserLoggedIn?.Invoke(currentUser);
-                            OnConnectionStatusChanged?.Invoke(true);
-
-                            Debug.Log($"Login exitoso: {currentUser.name}");
-                        }
-                        else
-                        {
-                            string errorMsg = response?.message ?? "Error desconocido en login";
-                            OnError?.Invoke(errorMsg);
-                            Debug.LogError($"Error en login: {errorMsg}");
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        string errorMsg = $"Error parseando respuesta de login: {e.Message}";
-                        OnError?.Invoke(errorMsg);
-                        Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
-                    }
+                    Debug.LogError($"[LaravelAPI] Error obteniendo colores de roles: {www.error}");
                 }
                 else
                 {
-                    OnError?.Invoke($"Error de conexión: {request.error}");
-                    Debug.LogError($"Error de conexión: {request.error}");
+                    var json = www.downloadHandler.text;
+                    var parsed = JsonUtility.FromJson<RoleStatusResponse>(json);
+                    if (parsed != null && parsed.roles != null)
+                    {
+                        var colorDict = new Dictionary<string, string>();
+                        foreach (var kvp in parsed.roles)
+                        {
+                            colorDict[kvp.Key] = kvp.Value.color;
+                        }
+                        RoleColorManager.UpdateColorsFromApi(colorDict);
+                        Debug.Log("[LaravelAPI] Colores de roles actualizados dinámicamente");
+                    }
                 }
             }
         }
 
-        /// <summary>
-        /// Cerrar sesión del usuario
-        /// </summary>
-        public void Logout()
+        public void ReleaseRoleToBackend(string role, int actorNumber)
         {
-            authToken = null;
-            currentUser = null;
-            OnLogout?.Invoke();
-            Debug.Log("Usuario deslogueado");
+            StartCoroutine(ReleaseRoleCoroutine(role, actorNumber));
         }
 
-        /// <summary>
-        /// Verificar estado del servidor
-        /// </summary>
+        private IEnumerator ReleaseRoleCoroutine(string role, int actorNumber)
+        {
+            string url = $"{baseURL}/roles/release";
+            WWWForm form = new WWWForm();
+            form.AddField("role", role);
+            form.AddField("user_id", actorNumber);
+            using (UnityWebRequest www = UnityWebRequest.Post(url, form))
+            {
+                yield return www.SendWebRequest();
+                if (www.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.LogError($"[LaravelAPI] Error liberando rol en backend: {www.error}");
+                }
+                else
+                {
+                    Debug.Log($"[LaravelAPI] Rol '{role}' liberado en backend");
+                }
+            }
+        }
+
+        public void Login(string email, string password) { StartCoroutine(LoginCoroutine(email, password)); }
+        public void Logout() { authToken = null; currentUser = null; OnLogout?.Invoke(); }
+        public void GetActiveSession() { StartCoroutine(GetActiveSessionCoroutine()); }
+        public void GetSessionDialogue(int sessionId) { StartCoroutine(GetSessionDialogueCoroutine(sessionId)); }
+        public void GetDialogoEstado(int sesionId) { StartCoroutine(GetDialogoEstadoCoroutine(sesionId)); }
+        public void GetRespuestasUsuario(int sesionId, int usuarioId) { StartCoroutine(GetRespuestasUsuarioCoroutine(sesionId, usuarioId)); }
+        public void EnviarDecision(int sesionId, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta) { StartCoroutine(EnviarDecisionCoroutine(sesionId, usuarioId, respuestaId, decisionTexto, tiempoRespuesta)); }
+        public void JoinRoom(string roomId) { StartCoroutine(JoinRoomCoroutine(roomId)); }
+        
         public IEnumerator CheckServerStatus()
         {
             using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/auth/status"))
             {
                 yield return request.SendWebRequest();
-
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    try
-                    {
-                        string responseText = request.downloadHandler.text;
-                        if (!string.IsNullOrEmpty(responseText))
-                        {
-                            var response = JsonUtility.FromJson<APIResponse<ServerStatus>>(responseText);
-                            if (response != null && response.success && response.data != null)
-                            {
-                                Debug.Log($"Servidor Unity disponible: {response.data.server_status}");
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogWarning($"Error parseando estado del servidor: {e.Message}");
-                        // No crítico, solo loguear
-                    }
-                }
-                else
-                {
-                    Debug.LogError($"Servidor no disponible: {request.error}");
+                    Debug.Log("Servidor disponible");
                 }
             }
         }
 
-        #endregion
-
-        #region Sesiones Activas
-
-        // Eventos para sesiones activas
-        public static event Action<SessionData> OnActiveSessionReceived;
-        public static event Action<DialogueData> OnDialogueDataReceived;
-
-        /// <summary>
-        /// Obtener sesión activa del usuario autenticado
-        /// </summary>
-        public void GetActiveSession()
-        {
-            // Prevenir llamadas recursivas
-            if (isGettingActiveSession)
-            {
-                Debug.LogWarning("[LaravelAPI] GetActiveSession() ya está en progreso. Ignorando llamada duplicada.");
-                return;
-            }
-
-            StartCoroutine(GetActiveSessionCoroutine());
-        }
-
-        private IEnumerator GetActiveSessionCoroutine()
-        {
-            // Marcar como en progreso
-            isGettingActiveSession = true;
-            DebugLogger.LogPhase("LaravelAPI", "GetActiveSessionCoroutine INICIADO");
-
-            try
-            {
-                // Construir URL completa y validar
-                string url = $"{baseURL}/unity/auth/session/active";
-                
-                // Limpiar URL de posibles duplicados de /api
-                url = url.Replace("/api/api/", "/api/");
-                
-                DebugLogger.LogAPI("GET", url, "INITIATED", new { baseURL, finalUrl = url });
-                Debug.Log($"[LaravelAPI] Obteniendo sesión activa desde: {url}");
-                
-                using (UnityWebRequest request = UnityWebRequest.Get(url))
-                {
-                    request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                    request.SetRequestHeader("X-Unity-Version", unityVersion);
-                    request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                    request.timeout = 30; // Timeout de 30 segundos
-
-                    yield return request.SendWebRequest();
-
-                    if (request.result == UnityWebRequest.Result.Success)
-                    {
-                        try
-                        {
-                            string responseText = request.downloadHandler.text;
-                            if (string.IsNullOrEmpty(responseText))
-                            {
-                                OnError?.Invoke("Respuesta vacía del servidor");
-                                Debug.LogError("Error obteniendo sesión activa: Respuesta vacía");
-                                yield break;
-                            }
-
-                            var response = JsonUtility.FromJson<APIResponse<SessionData>>(responseText);
-
-                            if (response != null && response.success && response.data != null)
-                            {
-                                // Validar que los datos esenciales no sean null
-                                if (response.data.session == null)
-                                {
-                                    Debug.LogWarning("Sesión activa recibida pero session es null");
-                                    OnError?.Invoke("Datos de sesión incompletos");
-                                    yield break;
-                                }
-
-                                // Prevenir procesamiento duplicado de la misma sesión
-                                if (lastProcessedSessionId.HasValue && 
-                                    lastProcessedSessionId.Value == response.data.session.id)
-                                {
-                                    DebugLogger.LogWarning("LaravelAPI", $"Sesión {response.data.session.id} ya fue procesada. Ignorando respuesta duplicada.");
-                                    Debug.LogWarning($"[LaravelAPI] Sesión {response.data.session.id} ya fue procesada. Ignorando respuesta duplicada.");
-                                    yield break;
-                                }
-
-                                lastProcessedSessionId = response.data.session.id;
-                                currentSesionId = response.data.session.id;
-                                currentSessionData = response.data;
-                                
-                                // Validar que el rol no sea null antes de invocar el evento
-                                if (response.data.role == null)
-                                {
-                                    Debug.LogWarning("Sesión activa recibida pero role es null - usando rol por defecto");
-                                    // Crear un rol por defecto temporal
-                                    response.data.role = new RoleInfo
-                                    {
-                                        id = 0,
-                                        nombre = "Observador",
-                                        descripcion = "Rol temporal",
-                                        color = "#808080",
-                                        icono = ""
-                                    };
-                                }
-
-                                DebugLogger.LogAPIResponse(url, true, $"Sesión: {response.data.session.nombre}", new { 
-                                    sessionId = response.data.session.id,
-                                    sessionName = response.data.session.nombre,
-                                    roleName = response.data.role?.nombre
-                                });
-                                
-                                DebugLogger.LogEventInvocation("OnActiveSessionReceived", OnActiveSessionReceived?.GetInvocationList()?.Length ?? 0, new {
-                                    sessionId = response.data.session.id
-                                });
-                                
-                                // Invocar evento solo si no se ha procesado esta sesión antes
-                                OnActiveSessionReceived?.Invoke(response.data);
-                                Debug.Log($"Sesión activa obtenida: {response.data.session.nombre}");
-
-                                // Automáticamente cargar el diálogo de la sesión (solo si no está ya en progreso)
-                                // Y solo si no se ha cargado ya el diálogo para esta sesión
-                                if (!isGettingSessionDialogue && 
-                                    (currentDialogueData == null || 
-                                     currentDialogueData.dialogue == null || 
-                                     currentDialogueData.dialogue.id == 0))
-                                {
-                                    DebugLogger.LogPhase("LaravelAPI", "Llamando GetSessionDialogue automáticamente", new { sessionId = response.data.session.id });
-                                    GetSessionDialogue(response.data.session.id);
-                                }
-                                else
-                                {
-                                    DebugLogger.LogWarning("LaravelAPI", "GetSessionDialogue ya está en progreso o ya se cargó. Ignorando llamada automática.");
-                                    Debug.LogWarning("[LaravelAPI] GetSessionDialogue ya está en progreso o ya se cargó. Ignorando llamada automática.");
-                                }
-                            }
-                            else
-                            {
-                                string errorMsg = response?.message ?? "Error desconocido obteniendo sesión activa";
-                                OnError?.Invoke(errorMsg);
-                                Debug.LogError($"Error obteniendo sesión activa: {errorMsg}");
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            string errorMsg = $"Error parseando respuesta de sesión activa: {e.Message}";
-                            OnError?.Invoke(errorMsg);
-                            Debug.LogError($"{errorMsg}\nStack: {e.StackTrace}");
-                        }
-                    }
-                    else
-                    {
-                        OnError?.Invoke($"Error obteniendo sesión activa: {request.error}");
-                        Debug.LogError($"Error obteniendo sesión activa: {request.error}");
-                    }
-                }
-            }
-            finally
-            {
-                // Resetear flag al finalizar
-                isGettingActiveSession = false;
-                DebugLogger.LogPhase("LaravelAPI", "GetActiveSessionCoroutine FINALIZADO");
-            }
-        }
-
-        /// <summary>
-        /// Obtener diálogo específico de una sesión
-        /// </summary>
-        public void GetSessionDialogue(int sessionId)
-        {
-            DebugLogger.LogMethodEntry("LaravelAPI.GetSessionDialogue", isGettingSessionDialogue);
-
-            // Prevenir llamadas recursivas
-            if (isGettingSessionDialogue)
-            {
-                DebugLogger.LogWarning("LaravelAPI", $"GetSessionDialogue() ya está en progreso. Ignorando llamada duplicada para sesión {sessionId}.");
-                Debug.LogWarning($"[LaravelAPI] GetSessionDialogue() ya está en progreso. Ignorando llamada duplicada para sesión {sessionId}.");
-                return;
-            }
-
-            // Validar parámetros
-            if (sessionId <= 0)
-            {
-                DebugLogger.LogError("LaravelAPI", $"ID de sesión inválido: {sessionId}");
-                Debug.LogError($"[LaravelAPI] ID de sesión inválido: {sessionId}");
-                OnError?.Invoke("ID de sesión inválido");
-                return;
-            }
-
-            // Validar que haya token antes de hacer la petición
-            if (string.IsNullOrEmpty(authToken))
-            {
-                DebugLogger.LogError("LaravelAPI", "No hay token de autenticación. No se puede obtener el diálogo de sesión.");
-                Debug.LogError("[LaravelAPI] No hay token de autenticación. No se puede obtener el diálogo de sesión.");
-                OnError?.Invoke("No hay token de autenticación");
-                return;
-            }
-
-            // Validar que la URL base esté configurada
-            if (string.IsNullOrEmpty(baseURL))
-            {
-                DebugLogger.LogError("LaravelAPI", "baseURL no está configurada.");
-                Debug.LogError("[LaravelAPI] baseURL no está configurada.");
-                OnError?.Invoke("URL base no configurada");
-                return;
-            }
-
-            DebugLogger.LogPhase("LaravelAPI", "Iniciando GetSessionDialogue", new { sessionId });
-            StartCoroutine(GetSessionDialogueCoroutine(sessionId));
-        }
-
-        private IEnumerator GetSessionDialogueCoroutine(int sessionId)
-        {
-            // Marcar como en progreso
-            isGettingSessionDialogue = true;
-            DebugLogger.LogPhase("LaravelAPI", "GetSessionDialogueCoroutine INICIADO", new { sessionId });
-
-            try
-            {
-                // Construir URL completa y validar
-                string url = $"{baseURL}/unity/auth/session/{sessionId}/dialogue";
-                
-                // Limpiar URL de posibles duplicados de /api
-                url = url.Replace("/api/api/", "/api/");
-                
-                DebugLogger.LogAPI("GET", url, "INITIATED", new { sessionId, baseURL, finalUrl = url });
-                Debug.Log($"[LaravelAPI] Obteniendo diálogo de sesión desde: {url}");
-                
-                using (UnityWebRequest request = UnityWebRequest.Get(url))
-                {
-                    request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                    request.SetRequestHeader("X-Unity-Version", unityVersion);
-                    request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                    request.timeout = 30; // Timeout de 30 segundos
-
-                    DebugLogger.LogPhase("LaravelAPI", "Enviando petición GetSessionDialogue", new { url, sessionId });
-                    yield return request.SendWebRequest();
-                    
-                    DebugLogger.LogPhase("LaravelAPI", $"Respuesta recibida: {request.result}", new { 
-                        result = request.result.ToString(),
-                        responseCode = request.responseCode,
-                        error = request.error
-                    });
-
-                    if (request.result == UnityWebRequest.Result.Success)
-                    {
-                        try
-                        {
-                            string responseText = request.downloadHandler.text;
-                            if (string.IsNullOrEmpty(responseText))
-                            {
-                                DebugLogger.LogWarning("LaravelAPI", "Respuesta vacía al obtener diálogo de sesión");
-                                Debug.LogWarning("Respuesta vacía al obtener diálogo de sesión");
-                                yield break;
-                            }
-
-                            var response = JsonUtility.FromJson<APIResponse<DialogueData>>(responseText);
-
-                            if (response != null && response.success && response.data != null)
-                            {
-                                // Validar que dialogue no sea null antes de invocar el evento
-                                if (response.data.dialogue == null)
-                                {
-                                    DebugLogger.LogWarning("LaravelAPI", "Diálogo de sesión recibido pero dialogue es null");
-                                    Debug.LogWarning("Diálogo de sesión recibido pero dialogue es null");
-                                    yield break;
-                                }
-
-                                // Guardar datos del diálogo
-                                currentDialogueData = response.data;
-                                
-                                DebugLogger.LogAPIResponse(url, true, $"Diálogo: {response.data.dialogue.nombre ?? "Sin nombre"}", new {
-                                    dialogueId = response.data.dialogue.id,
-                                    dialogueName = response.data.dialogue.nombre,
-                                    rolesCount = response.data.dialogue.roles?.Count ?? 0
-                                });
-                                
-                                DebugLogger.LogEventInvocation("OnDialogueDataReceived", OnDialogueDataReceived?.GetInvocationList()?.Length ?? 0, new {
-                                    dialogueId = response.data.dialogue.id
-                                });
-                                
-                                OnDialogueDataReceived?.Invoke(response.data);
-                                Debug.Log($"Diálogo de sesión obtenido: {response.data.dialogue.nombre ?? "Sin nombre"}");
-                            }
-                            else
-                            {
-                                string errorMsg = response?.message ?? "Error desconocido obteniendo diálogo";
-                                Debug.LogWarning($"Error obteniendo diálogo de sesión: {errorMsg}");
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Debug.LogError($"Error parseando respuesta de diálogo de sesión: {e.Message}");
-                            // No detener el flujo, solo loguear el error
-                        }
-                    }
-                    else
-                    {
-                        OnError?.Invoke($"Error obteniendo diálogo de sesión: {request.error}");
-                        Debug.LogError($"Error obteniendo diálogo de sesión: {request.error}");
-                    }
-                }
-            }
-            finally
-            {
-                // Resetear flag al finalizar
-                isGettingSessionDialogue = false;
-                DebugLogger.LogPhase("LaravelAPI", "GetSessionDialogueCoroutine FINALIZADO", new { sessionId });
-            }
-        }
-
-        #endregion
-
-        #region Diálogos
-
-        /// <summary>
-        /// Obtener estado actual del diálogo
-        /// </summary>
-        public void GetDialogoEstado(int sesionId)
-        {
-            currentSesionId = sesionId;
-            StartCoroutine(GetDialogoEstadoCoroutine(sesionId));
-        }
-
-        private IEnumerator GetDialogoEstadoCoroutine(int sesionId)
-        {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/dialogo-estado"))
-            {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    try
-                    {
-                        string responseText = request.downloadHandler.text;
-                        if (string.IsNullOrEmpty(responseText))
-                        {
-                            Debug.LogWarning("Respuesta vacía al obtener estado del diálogo");
-                            yield break;
-                        }
-
-                        var response = JsonUtility.FromJson<APIResponse<DialogoEstado>>(responseText);
-
-                        if (response != null && response.success && response.data != null)
-                        {
-                            OnDialogoUpdated?.Invoke(response.data);
-                        }
-                        else
-                        {
-                            string errorMsg = response?.message ?? "Error desconocido obteniendo estado del diálogo";
-                            Debug.LogWarning($"Error obteniendo estado del diálogo: {errorMsg}");
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError($"Error parseando respuesta de estado del diálogo: {e.Message}");
-                        // No detener el flujo, solo loguear el error
-                    }
-                }
-                else
-                {
-                    OnError?.Invoke($"Error obteniendo estado del diálogo: {request.error}");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Obtener respuestas disponibles para el usuario
-        /// </summary>
-        public void GetRespuestasUsuario(int sesionId, int usuarioId)
-        {
-            StartCoroutine(GetRespuestasUsuarioCoroutine(sesionId, usuarioId));
-        }
-
-        private IEnumerator GetRespuestasUsuarioCoroutine(int sesionId, int usuarioId)
-        {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/respuestas-usuario/{usuarioId}"))
-            {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<APIResponse<List<RespuestaUsuario>>>(request.downloadHandler.text);
-
-                    if (response.success)
-                    {
-                        OnRespuestasReceived?.Invoke(response.data);
-                    }
-                    else
-                    {
-                        OnError?.Invoke(response.message);
-                    }
-                }
-                else
-                {
-                    OnError?.Invoke($"Error obteniendo respuestas: {request.error}");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Enviar decisión del usuario
-        /// </summary>
-        public void EnviarDecision(int sesionId, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta)
-        {
-            StartCoroutine(EnviarDecisionCoroutine(sesionId, usuarioId, respuestaId, decisionTexto, tiempoRespuesta));
-        }
-
-        private IEnumerator EnviarDecisionCoroutine(int sesionId, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta)
-        {
-            var decisionData = new DecisionRequest
-            {
-                usuario_id = usuarioId,
-                respuesta_id = respuestaId,
-                texto_decision = decisionTexto,
-                tiempo_respuesta = tiempoRespuesta
-            };
-
-            string jsonData = JsonUtility.ToJson(decisionData);
-
-            using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/{sesionId}/enviar-decision", "POST"))
-            {
-                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
-                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                request.downloadHandler = new DownloadHandlerBuffer();
-                request.SetRequestHeader("Content-Type", "application/json");
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<APIResponse<object>>(request.downloadHandler.text);
-
-                    if (response.success)
-                    {
-                        Debug.Log("Decisión enviada exitosamente");
-                        // Actualizar estado del diálogo después de enviar decisión
-                        GetDialogoEstado(sesionId);
-                    }
-                    else
-                    {
-                        OnError?.Invoke(response.message);
-                    }
-                }
-                else
-                {
-                    OnError?.Invoke($"Error enviando decisión: {request.error}");
-                }
-            }
-        }
-
-        #endregion
-
-        #region Tiempo Real
-
-        /// <summary>
-        /// Iniciar escucha de eventos en tiempo real
-        /// </summary>
-        public void StartRealtimeEvents(int sesionId)
-        {
-            StartCoroutine(RealtimeEventsCoroutine(sesionId));
-        }
-
-        private IEnumerator RealtimeEventsCoroutine(int sesionId)
-        {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/{sesionId}/events"))
-            {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("Accept", "text/event-stream");
-                request.SetRequestHeader("Cache-Control", "no-cache");
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    ProcessSSEEvents(request.downloadHandler.text);
-                }
-                else
-                {
-                    OnError?.Invoke($"Error en eventos en tiempo real: {request.error}");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Procesar eventos Server-Sent Events
-        /// </summary>
-        private void ProcessSSEEvents(string sseData)
-        {
-            string[] lines = sseData.Split('\n');
-
-            foreach (string line in lines)
-            {
-                if (line.StartsWith("data: "))
-                {
-                    string jsonData = line.Substring(6);
-                    try
-                    {
-                        var eventData = JsonUtility.FromJson<UnityEvent>(jsonData);
-                        HandleUnityEvent(eventData);
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.LogError($"Error procesando evento SSE: {e.Message}");
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Manejar eventos de Unity
-        /// </summary>
-        private void HandleUnityEvent(UnityEvent eventData)
-        {
-            switch (eventData.type)
-            {
-                case "dialogo_actualizado":
-                    // Actualizar estado del diálogo
-                    GetDialogoEstado(currentSesionId);
-                    break;
-
-                case "usuario_hablando":
-                    // Manejar cambio de estado de habla
-                    Debug.Log($"Usuario {eventData.data.usuario_id} está hablando: {eventData.data.estado}");
-                    break;
-
-                case "decision_procesada":
-                    // Actualizar UI después de procesar decisión
-                    GetDialogoEstado(currentSesionId);
-                    break;
-
-                case "sesion_finalizada":
-                    // Manejar finalización de sesión
-                    Debug.Log("Sesión finalizada");
-                    break;
-            }
-        }
-
-        #endregion
-
-        #region Salas Unity
-
-        /// <summary>
-        /// Crear sala de Unity
-        /// </summary>
-        public void CreateRoom(string nombre, int sesionJuicioId, int maxParticipantes = 10)
-        {
-            StartCoroutine(CreateRoomCoroutine(nombre, sesionJuicioId, maxParticipantes));
-        }
-
-        private IEnumerator CreateRoomCoroutine(string nombre, int sesionJuicioId, int maxParticipantes)
-        {
-            var roomData = new CreateRoomRequest
-            {
-                nombre = nombre,
-                sesion_juicio_id = sesionJuicioId,
-                max_participantes = maxParticipantes,
-                configuracion = new Dictionary<string, object>(),
-                audio_config = new Dictionary<string, object>()
-            };
-
-            string jsonData = JsonUtility.ToJson(roomData);
-
-            using (UnityWebRequest request = new UnityWebRequest($"{baseURL}/unity/rooms/create", "POST"))
-            {
-                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonData);
-                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                request.downloadHandler = new DownloadHandlerBuffer();
-                request.SetRequestHeader("Content-Type", "application/json");
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<APIResponse<RoomData>>(request.downloadHandler.text);
-
-                    if (response.success)
-                    {
-                        Debug.Log($"Sala creada: {response.data.room_id}");
-                    }
-                    else
-                    {
-                        OnError?.Invoke(response.message);
-                    }
-                }
-                else
-                {
-                    OnError?.Invoke($"Error creando sala: {request.error}");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Unirse a sala de Unity
-        /// </summary>
-        public void JoinRoom(string roomId)
-        {
-            StartCoroutine(JoinRoomCoroutine(roomId));
-        }
-
-        private IEnumerator JoinRoomCoroutine(string roomId)
-        {
-            using (UnityWebRequest request = UnityWebRequest.Get($"{baseURL}/unity/rooms/{roomId}/join"))
-            {
-                request.SetRequestHeader("Authorization", $"Bearer {authToken}");
-                request.SetRequestHeader("X-Unity-Version", unityVersion);
-                request.SetRequestHeader("X-Unity-Platform", unityPlatform);
-                request.SetRequestHeader("X-Unity-Device-Id", deviceId);
-
-                yield return request.SendWebRequest();
-
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    var response = JsonUtility.FromJson<APIResponse<RoomData>>(request.downloadHandler.text);
-
-                    if (response.success)
-                    {
-                        Debug.Log($"Unido a sala: {response.data.room_id}");
-                    }
-                    else
-                    {
-                        OnError?.Invoke(response.message);
-                    }
-                }
-                else
-                {
-                    OnError?.Invoke($"Error uniéndose a sala: {request.error}");
-                }
-            }
-        }
-
-        #endregion
+        private IEnumerator LoginCoroutine(string email, string password) { yield break; }
+        private IEnumerator GetActiveSessionCoroutine() { yield break; }
+        private IEnumerator GetSessionDialogueCoroutine(int sessionId) { yield break; }
+        private IEnumerator GetDialogoEstadoCoroutine(int sesionId) { yield break; }
+        private IEnumerator GetRespuestasUsuarioCoroutine(int sesionId, int usuarioId) { yield break; }
+        private IEnumerator EnviarDecisionCoroutine(int sesionId, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta) { yield break; }
+        private IEnumerator JoinRoomCoroutine(string roomId) { yield break; }
     }
 
-    #region Clases de Datos
-
+    // Clases de datos
     [Serializable]
-    public class APIResponse<T>
-    {
-        public bool success;
-        public string message;
-        public T data;
-    }
-
+    public class RoleStatusResponse { public bool success; public Dictionary<string, RoleInfo> roles; }
     [Serializable]
-    public class LoginRequest
-    {
-        public string email;
-        public string password;
-        public string unity_version;
-        public string unity_platform;
-        public string device_id;
-        public Dictionary<string, object> session_data;
-    }
-
+    public class RoleInfo { public int id; public string nombre; public string color; public string descripcion; public int orden; public string ocupado_por; public string icono; }
     [Serializable]
-    public class LoginResponse
-    {
-        public string token;
-        public string token_type;
-        public int expires_in;
-        public UserData user;
-        public Dictionary<string, object> unity_info;
-        public string server_time;
-    }
-
+    public class APIResponse<T> { public bool success; public string message; public T data; }
     [Serializable]
-    public class UserData
-    {
-        public int id;
-        public string name;
-        public string apellido;
-        public string email;
-        public string tipo;
-        public bool activo;
-        public Dictionary<string, object> configuracion;
-    }
-
+    public class LoginRequest { public string email; public string password; public string unity_version; public string unity_platform; public string device_id; public Dictionary<string, object> session_data; }
     [Serializable]
-    public class ServerStatus
-    {
-        public string server_status;
-        public string api_version;
-        public bool unity_support;
-        public string server_time;
-        public string timezone;
-        public Dictionary<string, bool> features;
-    }
-
+    public class LoginResponse { public string token; public string token_type; public int expires_in; public UserData user; public Dictionary<string, object> unity_info; public string server_time; }
     [Serializable]
-    public class DialogoEstado
-    {
-        public bool dialogo_activo;
-        public string estado;
-        public NodoActual nodo_actual;
-        public List<JuiciosSimulator.API.Participante> participantes;
-        public float progreso;
-        public int tiempo_transcurrido;
-        public Dictionary<string, object> variables;
-    }
-
+    public class UserData { public int id; public string name; public string apellido; public string email; public string tipo; public bool activo; public Dictionary<string, object> configuracion; }
     [Serializable]
-    public class NodoActual
-    {
-        public int id;
-        public string titulo;
-        public string contenido;
-        public RolHablando rol_hablando;
-        public string tipo;
-        public bool es_final;
-    }
-
+    public class ServerStatus { public string server_status; public string api_version; public bool unity_support; public string server_time; public string timezone; public Dictionary<string, bool> features; }
     [Serializable]
-    public class RolHablando
-    {
-        public int id;
-        public string nombre;
-        public string color;
-        public string icono;
-    }
-
+    public class DialogoEstado { public bool dialogo_activo; public string estado; public NodoActual nodo_actual; public List<Participante> participantes; public float progreso; public int tiempo_transcurrido; public Dictionary<string, object> variables; }
     [Serializable]
-    public class Participante
-    {
-        public int usuario_id;
-        public string nombre;
-        public RolParticipante rol;
-        public bool es_turno;
-    }
-
+    public class NodoActual { public int id; public string titulo; public string contenido; public RolHablando rol_hablando; public string tipo; public bool es_final; }
     [Serializable]
-    public class RolParticipante
-    {
-        public int id;
-        public string nombre;
-        public string color;
-        public string icono;
-    }
-
+    public class RolHablando { public int id; public string nombre; public string color; public string icono; }
     [Serializable]
-    public class RespuestaUsuario
-    {
-        public int id;
-        public string texto;
-        public int nodo_dialogo_id;
-        public int orden;
-    }
-
+    public class Participante { public int usuario_id; public string nombre; public RolParticipante rol; public bool es_turno; }
     [Serializable]
-    public class DecisionRequest
-    {
-        public int usuario_id;
-        public int respuesta_id;
-        public string texto_decision;
-        public int tiempo_respuesta;
-    }
-
+    public class RolParticipante { public int id; public string nombre; public string color; public string icono; }
     [Serializable]
-    public class UnityEvent
-    {
-        public int id;
-        public string type;
-        public EventData data;
-        public int sesion_id;
-        public string timestamp;
-        public string priority;
-    }
-
+    public class RespuestaUsuario { public int id; public string texto; public int nodo_dialogo_id; public int orden; }
     [Serializable]
-    public class EventData
-    {
-        public int usuario_id;
-        public string estado;
-        public Dictionary<string, object> decision;
-        public string tipo;
-    }
-
+    public class DecisionRequest { public int usuario_id; public int respuesta_id; public string texto_decision; public int tiempo_respuesta; }
     [Serializable]
-    public class CreateRoomRequest
-    {
-        public string nombre;
-        public int sesion_juicio_id;
-        public int max_participantes;
-        public Dictionary<string, object> configuracion;
-        public Dictionary<string, object> audio_config;
-    }
-
+    public class UnityEvent { public int id; public string type; public EventData data; public int sesion_id; public string timestamp; public string priority; }
     [Serializable]
-    public class RoomData
-    {
-        public string room_id;
-        public string nombre;
-        public int max_participantes;
-        public string estado;
-        public Dictionary<string, object> configuracion;
-        public Dictionary<string, object> audio_config;
-        public string fecha_creacion;
-        public int participantes_conectados;
-        public List<JuiciosSimulator.API.Participante> participantes;
-    }
-
+    public class EventData { public int usuario_id; public string estado; public Dictionary<string, object> decision; public string tipo; }
     [Serializable]
-    public class SessionData
-    {
-        public SessionInfo session;
-        public RoleInfo role;
-        public AssignmentInfo assignment;
-        public string server_time;
-    }
-
+    public class CreateRoomRequest { public string nombre; public int sesion_juicio_id; public int max_participantes; public Dictionary<string, object> configuracion; public Dictionary<string, object> audio_config; }
     [Serializable]
-    public class SessionInfo
-    {
-        public int id;
-        public string nombre;
-        public string descripcion;
-        public string estado;
-        public string fecha_inicio;
-        public string fecha_fin;
-        public Dictionary<string, object> configuracion;
-        public InstructorInfo instructor;
-    }
-
+    public class RoomData { public string room_id; public string nombre; public int max_participantes; public string estado; public Dictionary<string, object> configuracion; public Dictionary<string, object> audio_config; public string fecha_creacion; public int participantes_conectados; public List<Participante> participantes; }
     [Serializable]
-    public class InstructorInfo
-    {
-        public int id;
-        public string name;
-        public string email;
-    }
-
+    public class SessionData { public SessionInfo session; public RoleInfo role; public AssignmentInfo assignment; public string server_time; }
     [Serializable]
-    public class RoleInfo
-    {
-        public int id;
-        public string nombre;
-        public string descripcion;
-        public string color;
-        public string icono;
-    }
-
+    public class SessionInfo { public int id; public string nombre; public string descripcion; public string estado; public string fecha_inicio; public string fecha_fin; public Dictionary<string, object> configuracion; public InstructorInfo instructor; }
     [Serializable]
-    public class AssignmentInfo
-    {
-        public int id;
-        public bool confirmado;
-        public string notas;
-        public string fecha_asignacion;
-    }
-
+    public class InstructorInfo { public int id; public string name; public string email; }
     [Serializable]
-    public class DialogueData
-    {
-        public DialogueInfo dialogue;
-        public SessionInfo session_info;
-        public UserRoleInfo user_role;
-        public string server_time;
-    }
-
+    public class AssignmentInfo { public int id; public bool confirmado; public string notas; public string fecha_asignacion; }
     [Serializable]
-    public class DialogueInfo
-    {
-        public int id;
-        public string nombre;
-        public string descripcion;
-        public List<RoleFlow> roles;
-    }
-
+    public class DialogueData { public DialogueInfo dialogue; public SessionInfo session_info; public UserRoleInfo user_role; public string server_time; }
     [Serializable]
-    public class RoleFlow
-    {
-        public int id;
-        public string nombre;
-        public string descripcion;
-        public string color;
-        public string icono;
-        public bool requerido;
-        public List<FlowInfo> flujos;
-    }
-
+    public class DialogueInfo { public int id; public string nombre; public string descripcion; public List<RoleFlow> roles; }
     [Serializable]
-    public class FlowInfo
-    {
-        public int id;
-        public List<DialogueNode> dialogos;
-    }
-
+    public class RoleFlow { public int id; public string nombre; public string descripcion; public string color; public string icono; public bool requerido; public List<FlowInfo> flujos; }
     [Serializable]
-    public class DialogueNode
-    {
-        public int id;
-        public string titulo;
-        public string contenido;
-        public string tipo;
-        public int posicion;
-        public List<DialogueOption> opciones;
-    }
-
+    public class FlowInfo { public int id; public List<DialogueNode> dialogos; }
     [Serializable]
-    public class DialogueOption
-    {
-        public int id;
-        public string letra;
-        public string texto;
-        public int puntuacion;
-        public Dictionary<string, object> consecuencias;
-    }
-
+    public class DialogueNode { public int id; public string titulo; public string contenido; public string tipo; public int posicion; public List<DialogueOption> opciones; }
     [Serializable]
-    public class UserRoleInfo
-    {
-        public int id;
-        public string nombre;
-    }
-
-    #endregion
+    public class DialogueOption { public int id; public string letra; public string texto; public int puntuacion; public Dictionary<string, object> consecuencias; }
+    [Serializable]
+    public class UserRoleInfo { public int id; public string nombre; }
 }
+// ...existing code...

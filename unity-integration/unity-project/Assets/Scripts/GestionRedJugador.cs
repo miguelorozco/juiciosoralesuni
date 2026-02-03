@@ -1,6 +1,7 @@
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
+using System;
 using System.Collections;
 using ExitGames.Client.Photon;
 using JuiciosSimulator.API;
@@ -24,6 +25,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     private bool playerInstantiated = false; // Flag para evitar múltiples instanciaciones del Player
 
     private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
+    private bool roleProvidedBySession = false; // Indica si el rol fue provisto por la sesión (vs fallback)
 
     void Start()
     {
@@ -126,6 +128,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         {
             assignedRole = sessionData.role.nombre ?? "Observador";
             hasAssignedRole = true;
+            roleProvidedBySession = true;
             Debug.Log($"✅ Rol asignado actualizado: {assignedRole}");
 
             // Si ya estamos en una sala, actualizar el rol del jugador en Photon
@@ -146,6 +149,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
             Debug.LogWarning("⚠️ Sesión activa recibida pero sin rol asignado - usando Observador por defecto");
             assignedRole = "Observador";
             hasAssignedRole = false;
+            roleProvidedBySession = false;
         }
     }
 
@@ -262,7 +266,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     {
         Debug.Log("No se pudo unir a una sala existente. Creando nueva sala...");
         RoomOptions roomOptions = new RoomOptions { MaxPlayers = 20 };
-        string roomName = "Sala_" + Random.Range(1000, 9999);
+        string roomName = "Sala_" + UnityEngine.Random.Range(1000, 9999);
         PhotonNetwork.CreateRoom(roomName, roomOptions, TypedLobby.Default);
 
     }
@@ -347,36 +351,52 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
             Debug.LogWarning($"⚠️ No se pudo obtener el rol desde Laravel, usando 'Observador' por defecto. El rol se actualizará automáticamente cuando llegue la sesión activa.");
         }
 
-        // Instanciar el jugador con el rol asignado
-        Vector3 spawnPosition = GetSpawnPositionForRole(assignedRole);
-        Quaternion spawnRotation = Quaternion.Euler(0, 180, 0);
+        // Si no venimos con un role provisto por la sesión, intentar reclamar automáticamente
+        if (!playerInstantiated && !roleProvidedBySession)
+        {
+            Debug.Log("[GestionRedJugador] No se proporcionó ROLE. Intentando reclamar un Player disponible automáticamente...");
+            GameObject claimed = FindAndClaimAnyAvailablePlayer();
+            if (claimed != null)
+            {
+                Debug.Log($"[GestionRedJugador] Player reclamado automáticamente: {claimed.name}");
+                playerInstantiated = true;
+                StartCoroutine(ConfigurePlayerAfterInstantiate(claimed, assignedRole));
+            }
+        }
 
-        // Instanciar el prefab del jugador (solo una vez)
+        // Usar el Player existente en la escena para el rol asignado
         if (!playerInstantiated)
         {
-            DebugLogger.LogPhase("GestionRedJugador", "Instanciando Player prefab", new { 
-                position = spawnPosition, 
-                role = assignedRole,
-                roomName = PhotonNetwork.CurrentRoom?.Name
-            });
-            Debug.Log($"[GestionRedJugador] Instanciando prefab 'Player' en posición: {spawnPosition}");
-            GameObject playerPrefab = PhotonNetwork.Instantiate("Player", spawnPosition, spawnRotation);
+            GameObject existingPlayer = FindExistingPlayerForRole(assignedRole);
 
-            // IMPORTANTE: Esperar un frame para que PhotonView se configure correctamente
-            // PhotonNetwork.Instantiate puede no tener IsMine configurado inmediatamente
-            if (playerPrefab != null)
+            if (existingPlayer != null)
             {
-                playerInstantiated = true; // Marcar como instanciado ANTES de configurar
-                StartCoroutine(ConfigurePlayerAfterInstantiate(playerPrefab, assignedRole));
+                DebugLogger.LogPhase("GestionRedJugador", "Asignando Player existente", new { 
+                    role = assignedRole,
+                    playerName = existingPlayer.name,
+                    roomName = PhotonNetwork.CurrentRoom?.Name
+                });
+                Debug.Log($"[GestionRedJugador] Usando Player existente: {existingPlayer.name} para rol {assignedRole}");
+
+                // Transferir ownership al jugador local si es necesario
+                var existingPhotonView = existingPlayer.GetComponent<PhotonView>();
+                if (existingPhotonView != null && !existingPhotonView.IsMine)
+                {
+                    existingPhotonView.TransferOwnership(PhotonNetwork.LocalPlayer);
+                    Debug.Log($"[GestionRedJugador] Ownership transferido para {existingPlayer.name}");
+                }
+
+                playerInstantiated = true; // Marcar como asignado ANTES de configurar
+                StartCoroutine(ConfigurePlayerAfterInstantiate(existingPlayer, assignedRole));
             }
             else
             {
-                Debug.LogError($"[GestionRedJugador] ❌ No se pudo instanciar el prefab 'Player'!");
+                Debug.LogError($"[GestionRedJugador] ❌ No se encontró Player existente para el rol '{assignedRole}'. No se instanciará uno nuevo.");
             }
         }
         else
         {
-            Debug.LogWarning("[GestionRedJugador] ⚠️ Player ya fue instanciado. Ignorando instanciación duplicada.");
+            Debug.LogWarning("[GestionRedJugador] ⚠️ Player ya fue asignado. Ignorando asignación duplicada.");
         }
 
         // Inicializar el sistema de audio
@@ -411,10 +431,12 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         var playerController = playerPrefab.GetComponent<PlayerController>();
         var playerInputHandler = playerPrefab.GetComponent<PlayerInputHandler>();
         var photonView = playerPrefab.GetComponent<PhotonView>();
+        var controlCamara = playerPrefab.GetComponent<ControlCamaraJugador>();
         
         Debug.Log($"[GestionRedJugador] PlayerController encontrado: {playerController != null}");
         Debug.Log($"[GestionRedJugador] PlayerInputHandler encontrado: {playerInputHandler != null}");
         Debug.Log($"[GestionRedJugador] PhotonView encontrado: {photonView != null}");
+        Debug.Log($"[GestionRedJugador] ControlCamaraJugador encontrado: {controlCamara != null}");
         if (photonView != null)
         {
             Debug.Log($"[GestionRedJugador] PhotonView.IsMine (después de esperar): {photonView.IsMine}");
@@ -457,6 +479,95 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         {
             Debug.LogError($"[GestionRedJugador] ❌ No se pudo crear PlayerController!");
         }
+
+        // CRÍTICO: Inicializar la cámara DESPUÉS de confirmar el ownership
+        if (controlCamara != null)
+        {
+            Debug.Log($"[GestionRedJugador] Inicializando cámara para {playerPrefab.name}");
+            controlCamara.InitializeCamera();
+        }
+        else
+        {
+            Debug.LogWarning($"[GestionRedJugador] ⚠️ No se encontró ControlCamaraJugador en {playerPrefab.name}");
+        }
+    }
+
+    /// <summary>
+    /// Busca un Player existente en la escena para el rol asignado (ej: Player_Juez).
+    /// </summary>
+    private GameObject FindExistingPlayerForRole(string role)
+    {
+        if (string.IsNullOrEmpty(role))
+        {
+            return null;
+        }
+
+        string expectedName = $"Player_{role}";
+        GameObject byName = GameObject.Find(expectedName);
+        if (byName != null)
+        {
+            return byName;
+        }
+
+        // Fallback: buscar por tag y comparación case-insensitive del rol
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        foreach (var player in players)
+        {
+            if (player == null) continue;
+            string name = player.name;
+            if (!name.StartsWith("Player_")) continue;
+            string foundRole = name.Replace("Player_", "").Replace("(Clone)", "").Trim();
+            if (string.Equals(foundRole, role, StringComparison.OrdinalIgnoreCase))
+            {
+                return player;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Busca cualquier Player_* disponible (sin owner) y reclama su ownership para el jugador local.
+    /// Devuelve el GameObject reclamado o null si no encontró ninguno.
+    /// </summary>
+    private GameObject FindAndClaimAnyAvailablePlayer()
+    {
+        // Buscar todas las PhotonViews en escena y filtrar por nombre Player_
+        var allPVs = FindObjectsOfType<PhotonView>();
+        foreach (var pv in allPVs)
+        {
+            if (pv == null) continue;
+            var go = pv.gameObject;
+            if (go == null) continue;
+            if (!go.name.StartsWith("Player_")) continue;
+
+            // Si ya es nuestro, devolverlo
+            if (pv.IsMine)
+            {
+                assignedRole = go.name.Replace("Player_", "").Replace("(Clone)", "").Trim();
+                hasAssignedRole = true;
+                return go;
+            }
+
+            // Si no tiene owner (scene object) o su owner es 0, intentar transferir ownership
+            if (pv.Owner == null || pv.Owner.ActorNumber == 0)
+            {
+                try
+                {
+                    pv.TransferOwnership(PhotonNetwork.LocalPlayer);
+                    assignedRole = go.name.Replace("Player_", "").Replace("(Clone)", "").Trim();
+                    hasAssignedRole = true;
+                    Debug.Log($"[GestionRedJugador] Ownership transferido automáticamente para {go.name}");
+                    return go;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[GestionRedJugador] No se pudo transferir ownership para {go.name}: {e.Message}");
+                }
+            }
+        }
+
+        return null;
     }
 
     private Vector3 GetSpawnPositionForRole(string role)
