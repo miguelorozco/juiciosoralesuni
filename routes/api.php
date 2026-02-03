@@ -23,6 +23,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\PanelDialogoController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\LiveKitController;
 
 /*
 |--------------------------------------------------------------------------
@@ -357,6 +358,28 @@ Route::group(['prefix' => 'unity'], function () {
             });
         });
     });
+
+// ========================================
+// RUTAS DE LIVEKIT (SFU + coturn)
+// ========================================
+Route::group(['prefix' => 'livekit'], function () {
+    // Rutas públicas (para testing)
+    Route::get('/test', function () {
+        return response()->json([
+            'success' => true,
+            'message' => 'LiveKit API funcionando correctamente',
+            'timestamp' => now()->toISOString(),
+            'server' => config('livekit.host'),
+        ]);
+    });
+    
+    // Rutas protegidas
+    Route::middleware('unity.auth')->group(function () {
+        Route::post('/token', [LiveKitController::class, 'getToken']);
+        Route::get('/rooms', [LiveKitController::class, 'getRooms']);
+        Route::get('/rooms/{roomName}/participants', [LiveKitController::class, 'getParticipants']);
+    });
+});
 
     // ========================================
     // RUTAS DE PERFIL DE USUARIO

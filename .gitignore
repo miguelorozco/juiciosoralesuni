@@ -54,3 +54,10 @@ WARP.md
 # Ignore Unity WebGL build artifacts stored for local testing
 /storage/unity-build/
 
+# LiveKit y coturn
+livekit.log
+livekit.yaml
+coturn.log
+.livekit.pid
+.coturn.pid
+
