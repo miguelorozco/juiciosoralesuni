@@ -388,6 +388,82 @@ class SesionController extends Controller
     }
     
     /**
+     * Obtener roles disponibles de una sesión con información de ocupación
+     */
+    public function getRolesDisponibles(SesionJuicio $sesion)
+    {
+        try {
+            // Obtener el diálogo asociado a la sesión
+            $sesionDialogo = SesionDialogoV2::where('sesion_id', $sesion->id)
+                ->with('dialogo')
+                ->first();
+
+            if (!$sesionDialogo || !$sesionDialogo->dialogo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Esta sesión no tiene un diálogo asignado'
+                ], 404);
+            }
+
+            // Obtener roles del diálogo
+            $rolesDialogo = \DB::table('nodos_dialogo_v2')
+                ->join('roles_disponibles', 'nodos_dialogo_v2.rol_id', '=', 'roles_disponibles.id')
+                ->where('nodos_dialogo_v2.dialogo_id', $sesionDialogo->dialogo_id)
+                ->select('roles_disponibles.*')
+                ->distinct()
+                ->get();
+
+            // Obtener asignaciones de roles para esta sesión
+            $asignaciones = AsignacionRol::with(['usuario', 'rolDisponible'])
+                ->where('sesion_id', $sesion->id)
+                ->get()
+                ->keyBy('rol_id');
+
+            $currentUserId = auth()->check() ? auth()->id() : null;
+
+            // Mapear roles con información de ocupación
+            $roles = $rolesDialogo->map(function ($rol) use ($asignaciones, $currentUserId) {
+                $asignacion = $asignaciones->get($rol->id);
+                $assignedUserId = $asignacion ? $asignacion->usuario_id : null;
+                $isOwnRole = $currentUserId && $assignedUserId && $assignedUserId === $currentUserId;
+                $isOccupiedByOther = $assignedUserId && (!$currentUserId || $assignedUserId !== $currentUserId);
+                
+                return [
+                    'id' => $rol->id,
+                    'nombre' => $rol->nombre,
+                    'descripcion' => $rol->descripcion,
+                    'color' => $rol->color,
+                    'icono' => $rol->icono,
+                    'orden' => $rol->orden,
+                    'ocupado_por' => $isOccupiedByOther && $asignacion && $asignacion->usuario
+                        ? $asignacion->usuario->name
+                        : null,
+                    'usuario_id' => $assignedUserId,
+                    'is_own_role' => $isOwnRole,
+                    'is_occupied_by_other' => $isOccupiedByOther,
+                ];
+            })->sortBy('orden')->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $roles
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error obteniendo roles disponibles', [
+                'sesion_id' => $sesion->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error obteniendo roles disponibles: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
      * Mostrar formulario de edición
      */
     public function edit(SesionJuicio $sesion)

@@ -607,7 +607,105 @@ namespace JuiciosSimulator.Integration
             StartEntryProcess(authToken);
         }
 
+        /// <summary>
+        /// Recibe datos de sesión desde JavaScript (Laravel)
+        /// Llamado por: window.sendToUnity() en game.blade.php
+        /// </summary>
+        public void ReceiveLaravelData(string jsonData)
+        {
+            DebugLogger.LogPhase("LaravelUnityEntryManager", "Recibiendo datos de sesión desde Laravel");
+            
+            try
+            {
+                // Parsear JSON
+                var payload = JsonUtility.FromJson<SessionDataPayload>(jsonData);
+                
+                if (payload == null)
+                {
+                    DebugLogger.LogError("LaravelUnityEntryManager", "Error parseando datos de sesión");
+                    return;
+                }
+
+                // Almacenar datos en LaravelAPI para que GestionRedJugador los encuentre
+                if (laravelAPI == null)
+                {
+                    laravelAPI = LaravelAPI.Instance;
+                }
+
+                if (laravelAPI != null)
+                {
+                    // Actualizar SessionData en LaravelAPI con la estructura correcta
+                    laravelAPI.currentSessionData = new SessionData()
+                    {
+                        session = new SessionInfo()
+                        {
+                            id = payload.session.id,
+                            nombre = payload.session.nombre,
+                            estado = payload.session.estado,
+                            descripcion = "",
+                            fecha_inicio = "",
+                            fecha_fin = ""
+                        },
+                        role = new RoleInfo()
+                        {
+                            id = payload.role.id,
+                            nombre = payload.role.nombre, // ← ESTO ES LO IMPORTANTE
+                            descripcion = payload.role.descripcion,
+                            color = payload.role.color,
+                            icono = payload.role.icono,
+                            ocupado_por = ""
+                        },
+                        assignment = new AssignmentInfo()
+                        {
+                            id = 0,
+                            confirmado = true
+                        }
+                    };
+
+                    DebugLogger.LogPhase("LaravelUnityEntryManager", "Datos de sesión recibidos", new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        { "userId", payload.user.id },
+                        { "sessionId", payload.session.id },
+                        { "rolNombre", payload.role.nombre }
+                    });
+
+                    // Notificar al GameInitializer que tenemos datos
+                    hasSessionData = true;
+
+                    if (gameInitializer != null)
+                    {
+                        gameInitializer.currentSessionData = laravelAPI.currentSessionData;
+                    }
+
+                    // Disparar evento para que GestionRedJugador actualice rol y se una a la sala
+                    laravelAPI.TriggerActiveSessionReceived(laravelAPI.currentSessionData);
+                    
+                    // Ahora que tenemos el rol, iniciar el proceso de entrada
+                    // GestionRedJugador buscará estos datos en la próxima llamada a OnJoinedLobby()
+                    StartCoroutine(WaitAndStartSession());
+                }
+                else
+                {
+                    DebugLogger.LogError("LaravelUnityEntryManager", "LaravelAPI no disponible");
+                }
+            }
+            catch (System.Exception e)
+            {
+                DebugLogger.LogError("LaravelUnityEntryManager", $"Error procesando datos: {e.Message}\n{e.StackTrace}");
+            }
+        }
+
+        private IEnumerator WaitAndStartSession()
+        {
+            // Esperar a que Photon esté conectado si es necesario
+            yield return new WaitForSeconds(0.5f);
+            
+            // Si el gestor de red está disponible, el rol ya está establecido en currentSessionData
+            // GestionRedJugador.GetAssignedRoleFromSession() lo encontrará automáticamente
+        }
+
         #endregion
+
 
         private void OnDestroy()
         {
@@ -620,4 +718,42 @@ namespace JuiciosSimulator.Integration
             }
         }
     }
+
+    /// <summary>
+    /// Clases para parsear JSON desde Laravel
+    /// </summary>
+    [System.Serializable]
+    public class SessionDataPayload
+    {
+        public UserPayload user;
+        public SessionPayload session;
+        public RolePayload role;
+    }
+
+    [System.Serializable]
+    public class UserPayload
+    {
+        public int id;
+        public string name;
+        public string email;
+    }
+
+    [System.Serializable]
+    public class SessionPayload
+    {
+        public int id;
+        public string nombre;
+        public string estado;
+    }
+
+    [System.Serializable]
+    public class RolePayload
+    {
+        public int id;
+        public string nombre;
+        public string descripcion;
+        public string color;
+        public string icono;
+    }
 }
+

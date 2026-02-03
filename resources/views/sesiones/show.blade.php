@@ -219,7 +219,7 @@
                             @endif
                             
                             @if(in_array($sesion->estado, ['programada', 'en_curso']))
-                                <button type="button" class="btn btn-primary" onclick="generateUnityLink()">
+                                <button type="button" class="btn btn-primary" onclick="showRoleSelection()">
                                     <i class="bi bi-controller me-2"></i>
                                     Entrar a Unity
                                 </button>
@@ -299,27 +299,31 @@ function pausarSesion() {
 }
 
 function generateUnityLink() {
-    // Mostrar modal de selección de usuario
-    showUserSelectionModal();
+    // Esta función ya no se usa, ahora usamos showRoleSelection()
 }
 
-function showUserSelectionModal() {
+function showRoleSelection() {
+    // Mostrar modal de selección de rol disponible
+    showRoleSelectionModal();
+}
+
+function showRoleSelectionModal() {
     // Crear modal dinámicamente
     const modalHtml = `
-        <div class="modal fade" id="unityUserModal" tabindex="-1">
+        <div class="modal fade" id="unityRoleModal" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title">
                             <i class="bi bi-controller me-2"></i>
-                            Seleccionar Usuario para Unity
+                            Seleccionar Rol para Unity
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="mb-3">Selecciona el usuario que entrará a Unity:</p>
-                        <div id="userList" class="list-group">
-                            <!-- Los usuarios se cargarán aquí -->
+                        <p class="mb-3">Selecciona un rol disponible para unirte a la sesión:</p>
+                        <div id="roleList" class="list-group">
+                            <!-- Los roles se cargarán aquí -->
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -331,7 +335,7 @@ function showUserSelectionModal() {
     `;
     
     // Remover modal existente si existe
-    const existingModal = document.getElementById('unityUserModal');
+    const existingModal = document.getElementById('unityRoleModal');
     if (existingModal) {
         existingModal.remove();
     }
@@ -339,67 +343,74 @@ function showUserSelectionModal() {
     // Agregar modal al DOM
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
-    // Cargar usuarios asignados
-    loadAssignedUsers();
+    // Cargar roles disponibles
+    loadAvailableRoles();
     
     // Mostrar modal
-    const modal = new bootstrap.Modal(document.getElementById('unityUserModal'));
+    const modal = new bootstrap.Modal(document.getElementById('unityRoleModal'));
     modal.show();
 }
 
-function loadAssignedUsers() {
-    const userList = document.getElementById('userList');
-    userList.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
+function loadAvailableRoles() {
+    const roleList = document.getElementById('roleList');
+    roleList.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
     
-    // Obtener usuarios asignados de la sesión
+    // Obtener roles disponibles de la sesión
     const sessionId = {{ $sesion->id }};
     
-    fetch(`/api/sesiones/${sessionId}/usuarios-asignados`)
+    fetch(`/api/sesiones/${sessionId}/roles-disponibles`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                displayUsers(data.data);
+                displayAvailableRoles(data.data);
             } else {
-                userList.innerHTML = '<div class="alert alert-warning">No hay usuarios asignados a esta sesión.</div>';
+                roleList.innerHTML = '<div class="alert alert-warning">No hay roles disponibles en esta sesión.</div>';
             }
         })
         .catch(error => {
-            console.error('Error cargando usuarios:', error);
-            userList.innerHTML = '<div class="alert alert-danger">Error cargando usuarios asignados.</div>';
+            console.error('Error cargando roles:', error);
+            roleList.innerHTML = '<div class="alert alert-danger">Error cargando roles disponibles.</div>';
         });
 }
 
-function displayUsers(users) {
-    const userList = document.getElementById('userList');
+function displayAvailableRoles(roles) {
+    const roleList = document.getElementById('roleList');
     
-    if (users.length === 0) {
-        userList.innerHTML = '<div class="alert alert-warning">No hay usuarios asignados a esta sesión.</div>';
+    if (roles.length === 0) {
+        roleList.innerHTML = '<div class="alert alert-warning">No hay roles disponibles. Todos los roles están ocupados.</div>';
         return;
     }
     
     let html = '';
-    users.forEach(user => {
+    roles.forEach(role => {
+        const isOccupiedByOther = role.is_occupied_by_other === true;
+        const isOwnRole = role.is_own_role === true;
+        const occupiedClass = isOccupiedByOther ? 'list-group-item-secondary' : '';
+        const occupiedStyle = isOccupiedByOther ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;';
+        const onClick = isOccupiedByOther ? '' : `onclick="selectRoleForUnity(${role.id}, '${role.nombre}')"`;
+        
         html += `
-            <div class="list-group-item list-group-item-action" onclick="selectUserForUnity(${user.usuario_id}, '${user.usuario.name}', '${user.rol.nombre}')">
+            <div class="list-group-item list-group-item-action ${occupiedClass}" ${onClick} style="${occupiedStyle}">
                 <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${user.usuario.name}</h6>
-                    <small class="text-muted">${user.usuario.email}</small>
+                    <h6 class="mb-1">
+                        <i class="bi bi-${role.icono || 'person'} me-2" style="color: ${role.color || '#007bff'};"></i>
+                        ${role.nombre}
+                    </h6>
+                    ${isOccupiedByOther ? '<span class="badge bg-danger">Ocupado</span>' : isOwnRole ? '<span class="badge bg-primary">Tu rol</span>' : '<span class="badge bg-success">Disponible</span>'}
                 </div>
-                <p class="mb-1">
-                    <i class="bi bi-${user.rol.icono || 'person'} me-2" style="color: ${user.rol.color || '#007bff'};"></i>
-                    <strong>Rol:</strong> ${user.rol.nombre}
-                </p>
-                <small class="text-muted">${user.rol.descripcion}</small>
+                <p class="mb-1 text-muted">${role.descripcion}</p>
+                ${isOccupiedByOther ? `<small class="text-danger"><i class="bi bi-person-fill me-1"></i>Ocupado por: ${role.ocupado_por}</small>` : ''}
             </div>
         `;
     });
     
-    userList.innerHTML = html;
+    roleList.innerHTML = html;
 }
 
-function selectUserForUnity(userId, userName, roleName) {
-    // Generar enlace de Unity para el usuario seleccionado
+function selectRoleForUnity(roleId, roleName) {
+    // Generar enlace de Unity para el rol seleccionado
     const sessionId = {{ $sesion->id }};
+    const userId = {{ auth()->id() }};
     
     fetch('/api/unity-entry/generate', {
         method: 'POST',
@@ -427,7 +438,7 @@ function selectUserForUnity(userId, userName, roleName) {
         
         if (data.success) {
             // Cerrar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('unityUserModal'));
+            const modal = bootstrap.Modal.getInstance(document.getElementById('unityRoleModal'));
             modal.hide();
             
             // Mostrar enlace de Unity
@@ -518,9 +529,9 @@ function retryUnityLinkGeneration() {
     const errorModal = bootstrap.Modal.getInstance(document.getElementById('errorModal'));
     errorModal.hide();
     
-    // Reabrir modal de selección de usuario
-    const userModal = new bootstrap.Modal(document.getElementById('unityUserModal'));
-    userModal.show();
+    // Reabrir modal de selección de rol
+    const roleModal = new bootstrap.Modal(document.getElementById('unityRoleModal'));
+    roleModal.show();
 }
 
 function showUnityLink(data) {

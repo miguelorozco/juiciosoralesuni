@@ -165,7 +165,7 @@ function enterUnity() {
     statusText.textContent = 'Abriendo Unity...';
     
     // Abrir Unity en nueva ventana
-    const unityUrl = '{{ $unityUrl }}';
+    const unityUrl = @json($unityUrl);
     const unityWindow = window.open(unityUrl, 'UnityWindow', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     
     if (!unityWindow) {

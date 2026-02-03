@@ -37,6 +37,13 @@ namespace JuiciosSimulator.API
         private static bool hasInitialized = false;
         private static int? lastProcessedSessionId = null;
 
+            /// <summary>
+            /// Disparar evento de sesión activa de forma segura desde fuera de esta clase.
+            /// </summary>
+            public void TriggerActiveSessionReceived(SessionData sessionData)
+            {
+                OnActiveSessionReceived?.Invoke(sessionData);
+            }
         // Singleton
         public static LaravelAPI Instance { get; private set; }
         public static bool IsInitialized { get; private set; } = false;

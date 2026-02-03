@@ -165,7 +165,7 @@ function enterUnity() {
     statusText.textContent = 'Abriendo Unity...';
     
     // Abrir Unity en nueva ventana
-    const unityUrl = '<?php echo e($unityUrl); ?>';
+    const unityUrl = <?php echo json_encode($unityUrl, 15, 512) ?>;
     const unityWindow = window.open(unityUrl, 'UnityWindow', 'width=1200,height=800,scrollbars=yes,resizable=yes');
     
     if (!unityWindow) {

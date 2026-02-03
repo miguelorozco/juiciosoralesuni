@@ -946,20 +946,95 @@
                 // Aquí puedes procesar los datos recibidos de Unity
             };
 
-            // Configurar comunicación bidireccional cuando la instancia esté lista
-            if (unityInstance && unityInstance.Module) {
-                unityInstance.Module.onRuntimeInitialized = function() {
-                    console.log("Runtime de Unity inicializado");
-                    
-                    // Enviar información de la sesión si está disponible
-                    <?php if(isset($sessionData)): ?>
-                        setTimeout(function() {
-                            window.sendToUnity(<?php echo json_encode($sessionData, 15, 512) ?>);
-                        }, 1000); // Esperar un poco para asegurar que Unity esté completamente listo
-                    <?php endif; ?>
-                };
+            // Extraer token y sesión de la URL
+            function getQueryParameter(name) {
+                const url = window.location.href;
+                name = name.replace(/[\[\]]/g, '\\$&');
+                const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+                const results = regex.exec(url);
+                if (!results) return null;
+                if (!results[2]) return '';
+                return decodeURIComponent(results[2].replace(/\+/g, ' '));
+            }
+
+            const token = getQueryParameter('token');
+            let sessionId = getQueryParameter('session');
+
+            addDebugLog('phase', 'UNITY', 'Parámetros de entrada extraídos', {
+                hasToken: !!token,
+                sessionId: sessionId
+            });
+                // DEBUG: Imprimir URL completa y parámetros
+                console.log("[ENTRY] URL completa: " + window.location.href);
+                console.log("[ENTRY] URL search: " + window.location.search);
+                console.log("[ENTRY] Parámetro 'token': ", token ? "ENCONTRADO" : "NO ENCONTRADO");
+                console.log("[ENTRY] Parámetro 'session': ", sessionId ? "ENCONTRADO (" + sessionId + ")" : "NO ENCONTRADO");
+
+                // Alternativamente, si falla getQueryParameter, intentar parsearlo manualmente
+                if (!sessionId && window.location.search) {
+                    const params = new URLSearchParams(window.location.search);
+                    sessionId = params.get('session') || null;
+                    console.log("[ENTRY] SessionId recuperado con URLSearchParams: " + sessionId);
+                }
+
+                // Si hay token, obtener los datos de entrada (sessionId puede estar en el token si no está en URL)
+                if (token) {
+                addDebugLog('phase', 'UNITY', 'Obteniendo datos de sesión desde Laravel...');
+                    console.log("[DEBUG] Llamando a /api/unity-entry-info con token:", token);
+                
+                fetch('/api/unity-entry-info?token=' + encodeURIComponent(token), {
+                        credentials: 'same-origin',
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        addDebugLog('phase', 'UNITY', 'Datos de sesión obtenidos', {
+                            userName: data.data.user.name,
+                            roleName: data.data.role.nombre,
+                            sessionId: data.data.session.id
+                        });
+
+                        // Cuando Unity esté listo, enviar los datos
+                        if (unityInstance && unityInstance.Module) {
+                            unityInstance.Module.onRuntimeInitialized = function() {
+                                console.log("Runtime de Unity inicializado - Enviando datos de sesión");
+                                setTimeout(function() {
+                                    window.sendToUnity({
+                                        user: data.data.user,
+                                        session: data.data.session,
+                                        role: data.data.role
+                                    });
+                                }, 500);
+                            };
+                        } else if (unityInstance) {
+                            setTimeout(function() {
+                                window.sendToUnity({
+                                    user: data.data.user,
+                                    session: data.data.session,
+                                    role: data.data.role
+                                });
+                            }, 1000);
+                        }
+                    } else {
+                        addDebugLog('error', 'UNITY', 'Error obteniendo datos de sesión', data);
+                    }
+                })
+                .catch(error => {
+                    addDebugLog('error', 'UNITY', 'Error fetching session data', { error: error.message });
+                    console.error("Error obteniendo datos de sesión:", error);
+                });
             } else {
-                console.warn("Unity instance no está disponible para configuración de comunicación");
+                addDebugLog('warning', 'UNITY', 'No hay token o sesión en la URL');
+                // Si no hay token, usar configuración de servidor si existe
+                if (unityInstance && unityInstance.Module) {
+                    unityInstance.Module.onRuntimeInitialized = function() {
+                        console.log("Runtime de Unity inicializado");
+                    };
+                }
             }
         }
 

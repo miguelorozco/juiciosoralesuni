@@ -76,6 +76,7 @@ Route::middleware(['web.auth'])->group(function () {
     
     // API endpoints para sesiones
     Route::get('/api/sesiones/{sesion}/usuarios-asignados', [SesionController::class, 'getUsuariosAsignados'])->name('sesiones.usuarios-asignados');
+        Route::get('/api/sesiones/{sesion}/roles-disponibles', [SesionController::class, 'getRolesDisponibles'])->name('sesiones.roles-disponibles');
     
     // Diálogos - Redirigir al sistema V2
     Route::get('/dialogos', function() {

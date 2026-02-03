@@ -26,6 +26,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
     private bool roleProvidedBySession = false; // Indica si el rol fue provisto por la sesión (vs fallback)
+    private Coroutine waitForRoleCoroutine = null;
 
     void Start()
     {
@@ -122,6 +123,12 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
         lastProcessedSessionId = sessionData.session.id;
         Debug.Log($"Sesión activa recibida en GestionRedJugador: {sessionData.session.nombre ?? "Sin nombre"}");
+
+        if (waitForRoleCoroutine != null)
+        {
+            StopCoroutine(waitForRoleCoroutine);
+            waitForRoleCoroutine = null;
+        }
         
         // Actualizar el rol asignado
         if (sessionData.role != null)
@@ -218,12 +225,55 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         else
         {
             Debug.LogWarning("No hay sesión activa disponible todavía. Esperando a que se cargue...");
-            // El evento OnActiveSessionReceived se encargará de unirse a la sala cuando el rol esté disponible
-            // Por ahora, usar rol por defecto temporalmente
-            assignedRole = "Observador"; // Rol por defecto temporal
-            hasAssignedRole = true;
-            JoinSessionRoom();
+            // Esperar datos de sesión antes de hacer fallback
+            if (waitForRoleCoroutine == null)
+            {
+                waitForRoleCoroutine = StartCoroutine(WaitForRoleAndJoin());
+            }
         }
+    }
+
+    private IEnumerator WaitForRoleAndJoin()
+    {
+        float timeout = 8f;
+        float elapsed = 0f;
+
+        while (elapsed < timeout)
+        {
+            // Revisar si ya llegó el rol
+            if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
+            {
+                assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
+                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
+                roleProvidedBySession = true;
+                Debug.Log($"✅ Rol asignado (espera): {assignedRole}");
+                waitForRoleCoroutine = null;
+                JoinSessionRoom();
+                yield break;
+            }
+
+            if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
+            {
+                assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
+                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
+                roleProvidedBySession = true;
+                Debug.Log($"✅ Rol asignado (espera): {assignedRole}");
+                waitForRoleCoroutine = null;
+                JoinSessionRoom();
+                yield break;
+            }
+
+            elapsed += 0.5f;
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        // Timeout: fallback
+        Debug.LogWarning("⚠️ Tiempo de espera agotado. Usando rol Observador por defecto.");
+        assignedRole = "Observador";
+        hasAssignedRole = true;
+        roleProvidedBySession = false;
+        waitForRoleCoroutine = null;
+        JoinSessionRoom();
     }
 
     public void JoinSessionRoom()
