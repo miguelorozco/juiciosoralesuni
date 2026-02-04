@@ -16,17 +16,12 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     public GameInitializer gameInitializer;
 
     [Header("Configuración de Sala")]
-    public string sessionRoomName = "SalaPrincipal"; // Nombre fijo para la sesión OXXO
+    public string sessionRoomName = "main"; // Nombre de la sala de sesión
 
-    private bool hasAssignedRole = false;
-    private string assignedRole = "";
     private bool isConnecting = false; // Flag para evitar múltiples conexiones
     private bool hasConnected = false; // Flag para evitar reconexiones
     private bool playerInstantiated = false; // Flag para evitar múltiples instanciaciones del Player
-
     private bool isSubscribedToEvents = false; // Flag para prevenir múltiples suscripciones
-    private bool roleProvidedBySession = false; // Indica si el rol fue provisto por la sesión (vs fallback)
-    private Coroutine waitForRoleCoroutine = null;
 
     void Start()
     {
@@ -61,7 +56,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         if (gameInitializer == null)
             gameInitializer = FindObjectOfType<GameInitializer>();
 
-        // Suscribirse a eventos de LaravelAPI para obtener el rol cuando esté disponible (solo una vez)
+        // Suscribirse a eventos de LaravelAPI (solo una vez)
         if (!isSubscribedToEvents)
         {
             LaravelAPI.OnActiveSessionReceived += OnActiveSessionReceived;
@@ -89,21 +84,14 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         // La sesión se obtendrá automáticamente después del login
     }
 
-    private int sessionReceivedCount = 0; // Contador para detectar múltiples llamadas
     private int? lastProcessedSessionId = null; // ID de la última sesión procesada
 
     private void OnActiveSessionReceived(SessionData sessionData)
     {
-        // Validaciones null críticas para evitar memory access out of bounds
-        if (sessionData == null)
+        // Validaciones null críticas
+        if (sessionData == null || sessionData.session == null)
         {
-            Debug.LogError("❌ OnActiveSessionReceived: sessionData es null");
-            return;
-        }
-
-        if (sessionData.session == null)
-        {
-            Debug.LogError("❌ OnActiveSessionReceived: sessionData.session es null");
+            Debug.LogError("❌ OnActiveSessionReceived: sessionData o session es null");
             return;
         }
 
@@ -115,48 +103,13 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
             return;
         }
 
-        sessionReceivedCount++;
-        if (sessionReceivedCount > 1)
-        {
-            Debug.LogWarning($"[GestionRedJugador] OnActiveSessionReceived llamado {sessionReceivedCount} veces. Posible recursión.");
-        }
-
         lastProcessedSessionId = sessionData.session.id;
-        Debug.Log($"Sesión activa recibida en GestionRedJugador: {sessionData.session.nombre ?? "Sin nombre"}");
+        Debug.Log($"Sesión activa recibida: {sessionData.session.nombre ?? "Sin nombre"}");
 
-        if (waitForRoleCoroutine != null)
+        // Si estamos en el lobby pero no en sala, unirse a la sala
+        if (PhotonNetwork.InLobby && !PhotonNetwork.InRoom)
         {
-            StopCoroutine(waitForRoleCoroutine);
-            waitForRoleCoroutine = null;
-        }
-        
-        // Actualizar el rol asignado
-        if (sessionData.role != null)
-        {
-            assignedRole = sessionData.role.nombre ?? "Observador";
-            hasAssignedRole = true;
-            roleProvidedBySession = true;
-            Debug.Log($"✅ Rol asignado actualizado: {assignedRole}");
-
-            // Si ya estamos en una sala, actualizar el rol del jugador en Photon
-            if (PhotonNetwork.InRoom)
-            {
-                ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
-                PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
-                Debug.Log($"✅ Rol actualizado en Photon: {assignedRole}");
-            }
-            // Si estamos en el lobby pero no en sala, unirse a la sala
-            else if (PhotonNetwork.InLobby)
-            {
-                JoinSessionRoom();
-            }
-        }
-        else
-        {
-            Debug.LogWarning("⚠️ Sesión activa recibida pero sin rol asignado - usando Observador por defecto");
-            assignedRole = "Observador";
-            hasAssignedRole = false;
-            roleProvidedBySession = false;
+            JoinSessionRoom();
         }
     }
 
@@ -190,89 +143,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
 
     public override void OnJoinedLobby()
     {
-        Debug.Log("Unido al Lobby. Obteniendo rol asignado desde Laravel...");
-
-        // Intentar obtener el rol asignado desde la sesión activa
-        GetAssignedRoleFromSession();
-    }
-
-    private void GetAssignedRoleFromSession()
-    {
-        // Primero intentar desde gameInitializer (puede estar disponible si ya se cargó)
-        if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
-        {
-            // Usar el rol de la sesión activa con validación null
-            assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
-            hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-
-            Debug.Log($"Rol asignado desde sesión (GameInitializer): {assignedRole}");
-
-            // Unirse directamente a la sala de la sesión
-            JoinSessionRoom();
-        }
-        // Si no está disponible, intentar desde LaravelAPI directamente
-        else if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
-        {
-            assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
-            hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-
-            Debug.Log($"Rol asignado desde sesión (LaravelAPI): {assignedRole}");
-
-            // Unirse directamente a la sala de la sesión
-            JoinSessionRoom();
-        }
-        // Si aún no está disponible, esperar a que llegue el evento OnActiveSessionReceived
-        else
-        {
-            Debug.LogWarning("No hay sesión activa disponible todavía. Esperando a que se cargue...");
-            // Esperar datos de sesión antes de hacer fallback
-            if (waitForRoleCoroutine == null)
-            {
-                waitForRoleCoroutine = StartCoroutine(WaitForRoleAndJoin());
-            }
-        }
-    }
-
-    private IEnumerator WaitForRoleAndJoin()
-    {
-        float timeout = 8f;
-        float elapsed = 0f;
-
-        while (elapsed < timeout)
-        {
-            // Revisar si ya llegó el rol
-            if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
-            {
-                assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
-                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-                roleProvidedBySession = true;
-                Debug.Log($"✅ Rol asignado (espera): {assignedRole}");
-                waitForRoleCoroutine = null;
-                JoinSessionRoom();
-                yield break;
-            }
-
-            if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
-            {
-                assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
-                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-                roleProvidedBySession = true;
-                Debug.Log($"✅ Rol asignado (espera): {assignedRole}");
-                waitForRoleCoroutine = null;
-                JoinSessionRoom();
-                yield break;
-            }
-
-            elapsed += 0.5f;
-            yield return new WaitForSeconds(0.5f);
-        }
-
-        // Timeout: fallback
-        Debug.LogWarning("⚠️ Tiempo de espera agotado. Usando rol Observador por defecto.");
-        assignedRole = "Observador";
-        hasAssignedRole = true;
-        roleProvidedBySession = false;
-        waitForRoleCoroutine = null;
+        Debug.Log("Unido al Lobby. Uniéndose a la sala...");
         JoinSessionRoom();
     }
 
@@ -312,22 +183,12 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         PhotonNetwork.CreateRoom(sessionRoomName, roomOptions, TypedLobby.Default);
     }
 
-    public override void OnJoinRandomFailed(short returnCode, string message)
-    {
-        Debug.Log("No se pudo unir a una sala existente. Creando nueva sala...");
-        RoomOptions roomOptions = new RoomOptions { MaxPlayers = 20 };
-        string roomName = "Sala_" + UnityEngine.Random.Range(1000, 9999);
-        PhotonNetwork.CreateRoom(roomName, roomOptions, TypedLobby.Default);
-
-    }
-
     public override void OnJoinedRoom()
     {
         DebugLogger.LogEvent("GestionRedJugador.OnJoinedRoom", $"Sala: {PhotonNetwork.CurrentRoom?.Name ?? "N/A"}", new {
             roomName = PhotonNetwork.CurrentRoom?.Name,
             playerCount = PhotonNetwork.CurrentRoom?.PlayerCount ?? 0,
-            playerInstantiated,
-            assignedRole
+            playerInstantiated
         });
 
         // Protección contra recursión
@@ -356,104 +217,32 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
                 return;
             }
 
-            Debug.Log($"[GestionRedJugador] Unido a una sala: {PhotonNetwork.CurrentRoom.Name}. Configurando jugador con rol asignado...");
+            Debug.Log($"[GestionRedJugador] Unido a una sala: {PhotonNetwork.CurrentRoom.Name}. Buscando Player...");
 
-        // Asegurar que tenemos un rol asignado
-        if (string.IsNullOrEmpty(assignedRole))
-        {
-            // Intentar obtener el rol nuevamente con validación null
-            if (gameInitializer != null && gameInitializer.currentSessionData != null && gameInitializer.currentSessionData.role != null)
+            // Buscar y reclamar un Player disponible
+            GameObject player = FindAndClaimAnyAvailablePlayer();
+            if (player != null)
             {
-                assignedRole = gameInitializer.currentSessionData.role.nombre ?? "Observador";
-                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-                Debug.Log($"Rol obtenido desde GameInitializer: {assignedRole}");
-            }
-            else if (laravelAPI != null && laravelAPI.currentSessionData != null && laravelAPI.currentSessionData.role != null)
-            {
-                assignedRole = laravelAPI.currentSessionData.role.nombre ?? "Observador";
-                hasAssignedRole = !string.IsNullOrEmpty(assignedRole);
-                Debug.Log($"Rol obtenido desde LaravelAPI: {assignedRole}");
-            }
-            else
-            {
-                // Usar "Observador" como fallback pero no mostrar error
-                assignedRole = "Observador";
-                hasAssignedRole = true;
-                Debug.LogWarning("No se pudo obtener el rol desde Laravel, usando 'Observador' por defecto temporalmente. El rol se actualizará cuando llegue la sesión activa.");
-            }
-        }
-
-        // Configurar el rol del jugador en Photon
-        if (hasAssignedRole && !string.IsNullOrEmpty(assignedRole))
-        {
-            ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
-            PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
-
-            Debug.Log($"✅ Jugador configurado con rol: {assignedRole}");
-        }
-        else
-        {
-            // Si aún no hay rol, usar Observador como último recurso
-            assignedRole = "Observador";
-            hasAssignedRole = true;
-            ExitGames.Client.Photon.Hashtable playerProps = new ExitGames.Client.Photon.Hashtable() { { "Rol", assignedRole } };
-            PhotonNetwork.LocalPlayer.SetCustomProperties(playerProps);
-            Debug.LogWarning($"⚠️ No se pudo obtener el rol desde Laravel, usando 'Observador' por defecto. El rol se actualizará automáticamente cuando llegue la sesión activa.");
-        }
-
-        // Si no venimos con un role provisto por la sesión, intentar reclamar automáticamente
-        if (!playerInstantiated && !roleProvidedBySession)
-        {
-            Debug.Log("[GestionRedJugador] No se proporcionó ROLE. Intentando reclamar un Player disponible automáticamente...");
-            GameObject claimed = FindAndClaimAnyAvailablePlayer();
-            if (claimed != null)
-            {
-                Debug.Log($"[GestionRedJugador] Player reclamado automáticamente: {claimed.name}");
-                playerInstantiated = true;
-                StartCoroutine(ConfigurePlayerAfterInstantiate(claimed, assignedRole));
-            }
-        }
-
-        // Usar el Player existente en la escena para el rol asignado
-        if (!playerInstantiated)
-        {
-            GameObject existingPlayer = FindExistingPlayerForRole(assignedRole);
-
-            if (existingPlayer != null)
-            {
-                DebugLogger.LogPhase("GestionRedJugador", "Asignando Player existente", new { 
-                    role = assignedRole,
-                    playerName = existingPlayer.name,
-                    roomName = PhotonNetwork.CurrentRoom?.Name
-                });
-                Debug.Log($"[GestionRedJugador] Usando Player existente: {existingPlayer.name} para rol {assignedRole}");
-
+                Debug.Log($"[GestionRedJugador] Player encontrado: {player.name}");
+                
                 // Transferir ownership al jugador local si es necesario
-                var existingPhotonView = existingPlayer.GetComponent<PhotonView>();
-                if (existingPhotonView != null && !existingPhotonView.IsMine)
+                var photonView = player.GetComponent<PhotonView>();
+                if (photonView != null && !photonView.IsMine)
                 {
-                    existingPhotonView.TransferOwnership(PhotonNetwork.LocalPlayer);
-                    Debug.Log($"[GestionRedJugador] Ownership transferido para {existingPlayer.name}");
+                    photonView.TransferOwnership(PhotonNetwork.LocalPlayer);
+                    Debug.Log($"[GestionRedJugador] Ownership transferido para {player.name}");
                 }
 
-                playerInstantiated = true; // Marcar como asignado ANTES de configurar
-                StartCoroutine(ConfigurePlayerAfterInstantiate(existingPlayer, assignedRole));
+                playerInstantiated = true;
+                StartCoroutine(ConfigurePlayerAfterInstantiate(player));
             }
             else
             {
-                Debug.LogError($"[GestionRedJugador] ❌ No se encontró Player existente para el rol '{assignedRole}'. No se instanciará uno nuevo.");
+                Debug.LogError("[GestionRedJugador] ❌ No se encontró ningún Player disponible en la escena.");
             }
-        }
-        else
-        {
-            Debug.LogWarning("[GestionRedJugador] ⚠️ Player ya fue asignado. Ignorando asignación duplicada.");
-        }
 
-        // Inicializar el sistema de audio
-        InitializeAudioSystem();
-
-        // Notificar al sistema de diálogos que un jugador se unió
-        NotifyPlayerJoined(assignedRole);
+            // Inicializar el sistema de audio
+            InitializeAudioSystem();
         }
         finally
         {
@@ -464,7 +253,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     /// <summary>
     /// Configura el jugador después de que se instancia, esperando a que PhotonView se configure correctamente
     /// </summary>
-    private IEnumerator ConfigurePlayerAfterInstantiate(GameObject playerPrefab, string role)
+    private IEnumerator ConfigurePlayerAfterInstantiate(GameObject playerPrefab)
     {
         // Esperar un frame para que PhotonView.IsMine se configure correctamente
         yield return null;
@@ -487,6 +276,19 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         Debug.Log($"[GestionRedJugador] PlayerInputHandler encontrado: {playerInputHandler != null}");
         Debug.Log($"[GestionRedJugador] PhotonView encontrado: {photonView != null}");
         Debug.Log($"[GestionRedJugador] ControlCamaraJugador encontrado: {controlCamara != null}");
+        
+        // Si es SimplePlayer y no tiene PhotonView, agregarlo
+        if (playerPrefab.name == "SimplePlayer" && photonView == null)
+        {
+            Debug.LogWarning($"[GestionRedJugador] ⚠️ SimplePlayer no tiene PhotonView. Agregándolo...");
+            photonView = playerPrefab.AddComponent<PhotonView>();
+            if (PhotonNetwork.IsConnected)
+            {
+                PhotonNetwork.AllocateViewID(photonView);
+            }
+            Debug.Log($"[GestionRedJugador] ✅ PhotonView agregado a SimplePlayer con viewID: {photonView.ViewID}");
+        }
+        
         if (photonView != null)
         {
             Debug.Log($"[GestionRedJugador] PhotonView.IsMine (después de esperar): {photonView.IsMine}");
@@ -520,12 +322,7 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
             playerInputHandler.playerController = playerController;
         }
         
-        if (playerController != null)
-        {
-            Debug.Log($"[GestionRedJugador] Configurando rol: {role}");
-            playerController.SetRole(role);
-        }
-        else
+        if (playerController == null)
         {
             Debug.LogError($"[GestionRedJugador] ❌ No se pudo crear PlayerController!");
         }
@@ -543,106 +340,63 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     }
 
     /// <summary>
-    /// Busca un Player existente en la escena para el rol asignado (ej: Player_Juez).
-    /// </summary>
-    private GameObject FindExistingPlayerForRole(string role)
-    {
-        if (string.IsNullOrEmpty(role))
-        {
-            return null;
-        }
-
-        string expectedName = $"Player_{role}";
-        GameObject byName = GameObject.Find(expectedName);
-        if (byName != null)
-        {
-            return byName;
-        }
-
-        // Fallback: buscar por tag y comparación case-insensitive del rol
-        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
-        foreach (var player in players)
-        {
-            if (player == null) continue;
-            string name = player.name;
-            if (!name.StartsWith("Player_")) continue;
-            string foundRole = name.Replace("Player_", "").Replace("(Clone)", "").Trim();
-            if (string.Equals(foundRole, role, StringComparison.OrdinalIgnoreCase))
-            {
-                return player;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Busca cualquier Player_* disponible (sin owner) y reclama su ownership para el jugador local.
-    /// Devuelve el GameObject reclamado o null si no encontró ninguno.
+    /// Busca cualquier Player disponible en la escena (prioridad: SimplePlayer)
     /// </summary>
     private GameObject FindAndClaimAnyAvailablePlayer()
     {
-        // Buscar todas las PhotonViews en escena y filtrar por nombre Player_
-        var allPVs = FindObjectsOfType<PhotonView>();
-        foreach (var pv in allPVs)
+        Debug.Log("[GestionRedJugador] Buscando Player disponible...");
+        
+        // PRIORIDAD 1: Buscar SimplePlayer
+        GameObject simplePlayer = GameObject.Find("SimplePlayer");
+        if (simplePlayer != null)
         {
-            if (pv == null) continue;
-            var go = pv.gameObject;
-            if (go == null) continue;
-            if (!go.name.StartsWith("Player_")) continue;
-
-            // Si ya es nuestro, devolverlo
-            if (pv.IsMine)
+            Debug.Log("[GestionRedJugador] ✅ Encontrado SimplePlayer");
+            
+            // Verificar que el player esté activo
+            if (!simplePlayer.activeSelf)
             {
-                assignedRole = go.name.Replace("Player_", "").Replace("(Clone)", "").Trim();
-                hasAssignedRole = true;
-                return go;
+                Debug.LogWarning("[GestionRedJugador] ⚠️ SimplePlayer está DESACTIVADO. Activándolo...");
+                simplePlayer.SetActive(true);
             }
-
-            // Si no tiene owner (scene object) o su owner es 0, intentar transferir ownership
-            if (pv.Owner == null || pv.Owner.ActorNumber == 0)
+            
+            // Asegurar que tiene PhotonView
+            var pv = simplePlayer.GetComponent<PhotonView>();
+            if (pv == null)
             {
-                try
+                Debug.LogWarning("[GestionRedJugador] ⚠️ SimplePlayer no tiene PhotonView. Agregándolo...");
+                pv = simplePlayer.AddComponent<PhotonView>();
+                if (PhotonNetwork.IsConnected)
                 {
-                    pv.TransferOwnership(PhotonNetwork.LocalPlayer);
-                    assignedRole = go.name.Replace("Player_", "").Replace("(Clone)", "").Trim();
-                    hasAssignedRole = true;
-                    Debug.Log($"[GestionRedJugador] Ownership transferido automáticamente para {go.name}");
-                    return go;
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"[GestionRedJugador] No se pudo transferir ownership para {go.name}: {e.Message}");
+                    PhotonNetwork.AllocateViewID(pv);
                 }
             }
+            
+            return simplePlayer;
         }
-
+        
+        // PRIORIDAD 2: Buscar cualquier Player con tag "Player"
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        foreach (var player in players)
+        {
+            if (player == null || !player.activeSelf) continue;
+            
+            // Asegurar que tiene PhotonView
+            var pv = player.GetComponent<PhotonView>();
+            if (pv == null)
+            {
+                pv = player.AddComponent<PhotonView>();
+                if (PhotonNetwork.IsConnected)
+                {
+                    PhotonNetwork.AllocateViewID(pv);
+                }
+            }
+            
+            Debug.Log($"[GestionRedJugador] ✅ Encontrado Player: {player.name}");
+            return player;
+        }
+        
+        Debug.LogError("[GestionRedJugador] ❌ No se encontró ningún Player disponible en la escena!");
         return null;
-    }
-
-    private Vector3 GetSpawnPositionForRole(string role)
-    {
-        // Posición de spawn por defecto (SpawnPoint_Default)
-        Vector3 defaultSpawnPosition = new Vector3(0f, 4.40f, -15.27f);
-
-        // Posiciones específicas para cada rol en la sala (coordenadas reales de Unity)
-        switch (role.ToLower())
-        {
-            case "juez":
-                return new Vector3(0.0240f, 4.9600f, -21.97f); // SpawnPoint_Juez
-            case "fiscal":
-                return new Vector3(2.544f, 4.05f, -15.77f); // SpawnPoint_Fiscal
-            case "defensor":
-                return new Vector3(-1.48f, 4.05f, -15.77f); // SpawnPoint_Defensor
-            case "testigo":
-                return new Vector3(3.561f, 4.05f, -15.77f); // SpawnPoint_Testigo
-            case "acusado":
-                return new Vector3(-2.393f, 4.0500f, -15.77f); // SpawnPoint_Acusado
-            default:
-                // Usar la posición de SpawnPoint_Default como fallback
-                Debug.LogWarning($"No se encontró posición específica para el rol '{role}', usando posición por defecto: {defaultSpawnPosition}");
-                return defaultSpawnPosition;
-        }
     }
 
     private void InitializeAudioSystem()
@@ -653,32 +407,6 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
         Application.ExternalCall("initVoiceCall", roomId, actorId);
 #endif
     }
-
-    private void NotifyPlayerJoined(string role)
-    {
-        // Notificar al sistema de diálogos que un jugador se unió
-        var dialogueManager = FindObjectOfType<DialogueManager>();
-        if (dialogueManager != null)
-        {
-            dialogueManager.OnPlayerJoined(role);
-        }
-    }
-
-    // Obtener los roles usados en la sala
-    string[] GetUsedRoles()
-    {
-        if (PhotonNetwork.CurrentRoom == null) return new string[0];
-
-        object used;
-        if (PhotonNetwork.CurrentRoom.CustomProperties.TryGetValue("UsedRoles", out used))
-        {
-            return (string[])used;
-        }
-        return new string[0];
-    }
-
-
-
 
 
     // Unity -> JavaScript (Enviar PeerID)
@@ -694,11 +422,9 @@ public class GestionRedJugador : MonoBehaviourPunCallbacks
     public void RecibirPeerId(string peerId)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-    Application.ExternalCall("callPeer", peerId);
+        Application.ExternalCall("callPeer", peerId);
 #endif
     }
-
-
 }
 
 
