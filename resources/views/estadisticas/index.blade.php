@@ -342,17 +342,20 @@ function estadisticasManager() {
             this.cargarTopInstructores();
             this.cargarActividadReciente();
             this.cargarSesiones();
-            this.inicializarGraficos();
+            this.cargarDatosGraficos();
         },
         
         async cargarEstadisticas() {
             try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch('/api/estadisticas/dashboard', {
+                const periodo = this.periodoSeleccionado === 'Hoy' ? 'hoy' : 
+                               this.periodoSeleccionado === 'Esta semana' ? 'semana' :
+                               this.periodoSeleccionado === 'Este mes' ? 'mes' : 'año';
+                const response = await fetch(`/api/estadisticas/dashboard?periodo=${periodo}`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
@@ -366,12 +369,12 @@ function estadisticasManager() {
         
         async cargarTopInstructores() {
             try {
-                const token = localStorage.getItem('auth_token');
                 const response = await fetch('/api/estadisticas/top-instructores', {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
@@ -385,12 +388,12 @@ function estadisticasManager() {
         
         async cargarActividadReciente() {
             try {
-                const token = localStorage.getItem('auth_token');
                 const response = await fetch('/api/estadisticas/actividad-reciente', {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
@@ -404,84 +407,178 @@ function estadisticasManager() {
         
         async cargarSesiones() {
             try {
-                const token = localStorage.getItem('auth_token');
                 const response = await fetch('/api/sesiones', {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    this.sesionesFiltradas = data.data.data || [];
+                    const sesiones = data.data?.data || data.data || [];
+                    
+                    // Enriquecer datos de sesiones con información calculada
+                    this.sesionesFiltradas = sesiones.map(sesion => {
+                        // Calcular duración si hay fechas
+                        let duracion = '0h 0m';
+                        if (sesion.fecha_inicio && sesion.fecha_fin) {
+                            const inicio = new Date(sesion.fecha_inicio);
+                            const fin = new Date(sesion.fecha_fin);
+                            const minutos = Math.floor((fin - inicio) / (1000 * 60));
+                            const horas = Math.floor(minutos / 60);
+                            const mins = minutos % 60;
+                            duracion = `${horas}h ${mins}m`;
+                        }
+                        
+                        // Calcular puntuación promedio (simulado por ahora, basado en participantes)
+                        const participantes = sesion.participantes_count || sesion.asignaciones?.length || 0;
+                        const puntuacionPromedio = participantes > 0 ? Math.min(10, Math.max(5, participantes * 0.5 + 5)).toFixed(1) : '0';
+                        
+                        return {
+                            ...sesion,
+                            duracion: duracion,
+                            puntuacion_promedio: parseFloat(puntuacionPromedio),
+                            participantes_count: participantes,
+                            instructor: sesion.instructor || { name: 'Sin asignar' }
+                        };
+                    });
                 }
             } catch (error) {
                 console.error('Error cargando sesiones:', error);
+                this.sesionesFiltradas = [];
             }
         },
         
-        inicializarGraficos() {
-            // Gráfico de sesiones por mes
-            const ctxSesiones = document.getElementById('graficoSesiones');
-            if (ctxSesiones) {
-                this.graficoSesiones = new Chart(ctxSesiones, {
-                    type: 'line',
-                    data: {
-                        labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-                        datasets: [{
-                            label: 'Sesiones',
-                            data: [12, 19, 3, 5, 2, 3, 8, 15, 12, 18, 22, 25],
-                            borderColor: 'rgb(59, 130, 246)',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            tension: 0.4,
-                            fill: true
-                        }]
+        async cargarDatosGraficos() {
+            try {
+                // Cargar datos de sesiones por mes
+                const responseSesiones = await fetch('/api/estadisticas/sesiones-por-mes', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true
-                            }
-                        }
-                    }
+                    credentials: 'same-origin'
                 });
+                
+                if (responseSesiones.ok) {
+                    const dataSesiones = await responseSesiones.json();
+                    this.inicializarGraficoSesiones(dataSesiones.data);
+                }
+                
+                // Cargar distribución de usuarios
+                const responseUsuarios = await fetch('/api/estadisticas/distribucion-usuarios', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (responseUsuarios.ok) {
+                    const dataUsuarios = await responseUsuarios.json();
+                    this.inicializarGraficoUsuarios(dataUsuarios.data);
+                }
+            } catch (error) {
+                console.error('Error cargando datos de gráficos:', error);
+                // Inicializar con datos vacíos si hay error
+                this.inicializarGraficoSesiones({ meses: [], sesiones: [], participantes: [] });
+                this.inicializarGraficoUsuarios({ admins: 0, instructores: 0, estudiantes: 0 });
+            }
+        },
+        
+        inicializarGraficoSesiones(data) {
+            const ctxSesiones = document.getElementById('graficoSesiones');
+            if (!ctxSesiones) return;
+            
+            // Destruir gráfico anterior si existe
+            if (this.graficoSesiones) {
+                this.graficoSesiones.destroy();
             }
             
-            // Gráfico de distribución de usuarios
-            const ctxUsuarios = document.getElementById('graficoUsuarios');
-            if (ctxUsuarios) {
-                this.graficoUsuarios = new Chart(ctxUsuarios, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Admin', 'Instructor', 'Alumno'],
-                        datasets: [{
-                            data: [5, 15, 80],
-                            backgroundColor: [
-                                'rgb(239, 68, 68)',
-                                'rgb(59, 130, 246)',
-                                'rgb(34, 197, 94)'
-                            ]
-                        }]
+            this.graficoSesiones = new Chart(ctxSesiones, {
+                type: 'line',
+                data: {
+                    labels: data.meses || [],
+                    datasets: [{
+                        label: 'Sesiones',
+                        data: data.sesiones || [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Participantes',
+                        data: data.participantes || [],
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom'
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        },
+        
+        inicializarGraficoUsuarios(data) {
+            const ctxUsuarios = document.getElementById('graficoUsuarios');
+            if (!ctxUsuarios) return;
+            
+            // Destruir gráfico anterior si existe
+            if (this.graficoUsuarios) {
+                this.graficoUsuarios.destroy();
+            }
+            
+            const total = (data.admins || 0) + (data.instructores || 0) + (data.estudiantes || 0);
+            
+            this.graficoUsuarios = new Chart(ctxUsuarios, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Admin', 'Instructor', 'Estudiante'],
+                    datasets: [{
+                        data: [data.admins || 0, data.instructores || 0, data.estudiantes || 0],
+                        backgroundColor: [
+                            'rgb(239, 68, 68)',
+                            'rgb(59, 130, 246)',
+                            'rgb(34, 197, 94)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
                             }
                         }
                     }
-                });
-            }
+                }
+            });
         },
         
         cambiarPeriodo(periodo) {
@@ -493,6 +590,7 @@ function estadisticasManager() {
             };
             this.periodoSeleccionado = periodos[periodo];
             this.cargarEstadisticas();
+            this.cargarDatosGraficos();
         },
         
         cambiarTipoGrafico(tipo) {

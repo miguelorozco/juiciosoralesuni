@@ -109,12 +109,33 @@ class WebAuthMiddleware
     private function handleWebAuth(Request $request, Closure $next)
     {
         // Para rutas web, usar autenticación de sesión normal
-        if (Auth::check()) {
+        $isAuthenticated = Auth::check();
+        $user = Auth::user();
+        
+        Log::info('=== HANDLE WEB AUTH ===');
+        Log::info('Auth::check(): ' . ($isAuthenticated ? 'true' : 'false'));
+        Log::info('Auth::user(): ' . ($user ? json_encode([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'tipo' => $user->tipo,
+            'activo' => $user->activo
+        ]) : 'null'));
+        Log::info('Has Session: ' . ($request->hasSession() ? 'true' : 'false'));
+        
+        if ($isAuthenticated && $user) {
+            // Verificar que el usuario esté activo
+            if (!$user->activo) {
+                Log::warning('Usuario inactivo intentando acceder: ' . $user->email);
+                Auth::logout();
+                return redirect()->route('login')->with('error', 'Tu cuenta está inactiva');
+            }
+            
             Log::info('Usuario autenticado en sesión web, continuando...');
             return $next($request);
         }
         
         Log::info('Usuario NO autenticado en sesión web, redirigiendo a login');
-        return redirect()->route('login');
+        return redirect()->route('login')->with('error', 'Por favor inicia sesión para continuar');
     }
 }

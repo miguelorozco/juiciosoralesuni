@@ -474,21 +474,47 @@ class SesionController extends Controller
 
         // Roles usados en el diálogo seleccionado (por rol_id de nodos)
         $roles = collect();
+        $rolesConDecision = [];
+        $conteoNodosPorRol = [];
+        
         if ($dialogoId) {
+            // Obtener roles únicos del diálogo
             $rolesEnDialogo = NodoDialogoV2::where('dialogo_id', $dialogoId)
                 ->whereNotNull('rol_id')
                 ->pluck('rol_id')
                 ->unique()
                 ->toArray();
+                
             if (!empty($rolesEnDialogo)) {
                 $roles = RolDisponible::activos()->ordenados()->whereIn('id', $rolesEnDialogo)->get();
             }
+            
+            // Identificar roles que tienen nodos de decisión
+            $rolesConDecision = NodoDialogoV2::where('dialogo_id', $dialogoId)
+                ->whereNotNull('rol_id')
+                ->where('tipo', 'decision')
+                ->pluck('rol_id')
+                ->unique()
+                ->toArray();
+            
+            // Contar nodos por rol para mostrar participación
+            $conteoNodosPorRol = NodoDialogoV2::where('dialogo_id', $dialogoId)
+                ->whereNotNull('rol_id')
+                ->selectRaw('rol_id, COUNT(*) as total, SUM(CASE WHEN tipo = "decision" THEN 1 ELSE 0 END) as decisiones')
+                ->groupBy('rol_id')
+                ->get()
+                ->keyBy('rol_id')
+                ->toArray();
         }
 
         $alumnos = User::where('tipo', 'alumno')->where('activo', true)->orderBy('name')->get();
         $asignaciones = $sesion->asignaciones()->with('usuario')->get()->keyBy('rol_id');
 
-        return view('sesiones.edit', compact('sesion', 'roles', 'alumnos', 'asignaciones', 'dialogoActivo', 'dialogos', 'dialogoId'));
+        return view('sesiones.edit', compact(
+            'sesion', 'roles', 'alumnos', 'asignaciones', 
+            'dialogoActivo', 'dialogos', 'dialogoId',
+            'rolesConDecision', 'conteoNodosPorRol'
+        ));
     }
 
     /**

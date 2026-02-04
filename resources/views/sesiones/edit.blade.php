@@ -196,13 +196,23 @@
                     </div>
                     <div class="card-body">
                         @if(isset($roles) && $roles->count())
+                            <!-- Leyenda de indicadores -->
+                            <div class="alert alert-light border mb-3">
+                                <div class="d-flex flex-wrap gap-3 align-items-center">
+                                    <span class="fw-bold"><i class="bi bi-info-circle me-1"></i> Leyenda:</span>
+                                    <span><span class="badge bg-warning text-dark"><i class="bi bi-signpost-split"></i> Decisiones</span> = Rol con nodos de decisión (elige el rumbo del juicio)</span>
+                                    <span><span class="badge bg-info text-white">5 nodos</span> = Cantidad de intervenciones del rol</span>
+                                </div>
+                            </div>
+                            
                             <div class="table-responsive">
                                 <table class="table align-middle">
-                                    <thead>
+                                    <thead class="table-light">
                                         <tr>
-                                            <th>Rol</th>
-                                            <th>Asignar a estudiante</th>
-                                            <th>Estado</th>
+                                            <th style="width: 35%;">Rol en el Diálogo</th>
+                                            <th style="width: 35%;">Asignar a estudiante</th>
+                                            <th style="width: 15%;">Participación</th>
+                                            <th style="width: 15%;">Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -210,16 +220,27 @@
                                             @php
                                                 $asig = $asignaciones->get($rol->id);
                                                 $selectedUsuario = $asig ? $asig->usuario_id : null;
+                                                $tieneDecision = in_array($rol->id, $rolesConDecision ?? []);
+                                                $conteo = $conteoNodosPorRol[$rol->id] ?? null;
+                                                $totalNodos = $conteo['total'] ?? 0;
+                                                $totalDecisiones = $conteo['decisiones'] ?? 0;
                                             @endphp
-                                            <tr>
+                                            <tr class="{{ $tieneDecision ? 'table-warning' : '' }}">
                                                 <td>
-                                                    <span class="badge rounded-pill" style="background-color: {{ $rol->color ?? '#0d6efd' }}; color: #fff;">
-                                                        {{ $rol->nombre }}
-                                                    </span>
-                                                    <div class="text-muted small">{{ $rol->descripcion }}</div>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="badge rounded-pill" style="background-color: {{ $rol->color ?? '#0d6efd' }}; color: #fff; font-size: 0.9em;">
+                                                            {{ $rol->nombre }}
+                                                        </span>
+                                                        @if($tieneDecision)
+                                                            <span class="badge bg-warning text-dark" title="Este rol tiene {{ $totalDecisiones }} nodo(s) de decisión">
+                                                                <i class="bi bi-signpost-split"></i> Decisiones
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="text-muted small mt-1">{{ $rol->descripcion }}</div>
                                                 </td>
-                                                <td style="min-width: 260px;">
-                                                    <select class="form-select"
+                                                <td>
+                                                    <select class="form-select {{ $tieneDecision ? 'border-warning' : '' }}"
                                                             name="asignaciones[{{ $rol->id }}]">
                                                         <option value="">Sin asignar</option>
                                                         @foreach($alumnos as $alumno)
@@ -228,6 +249,17 @@
                                                             </option>
                                                         @endforeach
                                                     </select>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-info text-white" title="Nodos donde participa este rol">
+                                                        {{ $totalNodos }} {{ $totalNodos == 1 ? 'nodo' : 'nodos' }}
+                                                    </span>
+                                                    @if($totalDecisiones > 0)
+                                                        <br>
+                                                        <small class="text-warning fw-bold">
+                                                            <i class="bi bi-signpost-split"></i> {{ $totalDecisiones }} {{ $totalDecisiones == 1 ? 'decisión' : 'decisiones' }}
+                                                        </small>
+                                                    @endif
                                                 </td>
                                                 <td>
                                                     @if($asig && $asig->usuario)
@@ -246,7 +278,17 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <small class="text-muted">Puedes dejar roles sin asignar; el sistema los resolverá en automático.</small>
+                            
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-lightbulb me-1"></i>
+                                    Puedes dejar roles sin asignar; el sistema los resolverá automáticamente.
+                                </small>
+                                <small class="text-muted">
+                                    <strong>{{ $roles->count() }}</strong> roles en este diálogo | 
+                                    <strong>{{ count($rolesConDecision ?? []) }}</strong> con decisiones
+                                </small>
+                            </div>
                         @else
                             <div class="alert alert-info mb-0">
                                 <i class="bi bi-info-circle me-2"></i>

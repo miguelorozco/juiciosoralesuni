@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Http\Requests\RegisterRequest;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Hash;
 
 class AdminUserController extends Controller
 {
@@ -15,11 +14,12 @@ class AdminUserController extends Controller
     public function createUser(RegisterRequest $request): JsonResponse
     {
         // Los administradores pueden crear usuarios incluso si el registro está bloqueado
+        // El modelo User tiene el cast 'hashed' para password
         $user = User::create([
             'name' => $request->name,
             'apellido' => $request->apellido,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password,
             'tipo' => $request->tipo,
             'activo' => true,
             'email_verified_at' => now(),

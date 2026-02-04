@@ -9,9 +9,98 @@ use App\Models\UnityRoomEvent;
 use App\Models\SesionJuicio;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * Controller for managing Unity rooms with LiveKit integration.
+ * This controller handles room creation, joining, and audio/video communication
+ * using LiveKit as the underlying SFU (replacing PeerJS).
+ */
 class UnityRoomController extends Controller
 {
+    /**
+     * LiveKit Controller instance for token generation
+     */
+    private LiveKitController $liveKitController;
+
+    public function __construct()
+    {
+        $this->liveKitController = new LiveKitController();
+    }
+
+    /**
+     * Generate LiveKit JWT token for room access
+     */
+    private function generateLiveKitToken(string $identity, string $name, string $roomName): ?string
+    {
+        try {
+            $apiKey = config('livekit.api_key');
+            $apiSecret = config('livekit.api_secret');
+
+            if (!$apiKey || !$apiSecret) {
+                return null;
+            }
+
+            // Header
+            $header = ['alg' => 'HS256', 'typ' => 'JWT'];
+
+            // Video grant for room participation
+            $videoGrant = [
+                'roomJoin' => true,
+                'room' => $roomName,
+                'canPublish' => true,
+                'canSubscribe' => true,
+                'canPublishData' => true,
+            ];
+
+            // Payload
+            $now = time();
+            $payload = [
+                'iss' => $apiKey,
+                'sub' => $identity,
+                'name' => $name,
+                'iat' => $now,
+                'nbf' => $now,
+                'exp' => $now + 86400,
+                'video' => $videoGrant,
+                'metadata' => json_encode(['name' => $name]),
+            ];
+
+            // Encode
+            $headerEncoded = rtrim(strtr(base64_encode(json_encode($header)), '+/', '-_'), '=');
+            $payloadEncoded = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+
+            // Signature
+            $signature = hash_hmac('sha256', "$headerEncoded.$payloadEncoded", $apiSecret, true);
+            $signatureEncoded = rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
+
+            return "$headerEncoded.$payloadEncoded.$signatureEncoded";
+        } catch (\Exception $e) {
+            Log::error('Error generating LiveKit token', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Get LiveKit configuration for client
+     */
+    private function getLiveKitConfig(string $roomName, string $token): array
+    {
+        return [
+            'enabled' => !empty(config('livekit.api_key')),
+            'server_url' => config('livekit.host', 'ws://localhost:7880'),
+            'room_name' => $roomName,
+            'token' => $token,
+            'coturn' => [
+                'urls' => [
+                    'stun:' . config('livekit.coturn.host', 'localhost') . ':' . config('livekit.coturn.port', 3478),
+                    'turn:' . config('livekit.coturn.host', 'localhost') . ':' . config('livekit.coturn.port', 3478),
+                ],
+                'username' => config('livekit.coturn.username'),
+                'credential' => config('livekit.coturn.password'),
+            ],
+        ];
+    }
     /**
      * @OA\Post(
      *     path="/api/unity/rooms/create",
@@ -93,6 +182,17 @@ class UnityRoomController extends Controller
                 'sesion_id' => $sesion->id
             ]);
 
+            // Generate LiveKit room name and token for the creator
+            $liveKitRoomName = 'juicio-room-' . $room->room_id;
+            $liveKitToken = $this->generateLiveKitToken(
+                'user_' . $user->id,
+                $user->name,
+                $liveKitRoomName
+            );
+
+            // Track LiveKit room in cache
+            Cache::put("livekit_room_{$liveKitRoomName}_participants", [], 3600);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Sala creada exitosamente',
@@ -104,6 +204,8 @@ class UnityRoomController extends Controller
                     'configuracion' => $room->configuracion,
                     'audio_config' => $room->audio_config,
                     'fecha_creacion' => $room->fecha_creacion->toISOString(),
+                    // LiveKit integration
+                    'livekit' => $this->getLiveKitConfig($liveKitRoomName, $liveKitToken),
                 ]
             ]);
 
@@ -169,6 +271,24 @@ class UnityRoomController extends Controller
             // Crear evento de usuario conectado
             UnityRoomEvent::usuarioConectado($room->room_id, $user->id, $metadata);
 
+            // Generate LiveKit token for this participant
+            $liveKitRoomName = 'juicio-room-' . $room->room_id;
+            $liveKitToken = $this->generateLiveKitToken(
+                'user_' . $user->id,
+                $user->name,
+                $liveKitRoomName
+            );
+
+            // Track participant in LiveKit cache
+            $cacheKey = "livekit_room_{$liveKitRoomName}_participants";
+            $participants = Cache::get($cacheKey, []);
+            $participants['user_' . $user->id] = [
+                'identity' => 'user_' . $user->id,
+                'name' => $user->name,
+                'joined_at' => now()->toISOString(),
+            ];
+            Cache::put($cacheKey, $participants, 3600);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Unido a sala exitosamente',
@@ -180,6 +300,8 @@ class UnityRoomController extends Controller
                     'configuracion' => $room->configuracion,
                     'audio_config' => $room->audio_config,
                     'participantes' => $room->obtenerParticipantesConectados(),
+                    // LiveKit integration
+                    'livekit' => $this->getLiveKitConfig($liveKitRoomName, $liveKitToken),
                 ]
             ]);
 
@@ -217,6 +339,17 @@ class UnityRoomController extends Controller
                 UnityRoomEvent::usuarioDesconectado($room->room_id, $user->id, [
                     'leave_timestamp' => now()->toISOString(),
                 ]);
+
+                // Remove participant from LiveKit tracking
+                $liveKitRoomName = 'juicio-room-' . $room->room_id;
+                $cacheKey = "livekit_room_{$liveKitRoomName}_participants";
+                $participants = Cache::get($cacheKey, []);
+                unset($participants['user_' . $user->id]);
+                if (empty($participants)) {
+                    Cache::forget($cacheKey);
+                } else {
+                    Cache::put($cacheKey, $participants, 3600);
+                }
 
                 return response()->json([
                     'success' => true,
@@ -545,6 +678,11 @@ class UnityRoomController extends Controller
             // Cerrar sala
             $room->cerrar();
 
+            // Clean up LiveKit room tracking
+            $liveKitRoomName = 'juicio-room-' . $room->room_id;
+            Cache::forget("livekit_room_{$liveKitRoomName}_participants");
+            Cache::forget("livekit_room_{$liveKitRoomName}_metadata");
+
             // Crear evento de sala cerrada
             UnityRoomEvent::salaEstado($room->room_id, 'cerrada', [
                 'cerrado_por' => $user->id,
@@ -560,6 +698,119 @@ class UnityRoomController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al cerrar sala: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get LiveKit token for an existing room (for reconnection)
+     * 
+     * @OA\Get(
+     *     path="/api/unity/rooms/{roomId}/livekit-token",
+     *     summary="Obtener token de LiveKit",
+     *     description="Obtener un nuevo token de LiveKit para una sala existente",
+     *     tags={"Unity - Salas"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Token generado exitosamente"
+     *     )
+     * )
+     */
+    public function getLiveKitToken(string $roomId): JsonResponse
+    {
+        try {
+            $room = UnityRoom::where('room_id', $roomId)->firstOrFail();
+            $user = auth()->user();
+
+            // Verificar si el usuario está en la sala
+            if (!$room->obtenerParticipante($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No estás en esta sala'
+                ], 403);
+            }
+
+            $liveKitRoomName = 'juicio-room-' . $room->room_id;
+            $liveKitToken = $this->generateLiveKitToken(
+                'user_' . $user->id,
+                $user->name,
+                $liveKitRoomName
+            );
+
+            if (!$liveKitToken) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'LiveKit no está configurado correctamente'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Token generado exitosamente',
+                'data' => [
+                    'livekit' => $this->getLiveKitConfig($liveKitRoomName, $liveKitToken),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al generar token: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get room status including LiveKit connection info
+     * 
+     * @OA\Get(
+     *     path="/api/unity/rooms/{roomId}/livekit-status",
+     *     summary="Obtener estado de LiveKit",
+     *     description="Obtener el estado de conexión LiveKit de la sala",
+     *     tags={"Unity - Salas"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Estado obtenido exitosamente"
+     *     )
+     * )
+     */
+    public function getLiveKitStatus(string $roomId): JsonResponse
+    {
+        try {
+            $room = UnityRoom::where('room_id', $roomId)->firstOrFail();
+            $user = auth()->user();
+
+            // Verificar si el usuario está en la sala
+            if (!$room->obtenerParticipante($user->id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No estás en esta sala'
+                ], 403);
+            }
+
+            $liveKitRoomName = 'juicio-room-' . $room->room_id;
+            $cacheKey = "livekit_room_{$liveKitRoomName}_participants";
+            $liveKitParticipants = Cache::get($cacheKey, []);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'room_id' => $room->room_id,
+                    'livekit_room_name' => $liveKitRoomName,
+                    'livekit_enabled' => !empty(config('livekit.api_key')),
+                    'livekit_server' => config('livekit.host'),
+                    'livekit_participants' => array_values($liveKitParticipants),
+                    'livekit_participant_count' => count($liveKitParticipants),
+                    'coturn_enabled' => !empty(config('livekit.coturn.username')),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener estado: ' . $e->getMessage()
             ], 500);
         }
     }

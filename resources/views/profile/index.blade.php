@@ -17,16 +17,6 @@
                         Gestiona tu información personal y preferencias
                     </p>
                 </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-secondary" @click="cancelarCambios()">
-                        <i class="bi bi-x-lg me-2"></i>
-                        Cancelar
-                    </button>
-                    <button class="btn btn-primary" @click="guardarPerfil()" :disabled="guardando">
-                        <i class="bi bi-check-lg me-2"></i>
-                        <span x-text="guardando ? 'Guardando...' : 'Guardar Cambios'"></span>
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -46,20 +36,20 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-medium">Nombre</label>
-                            <input type="text" class="form-control" x-model="usuario.name" required>
-                            <div class="invalid-feedback" x-show="errores.name" x-text="errores.name"></div>
+                            <input type="text" class="form-control" x-model="usuario.name" readonly disabled>
+                            <div class="form-text">Este campo no se puede modificar</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-medium">Apellido</label>
-                            <input type="text" class="form-control" x-model="usuario.apellido" required>
-                            <div class="invalid-feedback" x-show="errores.apellido" x-text="errores.apellido"></div>
+                            <input type="text" class="form-control" x-model="usuario.apellido" readonly disabled>
+                            <div class="form-text">Este campo no se puede modificar</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-medium">Correo Electrónico</label>
-                            <input type="email" class="form-control" x-model="usuario.email" required>
-                            <div class="invalid-feedback" x-show="errores.email" x-text="errores.email"></div>
+                            <input type="email" class="form-control" x-model="usuario.email" readonly disabled>
+                            <div class="form-text">Este campo no se puede modificar</div>
                         </div>
                         
                         <div class="col-md-6 mb-3">
@@ -154,77 +144,6 @@
                 </div>
             </div>
 
-            <!-- Preferencias -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark">
-                        <i class="bi bi-gear me-2 text-info"></i>
-                        Preferencias
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" x-model="preferencias.notificaciones_email">
-                                <label class="form-check-label fw-medium">
-                                    Notificaciones por Email
-                                </label>
-                                <div class="form-text">Recibir notificaciones por correo electrónico</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" x-model="preferencias.notificaciones_push">
-                                <label class="form-check-label fw-medium">
-                                    Notificaciones Push
-                                </label>
-                                <div class="form-text">Recibir notificaciones push en tiempo real</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" x-model="preferencias.modo_oscuro">
-                                <label class="form-check-label fw-medium">
-                                    Modo Oscuro
-                                </label>
-                                <div class="form-text">Usar tema oscuro en la interfaz</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" x-model="preferencias.auto_save">
-                                <label class="form-check-label fw-medium">
-                                    Auto-guardado
-                                </label>
-                                <div class="form-text">Guardar automáticamente los cambios</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-medium">Idioma</label>
-                            <select class="form-select" x-model="preferencias.idioma">
-                                <option value="es">Español</option>
-                                <option value="en">English</option>
-                                <option value="fr">Français</option>
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-medium">Zona Horaria</label>
-                            <select class="form-select" x-model="preferencias.zona_horaria">
-                                <option value="America/Mexico_City">México (GMT-6)</option>
-                                <option value="America/New_York">Nueva York (GMT-5)</option>
-                                <option value="Europe/Madrid">Madrid (GMT+1)</option>
-                                <option value="UTC">UTC (GMT+0)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Sidebar -->
@@ -239,7 +158,7 @@
                         </div>
                     </div>
                     
-                    <h5 class="fw-bold text-dark mb-1" x-text="usuario.name + ' ' + usuario.apellido"></h5>
+                    <h5 class="fw-bold text-dark mb-1" x-text="(usuario.name || '') + ' ' + (usuario.apellido || '')"></h5>
                     <p class="text-muted mb-2" x-text="usuario.email"></p>
                     
                     <span class="badge" :class="getBadgeClass(usuario.tipo)" x-text="getTipoUsuario(usuario.tipo)"></span>
@@ -328,16 +247,6 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-outline-warning" @click="exportarDatos()">
-                            <i class="bi bi-download me-2"></i>
-                            Exportar Mis Datos
-                        </button>
-                        
-                        <button class="btn btn-outline-info" @click="descargarCertificados()">
-                            <i class="bi bi-award me-2"></i>
-                            Mis Certificados
-                        </button>
-                        
                         <button class="btn btn-outline-danger" @click="eliminarCuenta()">
                             <i class="bi bi-trash me-2"></i>
                             Eliminar Cuenta
@@ -366,14 +275,6 @@ function perfilManager() {
             nueva_contraseña: '',
             confirmar_contraseña: ''
         },
-        preferencias: {
-            notificaciones_email: true,
-            notificaciones_push: false,
-            modo_oscuro: false,
-            auto_save: true,
-            idioma: 'es',
-            zona_horaria: 'America/Mexico_City'
-        },
         estadisticas: {},
         actividadReciente: [],
         errores: {},
@@ -383,38 +284,20 @@ function perfilManager() {
         mostrarConfirmarContraseña: false,
         
         init() {
-            this.cargarPerfil();
+            // Cargar datos del usuario desde el servidor
+            this.usuario = @json($user);
             this.cargarEstadisticas();
             this.cargarActividadReciente();
         },
         
-        async cargarPerfil() {
-            try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch('/api/auth/me', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    this.usuario = data.user;
-                }
-            } catch (error) {
-                console.error('Error cargando perfil:', error);
-            }
-        },
-        
         async cargarEstadisticas() {
             try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch('/api/estadisticas/usuario', {
+                const response = await fetch('/api/profile/estadisticas', {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
@@ -428,12 +311,12 @@ function perfilManager() {
         
         async cargarActividadReciente() {
             try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch('/api/estadisticas/actividad-usuario', {
+                const response = await fetch('/api/profile/actividad', {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
                 });
                 
                 if (response.ok) {
@@ -445,60 +328,27 @@ function perfilManager() {
             }
         },
         
-        async guardarPerfil() {
-            this.guardando = true;
-            this.errores = {};
-            
-            try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch('/api/auth/profile', {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        name: this.usuario.name,
-                        apellido: this.usuario.apellido,
-                        email: this.usuario.email,
-                        preferencias: this.preferencias
-                    })
-                });
-                
-                if (response.ok) {
-                    this.showToast('Perfil actualizado exitosamente', 'success');
-                } else {
-                    const error = await response.json();
-                    if (error.errors) {
-                        this.errores = error.errors;
-                    } else {
-                        this.showToast(error.message || 'Error al actualizar el perfil', 'error');
-                    }
-                }
-            } catch (error) {
-                this.showToast('Error de conexión', 'error');
-            } finally {
-                this.guardando = false;
-            }
-        },
         
         async cambiarContraseña() {
             if (!this.validarContraseñas()) {
-                this.showToast('Las contraseñas no coinciden', 'error');
+                this.showToast('Las contraseñas no coinciden o son muy cortas', 'error');
                 return;
             }
             
             try {
-                const token = localStorage.getItem('auth_token');
                 const response = await fetch('/api/auth/cambiar-contraseña', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify(this.cambioContraseña)
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        contraseña_actual: this.cambioContraseña.contraseña_actual,
+                        nueva_contraseña: this.cambioContraseña.nueva_contraseña,
+                        confirmar_contraseña: this.cambioContraseña.confirmar_contraseña
+                    })
                 });
                 
                 if (response.ok) {
@@ -549,7 +399,6 @@ function perfilManager() {
         },
         
         cancelarCambios() {
-            this.cargarPerfil();
             this.cambioContraseña = {
                 contraseña_actual: '',
                 nueva_contraseña: '',
@@ -563,26 +412,6 @@ function perfilManager() {
             this.showToast('Función de cambio de avatar en desarrollo', 'info');
         },
         
-        exportarDatos() {
-            const datos = {
-                usuario: this.usuario,
-                estadisticas: this.estadisticas,
-                actividadReciente: this.actividadReciente,
-                fecha: new Date().toISOString()
-            };
-            
-            const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `mis-datos-${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        },
-        
-        descargarCertificados() {
-            this.showToast('Función de certificados en desarrollo', 'info');
-        },
         
         eliminarCuenta() {
             if (confirm('¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.')) {
@@ -594,7 +423,8 @@ function perfilManager() {
             const tipos = {
                 'admin': 'Administrador',
                 'instructor': 'Instructor',
-                'alumno': 'Alumno'
+                'alumno': 'Alumno',
+                'estudiante': 'Estudiante'
             };
             return tipos[tipo] || tipo;
         },
@@ -603,7 +433,8 @@ function perfilManager() {
             const clases = {
                 'admin': 'bg-danger',
                 'instructor': 'bg-warning',
-                'alumno': 'bg-info'
+                'alumno': 'bg-info',
+                'estudiante': 'bg-info'
             };
             return clases[tipo] || 'bg-secondary';
         },

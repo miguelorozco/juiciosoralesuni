@@ -8,7 +8,6 @@ use App\Http\Requests\RegisterRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -200,9 +199,10 @@ class AuthController extends Controller
             $user->update(['ultimo_acceso' => now()]);
             Log::info('Último acceso actualizado');
             
-            // Establecer sesión web de Laravel
-            Auth::login($user);
-            Log::info('Sesión web establecida');
+            // Establecer sesión web de Laravel con guard explícito
+            Auth::guard('web')->login($user, true); // true = remember me
+            $request->session()->regenerate(); // Regenerar ID de sesión por seguridad
+            Log::info('Sesión web establecida con guard "web"');
             
             Log::info('=== LOGIN WEB EXITOSO ===');
             return response()->json([
@@ -257,7 +257,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'apellido' => $request->apellido,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password,
             'tipo' => $request->tipo,
             'activo' => true,
             'email_verified_at' => now(),
@@ -469,11 +469,7 @@ class AuthController extends Controller
         }
 
         $updateData = $validator->validated();
-        
-        if (isset($updateData['password'])) {
-            $updateData['password'] = Hash::make($updateData['password']);
-        }
-
+        // El modelo User tiene el cast 'hashed' para password, no es necesario Hash::make()
         $user->update($updateData);
 
         return response()->json([

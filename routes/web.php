@@ -7,6 +7,8 @@ use App\Http\Controllers\SesionController;
 use App\Http\Controllers\DialogoController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\PanelDialogoController;
+use App\Http\Controllers\EstadisticasController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,9 +123,7 @@ Route::middleware(['web.auth'])->group(function () {
     Route::get('/api/roles/activos', [RolController::class, 'activos'])->name('roles.activos');
     
     // Estadísticas
-    Route::get('/estadisticas', function () {
-        return view('estadisticas.index');
-    })->name('estadisticas');
+    Route::get('/estadisticas', [EstadisticasController::class, 'index'])->name('estadisticas');
     
     // Configuración
     Route::get('/configuracion', function () {
@@ -131,9 +131,7 @@ Route::middleware(['web.auth'])->group(function () {
     })->name('configuracion');
     
     // Perfil
-    Route::get('/profile', function () {
-        return view('profile.index');
-    })->name('profile');
+    Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
     
     // Configuración
     Route::get('/settings', function () {
@@ -144,6 +142,13 @@ Route::middleware(['web.auth'])->group(function () {
 // Rutas de entrada a Unity (públicas)
 Route::get('/unity-entry', [App\Http\Controllers\UnityEntryController::class, 'unityEntryPage'])->name('unity.entry');
 Route::get('/api/unity-entry-info', [App\Http\Controllers\UnityEntryController::class, 'getUnityEntryInfo'])->name('unity.entry-info');
+
+// ========================================
+// LIVEKIT - Sala de prueba (pública)
+// ========================================
+Route::get('/livekit-test', function () {
+    return view('livekit.test-room');
+})->name('livekit.test');
 
 // Ruta para servir archivos Unity con headers correctos (PÚBLICA - sin middleware)
 // Los archivos están en storage/unity-build para evitar que php artisan serve los sirva directamente

@@ -214,13 +214,16 @@ Route::middleware('auth:api')->group(function () {
 
     // ========================================
     // RUTAS DE ESTADÍSTICAS Y REPORTES
+    // Estas rutas aceptan autenticación web (sesiones)
     // ========================================
-    Route::group(['prefix' => 'estadisticas'], function () {
+    Route::group(['prefix' => 'estadisticas', 'middleware' => ['web', 'web.auth']], function () {
         Route::get('/dashboard', [EstadisticasController::class, 'dashboard']);
         Route::get('/top-instructores', [EstadisticasController::class, 'topInstructores']);
         Route::get('/actividad-reciente', [EstadisticasController::class, 'actividadReciente']);
         Route::get('/usuario', [EstadisticasController::class, 'usuario']);
         Route::get('/actividad-usuario', [EstadisticasController::class, 'actividadUsuario']);
+        Route::get('/sesiones-por-mes', [EstadisticasController::class, 'sesionesPorMes']);
+        Route::get('/distribucion-usuarios', [EstadisticasController::class, 'distribucionUsuarios']);
     });
 
     // ========================================
@@ -355,6 +358,10 @@ Route::group(['prefix' => 'unity'], function () {
                 Route::post('{roomId}/audio-state', [UnityRoomController::class, 'updateAudioState']);
                 Route::get('{roomId}/events', [UnityRoomController::class, 'getRoomEvents']);
                 Route::post('{roomId}/close', [UnityRoomController::class, 'closeRoom']);
+                
+                // LiveKit integration endpoints
+                Route::get('{roomId}/livekit-token', [UnityRoomController::class, 'getLiveKitToken']);
+                Route::get('{roomId}/livekit-status', [UnityRoomController::class, 'getLiveKitStatus']);
             });
         });
     });
@@ -363,7 +370,7 @@ Route::group(['prefix' => 'unity'], function () {
 // RUTAS DE LIVEKIT (SFU + coturn)
 // ========================================
 Route::group(['prefix' => 'livekit'], function () {
-    // Rutas públicas (para testing)
+    // Rutas públicas (para testing y health check)
     Route::get('/test', function () {
         return response()->json([
             'success' => true,
@@ -373,18 +380,32 @@ Route::group(['prefix' => 'livekit'], function () {
         ]);
     });
     
+    Route::get('/health', [LiveKitController::class, 'healthCheck']);
+    
+    // Token público para testing (sala de prueba)
+    // En producción, deberías proteger este endpoint
+    Route::post('/token', [LiveKitController::class, 'getToken']);
+    
     // Rutas protegidas
     Route::middleware('unity.auth')->group(function () {
-        Route::post('/token', [LiveKitController::class, 'getToken']);
+        // Token para sesión específica (requiere auth)
+        Route::post('/session/{sesion}/token', [LiveKitController::class, 'getSessionToken']);
+        
+        // Room management
         Route::get('/rooms', [LiveKitController::class, 'getRooms']);
+        Route::post('/rooms', [LiveKitController::class, 'createRoom']);
         Route::get('/rooms/{roomName}/participants', [LiveKitController::class, 'getParticipants']);
+        Route::delete('/rooms/{roomName}', [LiveKitController::class, 'closeRoom']);
+        
+        // Participant tracking
+        Route::post('/participant-left', [LiveKitController::class, 'participantLeft']);
     });
 });
 
     // ========================================
     // RUTAS DE PERFIL DE USUARIO
     // ========================================
-    Route::group(['prefix' => 'profile'], function () {
+    Route::group(['prefix' => 'profile', 'middleware' => ['web', 'web.auth']], function () {
         Route::put('/', [ProfileController::class, 'update']);
         Route::get('/estadisticas', [ProfileController::class, 'estadisticas']);
         Route::get('/actividad', [ProfileController::class, 'actividad']);

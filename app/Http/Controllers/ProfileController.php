@@ -9,9 +9,28 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
+use App\Models\SesionJuicio;
+use App\Models\AsignacionRol;
+use Illuminate\View\View;
+use Carbon\Carbon;
 
 class ProfileController extends Controller
 {
+    /**
+     * Mostrar vista de perfil
+     */
+    public function index(): View
+    {
+        $user = Auth::user();
+        
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Por favor inicia sesión para continuar');
+        }
+        
+        return view('profile.index', [
+            'user' => $user
+        ]);
+    }
     /**
      * Actualizar perfil del usuario
      */
@@ -67,7 +86,8 @@ class ProfileController extends Controller
             
             $validator = Validator::make($request->all(), [
                 'contraseña_actual' => 'required|string',
-                'nueva_contraseña' => 'required|string|min:6|confirmed'
+                'nueva_contraseña' => 'required|string|min:6',
+                'confirmar_contraseña' => 'required|string|same:nueva_contraseña'
             ]);
             
             if ($validator->fails()) {
@@ -86,9 +106,9 @@ class ProfileController extends Controller
                 ], 400);
             }
             
-            // Actualizar contraseña
+            // Actualizar contraseña (el modelo User tiene el cast 'hashed')
             $usuario->update([
-                'password' => Hash::make($request->nueva_contraseña)
+                'password' => $request->nueva_contraseña
             ]);
             
             return response()->json([
@@ -113,12 +133,42 @@ class ProfileController extends Controller
         try {
             $usuario = Auth::user();
             
-            // Simular estadísticas (en producción se calcularían desde la BD)
+            // Calcular estadísticas reales
+            $sesionesParticipadas = AsignacionRol::where('usuario_id', $usuario->id)->count();
+            $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)->count();
+            
+            // Calcular tiempo total de sesiones
+            $sesionesConDuracion = SesionJuicio::whereNotNull('fecha_fin')
+                ->whereNotNull('fecha_inicio')
+                ->when(in_array($usuario->tipo, ['estudiante', 'alumno']), function($query) use ($usuario) {
+                    return $query->whereHas('asignaciones', function($q) use ($usuario) {
+                        $q->where('usuario_id', $usuario->id);
+                    });
+                })
+                ->when($usuario->tipo === 'instructor', function($query) use ($usuario) {
+                    return $query->where('instructor_id', $usuario->id);
+                })
+                ->get();
+            
+            $tiempoTotalMinutos = $sesionesConDuracion->sum(function ($sesion) {
+                return $sesion->fecha_inicio->diffInMinutes($sesion->fecha_fin);
+            });
+            
+            $tiempoTotalHoras = floor($tiempoTotalMinutos / 60);
+            $tiempoTotalMinutosRestantes = $tiempoTotalMinutos % 60;
+            $tiempoTotalFormateado = $tiempoTotalHoras . 'h ' . $tiempoTotalMinutosRestantes . 'm';
+            
+            // Calcular puntuación promedio (basada en sesiones completadas)
+            $sesionesCompletadas = $sesionesConDuracion->count();
+            $puntuacionPromedio = $sesionesParticipadas > 0 
+                ? round(($sesionesCompletadas / $sesionesParticipadas) * 10, 1)
+                : 0;
+            
             $estadisticas = [
-                'sesiones_participadas' => 15,
-                'sesiones_creadas' => 8,
-                'puntuacion_promedio' => 8.2,
-                'tiempo_total' => '45h 30m'
+                'sesiones_participadas' => $sesionesParticipadas,
+                'sesiones_creadas' => $sesionesCreadas,
+                'puntuacion_promedio' => $puntuacionPromedio,
+                'tiempo_total' => $tiempoTotalFormateado
             ];
             
             return response()->json([
@@ -142,30 +192,68 @@ class ProfileController extends Controller
     {
         try {
             $usuario = Auth::user();
+            $actividad = collect();
             
-            // Simular actividad reciente
-            $actividad = collect([
-                [
-                    'id' => 1,
-                    'descripcion' => 'Participaste en la sesión "Juicio Civil"',
-                    'fecha' => now()->subHours(2)->toISOString()
-                ],
-                [
-                    'id' => 2,
-                    'descripcion' => 'Creaste la sesión "Juicio Penal"',
-                    'fecha' => now()->subDays(1)->toISOString()
-                ],
-                [
-                    'id' => 3,
-                    'descripcion' => 'Actualizaste tu perfil',
-                    'fecha' => now()->subDays(3)->toISOString()
-                ],
-                [
-                    'id' => 4,
-                    'descripcion' => 'Completaste el diálogo "Contrato Laboral"',
-                    'fecha' => now()->subDays(5)->toISOString()
-                ]
-            ]);
+            // Actividad de sesiones en las que participó
+            $asignacionesRecientes = AsignacionRol::where('usuario_id', $usuario->id)
+                ->with('sesion')
+                ->orderBy('fecha_asignacion', 'desc')
+                ->limit(10)
+                ->get();
+            
+            foreach ($asignacionesRecientes as $asignacion) {
+                if ($asignacion->sesion) {
+                    $actividad->push([
+                        'id' => 'asignacion_' . $asignacion->id,
+                        'tipo' => 'participacion',
+                        'descripcion' => 'Participaste en la sesión "' . $asignacion->sesion->nombre . '"',
+                        'fecha' => $asignacion->fecha_asignacion->toISOString()
+                    ]);
+                }
+            }
+            
+            // Actividad de sesiones creadas (si es instructor)
+            if ($usuario->tipo === 'instructor') {
+                $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)
+                    ->orderBy('fecha_creacion', 'desc')
+                    ->limit(5)
+                    ->get();
+                
+                foreach ($sesionesCreadas as $sesion) {
+                    $actividad->push([
+                        'id' => 'sesion_creada_' . $sesion->id,
+                        'tipo' => 'creacion',
+                        'descripcion' => 'Creaste la sesión "' . $sesion->nombre . '"',
+                        'fecha' => $sesion->fecha_creacion->toISOString()
+                    ]);
+                }
+            }
+            
+            // Actividad de sesiones finalizadas
+            $sesionesFinalizadas = SesionJuicio::whereNotNull('fecha_fin')
+                ->when(in_array($usuario->tipo, ['estudiante', 'alumno']), function($query) use ($usuario) {
+                    return $query->whereHas('asignaciones', function($q) use ($usuario) {
+                        $q->where('usuario_id', $usuario->id);
+                    });
+                })
+                ->when($usuario->tipo === 'instructor', function($query) use ($usuario) {
+                    return $query->where('instructor_id', $usuario->id);
+                })
+                ->orderBy('fecha_fin', 'desc')
+                ->limit(5)
+                ->get();
+            
+            foreach ($sesionesFinalizadas as $sesion) {
+                $actividad->push([
+                    'id' => 'sesion_finalizada_' . $sesion->id,
+                    'tipo' => 'finalizacion',
+                    'descripcion' => 'Sesión "' . $sesion->nombre . '" finalizada',
+                    'fecha' => $sesion->fecha_fin->toISOString()
+                ]);
+            }
+            
+            // Ordenar por fecha descendente y limitar a 20
+            $actividad = $actividad->sortByDesc('fecha')->take(20)->values();
             
             return response()->json([
                 'success' => true,
@@ -259,12 +347,39 @@ class ProfileController extends Controller
      */
     private function obtenerEstadisticasUsuario(User $usuario): array
     {
-        // Simular estadísticas
+        $sesionesParticipadas = AsignacionRol::where('usuario_id', $usuario->id)->count();
+        $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)->count();
+        
+        $sesionesConDuracion = SesionJuicio::whereNotNull('fecha_fin')
+            ->whereNotNull('fecha_inicio')
+            ->when(in_array($usuario->tipo, ['estudiante', 'alumno']), function($query) use ($usuario) {
+                return $query->whereHas('asignaciones', function($q) use ($usuario) {
+                    $q->where('usuario_id', $usuario->id);
+                });
+            })
+            ->when($usuario->tipo === 'instructor', function($query) use ($usuario) {
+                return $query->where('instructor_id', $usuario->id);
+            })
+            ->get();
+        
+        $tiempoTotalMinutos = $sesionesConDuracion->sum(function ($sesion) {
+            return $sesion->fecha_inicio->diffInMinutes($sesion->fecha_fin);
+        });
+        
+        $tiempoTotalHoras = floor($tiempoTotalMinutos / 60);
+        $tiempoTotalMinutosRestantes = $tiempoTotalMinutos % 60;
+        $tiempoTotalFormateado = $tiempoTotalHoras . 'h ' . $tiempoTotalMinutosRestantes . 'm';
+        
+        $sesionesCompletadas = $sesionesConDuracion->count();
+        $puntuacionPromedio = $sesionesParticipadas > 0 
+            ? round(($sesionesCompletadas / $sesionesParticipadas) * 10, 1)
+            : 0;
+        
         return [
-            'sesiones_participadas' => 15,
-            'sesiones_creadas' => 8,
-            'puntuacion_promedio' => 8.2,
-            'tiempo_total' => '45h 30m'
+            'sesiones_participadas' => $sesionesParticipadas,
+            'sesiones_creadas' => $sesionesCreadas,
+            'puntuacion_promedio' => $puntuacionPromedio,
+            'tiempo_total' => $tiempoTotalFormateado
         ];
     }
     
@@ -273,18 +388,41 @@ class ProfileController extends Controller
      */
     private function obtenerActividadUsuario(User $usuario): array
     {
-        // Simular actividad
-        return [
-            [
-                'id' => 1,
-                'descripcion' => 'Participaste en la sesión "Juicio Civil"',
-                'fecha' => now()->subHours(2)->toISOString()
-            ],
-            [
-                'id' => 2,
-                'descripcion' => 'Creaste la sesión "Juicio Penal"',
-                'fecha' => now()->subDays(1)->toISOString()
-            ]
-        ];
+        $actividad = collect();
+        
+        // Actividad de sesiones en las que participó
+        $asignacionesRecientes = AsignacionRol::where('usuario_id', $usuario->id)
+            ->with('sesion')
+            ->orderBy('fecha_asignacion', 'desc')
+            ->limit(10)
+            ->get();
+        
+        foreach ($asignacionesRecientes as $asignacion) {
+            if ($asignacion->sesion) {
+                $actividad->push([
+                    'id' => 'asignacion_' . $asignacion->id,
+                    'descripcion' => 'Participaste en la sesión "' . $asignacion->sesion->nombre . '"',
+                    'fecha' => $asignacion->fecha_asignacion->toISOString()
+                ]);
+            }
+        }
+        
+        // Actividad de sesiones creadas (si es instructor)
+        if ($usuario->tipo === 'instructor') {
+            $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)
+                ->orderBy('fecha_creacion', 'desc')
+                ->limit(5)
+                ->get();
+            
+            foreach ($sesionesCreadas as $sesion) {
+                $actividad->push([
+                    'id' => 'sesion_creada_' . $sesion->id,
+                    'descripcion' => 'Creaste la sesión "' . $sesion->nombre . '"',
+                    'fecha' => $sesion->fecha_creacion->toISOString()
+                ]);
+            }
+        }
+        
+        return $actividad->sortByDesc('fecha')->take(20)->values()->toArray();
     }
 }

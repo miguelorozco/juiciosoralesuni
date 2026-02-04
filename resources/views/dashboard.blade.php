@@ -22,14 +22,14 @@
                 </div>
                 <div class="d-flex gap-2">
                     @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-                    <button class="btn btn-primary btn-lg shadow-sm">
+                    <a href="{{ route('sesiones.create') }}" class="btn btn-primary btn-lg shadow-sm">
                         <i class="bi bi-plus-circle me-2"></i>
                         Nueva Sesión
-                    </button>
-                    <button class="btn btn-outline-primary btn-lg shadow-sm">
+                    </a>
+                    <a href="{{ route('configuracion') }}" class="btn btn-outline-primary btn-lg shadow-sm">
                         <i class="bi bi-gear me-2"></i>
                         Configuración
-                    </button>
+                    </a>
                     @endif
                 </div>
             </div>
@@ -49,7 +49,7 @@
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="text-muted small fw-medium">Sesiones Activas</div>
-                            <div class="h4 mb-0 fw-bold text-dark">0</div>
+                            <div class="h4 mb-0 fw-bold text-dark">{{ $sesionesActivas }}</div>
                         </div>
                     </div>
                 </div>
@@ -67,7 +67,7 @@
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="text-muted small fw-medium">Total Sesiones</div>
-                            <div class="h4 mb-0 fw-bold text-dark">0</div>
+                            <div class="h4 mb-0 fw-bold text-dark">{{ $totalSesiones }}</div>
                         </div>
                     </div>
                 </div>
@@ -86,7 +86,7 @@
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="text-muted small fw-medium">Diálogos</div>
-                            <div class="h4 mb-0 fw-bold text-dark">0</div>
+                            <div class="h4 mb-0 fw-bold text-dark">{{ $totalDialogos }}</div>
                         </div>
                     </div>
                 </div>
@@ -105,7 +105,7 @@
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <div class="text-muted small fw-medium">Participaciones</div>
-                            <div class="h4 mb-0 fw-bold text-dark">0</div>
+                            <div class="h4 mb-0 fw-bold text-dark">{{ $participacionesUsuario }}</div>
                         </div>
                     </div>
                 </div>
@@ -125,26 +125,68 @@
                             <i class="bi bi-clock-history me-2 text-primary"></i>
                             Sesiones Recientes
                         </h5>
-                        <a href="#" class="btn btn-outline-primary btn-sm">
+                        <a href="{{ route('sesiones.index') }}" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-eye me-1"></i>
                             Ver todas
                         </a>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="text-center py-5">
-                        <div class="mb-4">
-                            <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+                    @if($sesionesRecientes->count() > 0)
+                        <div class="list-group list-group-flush">
+                            @foreach($sesionesRecientes as $sesion)
+                                <div class="list-group-item border-0 px-0 py-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-semibold">
+                                                <a href="{{ route('sesiones.show', $sesion->id) }}" class="text-dark text-decoration-none">
+                                                    {{ $sesion->nombre }}
+                                                </a>
+                                            </h6>
+                                            <p class="text-muted small mb-1">{{ Str::limit($sesion->descripcion, 80) }}</p>
+                                            <div class="d-flex align-items-center gap-3 mt-2">
+                                                <span class="badge bg-{{ $sesion->estado === 'en_curso' ? 'success' : ($sesion->estado === 'programada' ? 'warning' : 'secondary') }}">
+                                                    {{ ucfirst($sesion->estado) }}
+                                                </span>
+                                                <span class="text-muted small">
+                                                    <i class="bi bi-calendar3 me-1"></i>
+                                                    {{ $sesion->fecha_creacion->format('d/m/Y') }}
+                                                </span>
+                                                @if($sesion->instructor)
+                                                    <span class="text-muted small">
+                                                        <i class="bi bi-person me-1"></i>
+                                                        {{ $sesion->instructor->name }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="flex-shrink-0 ms-3">
+                                            <span class="badge bg-light text-dark">
+                                                {{ $sesion->asignaciones->count() }} participantes
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                @if(!$loop->last)
+                                    <hr class="my-0">
+                                @endif
+                            @endforeach
                         </div>
-                        <h6 class="text-muted mb-2">No hay sesiones recientes</h6>
-                        <p class="text-muted small mb-4">Las sesiones en las que participes aparecerán aquí</p>
-                        @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
-                        <button class="btn btn-primary">
-                            <i class="bi bi-plus-circle me-2"></i>
-                            Crear Primera Sesión
-                        </button>
-                        @endif
-                    </div>
+                    @else
+                        <div class="text-center py-5">
+                            <div class="mb-4">
+                                <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+                            </div>
+                            <h6 class="text-muted mb-2">No hay sesiones recientes</h6>
+                            <p class="text-muted small mb-4">Las sesiones en las que participes aparecerán aquí</p>
+                            @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                            <a href="{{ route('sesiones.create') }}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-2"></i>
+                                Crear Primera Sesión
+                            </a>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -177,11 +219,38 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="text-center py-4">
-                        <i class="bi bi-calendar-plus text-muted mb-3" style="font-size: 3rem;"></i>
-                        <h6 class="text-muted mb-2">No hay sesiones programadas</h6>
-                        <p class="text-muted small">Las próximas sesiones aparecerán aquí</p>
-                    </div>
+                    @if($proximasSesiones->count() > 0)
+                        <div class="list-group list-group-flush">
+                            @foreach($proximasSesiones as $sesion)
+                                <div class="list-group-item border-0 px-0 py-2">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 fw-semibold small">
+                                                <a href="{{ route('sesiones.show', $sesion->id) }}" class="text-dark text-decoration-none">
+                                                    {{ Str::limit($sesion->nombre, 30) }}
+                                                </a>
+                                            </h6>
+                                            @if($sesion->fecha_inicio)
+                                                <p class="text-muted small mb-0">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    {{ $sesion->fecha_inicio->format('d/m/Y H:i') }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                                @if(!$loop->last)
+                                    <hr class="my-1">
+                                @endif
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-4">
+                            <i class="bi bi-calendar-plus text-muted mb-3" style="font-size: 3rem;"></i>
+                            <h6 class="text-muted mb-2">No hay sesiones programadas</h6>
+                            <p class="text-muted small">Las próximas sesiones aparecerán aquí</p>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -197,30 +266,30 @@
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted small fw-medium">Sesiones este mes</span>
-                            <span class="fw-bold text-dark">0</span>
+                            <span class="fw-bold text-dark">{{ $sesionesEsteMes }}</span>
                         </div>
                         <div class="progress" style="height: 8px;">
-                            <div class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ $porcentajeSesionesMes ?? 0 }}%"></div>
                         </div>
                     </div>
                     
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted small fw-medium">Participaciones</span>
-                            <span class="fw-bold text-dark">0</span>
+                            <span class="fw-bold text-dark">{{ $participacionesUsuario }}</span>
                         </div>
                         <div class="progress" style="height: 8px;">
-                            <div class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ $porcentajeParticipaciones ?? 0 }}%"></div>
                         </div>
                     </div>
 
                     <div class="mb-0">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted small fw-medium">Tiempo total</span>
-                            <span class="fw-bold text-dark">0h 0m</span>
+                            <span class="fw-bold text-dark">{{ $tiempoTotalFormateado }}</span>
                         </div>
                         <div class="progress" style="height: 8px;">
-                            <div class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                            <div class="progress-bar bg-warning" role="progressbar" style="width: {{ min($porcentajeParticipaciones ?? 0, 100) }}%"></div>
                         </div>
                     </div>
                 </div>
@@ -237,25 +306,25 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-primary">
+                        <a href="{{ route('sesiones.create') }}" class="btn btn-primary">
                             <i class="bi bi-calendar-plus me-2"></i>
                             Nueva Sesión
-                        </button>
+                        </a>
                         
-                        <a href="/dialogos/create" class="btn btn-outline-secondary">
+                        <a href="{{ route('dialogos-v2.create') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-chat-dots me-2"></i>
                             Nuevo Diálogo
                         </a>
 
-                        <button class="btn btn-outline-info">
+                        <a href="{{ route('roles.index') }}" class="btn btn-outline-info">
                             <i class="bi bi-people me-2"></i>
-                            Gestionar Usuarios
-                        </button>
+                            Gestionar Roles
+                        </a>
 
-                        <button class="btn btn-outline-warning">
+                        <a href="{{ route('configuracion') }}" class="btn btn-outline-warning">
                             <i class="bi bi-gear me-2"></i>
                             Configuración
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>

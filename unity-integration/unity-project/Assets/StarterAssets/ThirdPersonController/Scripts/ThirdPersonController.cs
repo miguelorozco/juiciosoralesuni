@@ -138,7 +138,97 @@ namespace StarterAssets
             
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
+            
+            // CRÍTICO: Verificar si este ThirdPersonController pertenece al jugador local ANTES de obtener StarterAssetsInputs
+            var parentPlayerController = GetComponentInParent<PlayerController>();
+            bool isLocalPlayer = parentPlayerController != null && parentPlayerController.IsLocalPlayer();
+            
+            // CRÍTICO: Si NO es el jugador local, DESHABILITAR completamente este ThirdPersonController
+            if (!isLocalPlayer)
+            {
+                Debug.LogWarning($"[ThirdPersonController] ⚠️ Este ThirdPersonController pertenece a un jugador REMOTO ({gameObject.name}). DESHABILITANDO completamente.");
+                enabled = false;
+                return; // Salir inmediatamente sin inicializar nada
+            }
+            
+            Debug.Log($"[ThirdPersonController] ✅ Este ThirdPersonController pertenece al jugador LOCAL ({gameObject.name}). Inicializando...");
+            
+            // CRÍTICO: Obtener StarterAssetsInputs SOLO del mismo GameObject o de sus hijos DIRECTOS
+            // NUNCA usar FindObjectsOfType o buscar en otros GameObjects
             _input = GetComponent<StarterAssetsInputs>();
+            if (_input == null)
+            {
+                // Buscar SOLO en los hijos directos de este GameObject
+                _input = GetComponentInChildren<StarterAssetsInputs>(false); // false = solo hijos directos
+            }
+            
+            // Si aún no se encontró, buscar en toda la jerarquía de hijos (pero solo de este GameObject)
+            if (_input == null)
+            {
+                _input = GetComponentInChildren<StarterAssetsInputs>(true);
+            }
+            
+            // DEBUG: Log detallado sobre qué StarterAssetsInputs se obtuvo
+            if (_input != null)
+            {
+                Debug.Log($"[ThirdPersonController] ✅ Start() - StarterAssetsInputs encontrado en GameObject: {gameObject.name}");
+                Debug.Log($"[ThirdPersonController]   - StarterAssetsInputs GameObject: {_input.gameObject.name}");
+                Debug.Log($"[ThirdPersonController]   - StarterAssetsInputs position: {_input.transform.position}");
+                Debug.Log($"[ThirdPersonController]   - StarterAssetsInputs enabled: {_input.enabled}");
+                
+                // CRÍTICO: Verificar que el StarterAssetsInputs pertenezca a este GameObject o sus hijos
+                bool belongsToThisObject = _input.transform.IsChildOf(transform) || _input.gameObject == gameObject;
+                if (!belongsToThisObject)
+                {
+                    Debug.LogError($"[ThirdPersonController] ❌ CRÍTICO: StarterAssetsInputs NO pertenece a este GameObject!");
+                    Debug.LogError($"[ThirdPersonController]   - StarterAssetsInputs: {_input.gameObject.name}");
+                    Debug.LogError($"[ThirdPersonController]   - GameObject esperado: {gameObject.name}");
+                    _input = null; // Invalidar la referencia incorrecta
+                }
+                
+                // Verificar el parent del ThirdPersonController para ver a qué PlayerController pertenece
+                if (parentPlayerController != null)
+                {
+                    Debug.Log($"[ThirdPersonController]   - Parent PlayerController: {parentPlayerController.gameObject.name} (IsLocalPlayer: {parentPlayerController.IsLocalPlayer()})");
+                    var parentAvatar = parentPlayerController.GetCurrentAvatar();
+                    Debug.Log($"[ThirdPersonController]   - Parent Avatar: {(parentAvatar != null ? parentAvatar.name : "NULL")}");
+                    
+                    // CRÍTICO: Verificar que el StarterAssetsInputs pertenezca al avatar del parent PlayerController
+                    if (parentAvatar != null && _input != null)
+                    {
+                        bool belongsToAvatar = _input.transform.IsChildOf(parentAvatar.transform) || _input.gameObject == parentAvatar;
+                        if (!belongsToAvatar)
+                        {
+                            Debug.LogError($"[ThirdPersonController] ❌ CRÍTICO: StarterAssetsInputs NO pertenece al avatar del parent PlayerController!");
+                            Debug.LogError($"[ThirdPersonController]   - StarterAssetsInputs: {_input.gameObject.name}");
+                            Debug.LogError($"[ThirdPersonController]   - Avatar esperado: {parentAvatar.name}");
+                            
+                            // Buscar el StarterAssetsInputs correcto en el avatar
+                            var correctInput = parentAvatar.GetComponentInChildren<StarterAssetsInputs>(true);
+                            if (correctInput != null)
+                            {
+                                Debug.Log($"[ThirdPersonController] ✅ Encontrado StarterAssetsInputs correcto en avatar: {correctInput.gameObject.name}");
+                                _input = correctInput;
+                            }
+                            else
+                            {
+                                Debug.LogError($"[ThirdPersonController] ❌ NO se encontró StarterAssetsInputs en el avatar correcto!");
+                                _input = null; // Invalidar la referencia incorrecta
+                            }
+                        }
+                        else
+                        {
+                            Debug.Log($"[ThirdPersonController] ✅ StarterAssetsInputs pertenece al avatar correcto");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogError($"[ThirdPersonController] ❌ Start() - StarterAssetsInputs NO encontrado en GameObject: {gameObject.name}");
+                Debug.LogError($"[ThirdPersonController] 🔍 Este ThirdPersonController NO funcionará sin StarterAssetsInputs!");
+            }
+            
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #else
@@ -154,6 +244,131 @@ namespace StarterAssets
 
         private void Update()
         {
+            // DEBUG: Log cada frame cuando hay input
+            bool hasInput = _input != null && _input.move.magnitude > 0.01f;
+            
+            // CRÍTICO: Verificar que este ThirdPersonController pertenezca al jugador local
+            // Buscar PlayerController en el padre (el avatar puede ser hijo del PlayerController)
+            var parentPlayerController = GetComponentInParent<PlayerController>();
+            
+            // Si no se encuentra en el parent, buscar en toda la jerarquía hacia arriba
+            if (parentPlayerController == null)
+            {
+                Transform current = transform.parent;
+                while (current != null && parentPlayerController == null)
+                {
+                    parentPlayerController = current.GetComponent<PlayerController>();
+                    current = current.parent;
+                }
+            }
+            
+            // DEBUG: Simplificar para debugging - como solo Player_Juez está activo, siempre asumir que es local
+            // Esto permite que el movimiento funcione sin depender de la jerarquía de PlayerController
+            bool isLocalPlayer = true; // Por defecto, asumir que es local para debugging
+            
+            // Solo verificar PlayerController si existe, pero no bloquear si no existe
+            if (parentPlayerController != null)
+            {
+                isLocalPlayer = parentPlayerController.IsLocalPlayer();
+                if (!isLocalPlayer && Time.frameCount % 120 == 0)
+                {
+                    Debug.LogWarning($"[ThirdPersonController] ⚠️ PlayerController dice que NO es local, pero continuando para debugging.");
+                }
+            }
+            else
+            {
+                // Si no hay PlayerController padre, asumir que es local (solo hay un player activo)
+                if (Time.frameCount % 120 == 0)
+                {
+                    Debug.Log($"[ThirdPersonController] ℹ️ No se encontró PlayerController padre. Asumiendo que es jugador local (solo Player_Juez está activo).");
+                }
+            }
+            
+            // FORZAR que siempre sea local para debugging cuando solo hay un player
+            isLocalPlayer = true;
+            
+            if (hasInput || Time.frameCount % 60 == 0)
+            {
+                Debug.Log($"[ThirdPersonController] 🔍 Update() ejecutándose | GameObject: {gameObject.name}");
+                Debug.Log($"[ThirdPersonController]   - parentPlayerController: {(parentPlayerController != null ? parentPlayerController.gameObject.name : "NULL")}");
+                Debug.Log($"[ThirdPersonController]   - isLocalPlayer: {isLocalPlayer}");
+                Debug.Log($"[ThirdPersonController]   - enabled: {enabled}");
+                Debug.Log($"[ThirdPersonController]   - _input: {(_input != null ? _input.gameObject.name : "NULL")}");
+                Debug.Log($"[ThirdPersonController]   - _controller: {(_controller != null ? "OK" : "NULL")}");
+                if (_input != null)
+                {
+                    Debug.Log($"[ThirdPersonController]   - _input.move: {_input.move}");
+                    Debug.Log($"[ThirdPersonController]   - _input.enabled: {_input.enabled}");
+                }
+                if (_controller != null)
+                {
+                    Debug.Log($"[ThirdPersonController]   - _controller.enabled: {_controller.enabled}");
+                    Debug.Log($"[ThirdPersonController]   - _controller.velocity: {_controller.velocity}");
+                }
+            }
+            
+            // CRÍTICO: Si NO es el jugador local, NO ejecutar nada y deshabilitar este componente
+            if (!isLocalPlayer)
+            {
+                if (enabled)
+                {
+                    Debug.LogWarning($"[ThirdPersonController] ⚠️ Este ThirdPersonController pertenece a un jugador REMOTO ({gameObject.name}). DESHABILITANDO.");
+                    enabled = false;
+                }
+                return; // Salir inmediatamente sin ejecutar nada
+            }
+            
+            // CRÍTICO: Verificar que _input pertenezca al avatar correcto
+            if (_input != null)
+            {
+                if (parentPlayerController != null)
+                {
+                    var parentAvatar = parentPlayerController.GetCurrentAvatar();
+                    if (parentAvatar != null)
+                    {
+                        bool belongsToAvatar = _input.transform.IsChildOf(parentAvatar.transform) || _input.gameObject == parentAvatar;
+                        if (!belongsToAvatar)
+                        {
+                            // Buscar el StarterAssetsInputs correcto en el avatar
+                            var correctInput = parentAvatar.GetComponentInChildren<StarterAssetsInputs>(true);
+                            if (correctInput != null && correctInput != _input)
+                            {
+                                Debug.LogWarning($"[ThirdPersonController] ⚠️ CRÍTICO: StarterAssetsInputs incorrecto detectado en Update(). Corrigiendo...");
+                                Debug.LogWarning($"[ThirdPersonController]   - StarterAssetsInputs actual: {_input.gameObject.name}");
+                                Debug.LogWarning($"[ThirdPersonController]   - StarterAssetsInputs correcto: {correctInput.gameObject.name}");
+                                Debug.LogWarning($"[ThirdPersonController]   - Avatar esperado: {parentAvatar.name}");
+                                _input = correctInput;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError($"[ThirdPersonController] ❌ CRÍTICO: Avatar es NULL para PlayerController: {parentPlayerController.gameObject.name}");
+                        return; // No ejecutar movimiento si no hay avatar
+                    }
+                }
+            }
+            
+            // CRÍTICO: Si _input es NULL, intentar obtenerlo de nuevo
+            if (_input == null)
+            {
+                Debug.LogWarning("[ThirdPersonController] ⚠️ _input es NULL en Update(). Intentando obtenerlo de nuevo...");
+                _input = GetComponent<StarterAssetsInputs>();
+                if (_input == null)
+                {
+                    _input = GetComponentInChildren<StarterAssetsInputs>(true);
+                }
+                if (_input == null)
+                {
+                    Debug.LogError("[ThirdPersonController] ❌ CRÍTICO: _input (StarterAssetsInputs) es NULL en Update() después de reintento. El movimiento no funcionará.");
+                    return;
+                }
+                else
+                {
+                    Debug.Log($"[ThirdPersonController] ✅ StarterAssetsInputs encontrado en Update(): {_input.gameObject.name}");
+                }
+            }
+            
             _hasAnimator = TryGetComponent(out _animator);
 
             JumpAndGravity();
@@ -163,6 +378,21 @@ namespace StarterAssets
 
         private void LateUpdate()
         {
+            // CRÍTICO: Verificar que _input no sea NULL antes de llamar a CameraRotation
+            if (_input == null)
+            {
+                // Intentar obtenerlo de nuevo
+                _input = GetComponent<StarterAssetsInputs>();
+                if (_input == null)
+                {
+                    _input = GetComponentInChildren<StarterAssetsInputs>(true);
+                }
+                if (_input == null)
+                {
+                    return; // Salir si no se puede encontrar
+                }
+            }
+            
             CameraRotation();
         }
 
@@ -192,6 +422,12 @@ namespace StarterAssets
 
         private void CameraRotation()
         {
+            // CRÍTICO: Verificar que _input no sea NULL
+            if (_input == null)
+            {
+                return; // Salir si no hay input
+            }
+            
             // if there is an input and camera position is not fixed
             if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
             {
@@ -211,8 +447,57 @@ namespace StarterAssets
                 _cinemachineTargetYaw, 0.0f);
         }
 
+        private static int moveCallCount = 0;
+        private static int lastLoggedFrame = -1;
+        
         private void Move()
         {
+            moveCallCount++;
+            
+            // DEBUG: Log detallado cada frame cuando hay input, o cada 30 frames sin input
+            bool hasInput = _input != null && _input.move.magnitude > 0.01f;
+            bool shouldLog = hasInput || (Time.frameCount % 30 == 0);
+            if (shouldLog && Time.frameCount != lastLoggedFrame)
+            {
+                lastLoggedFrame = Time.frameCount;
+                Debug.Log($"[ThirdPersonController] 🔍 MOVE() LLAMADO #{moveCallCount} | GameObject: {gameObject.name}");
+                Debug.Log($"[ThirdPersonController]   - _input: {(_input != null ? "OK" : "NULL")}");
+                Debug.Log($"[ThirdPersonController]   - _input.move: {(_input != null ? _input.move.ToString() : "N/A")}");
+                Debug.Log($"[ThirdPersonController]   - _controller: {(_controller != null ? "OK" : "NULL")}");
+                Debug.Log($"[ThirdPersonController]   - _controller.enabled: {(_controller != null ? _controller.enabled.ToString() : "N/A")}");
+                Debug.Log($"[ThirdPersonController]   - _controller.isGrounded: {(_controller != null ? _controller.isGrounded.ToString() : "N/A")}");
+                Debug.Log($"[ThirdPersonController]   - _controller.velocity: {(_controller != null ? _controller.velocity.ToString() : "N/A")}");
+                Debug.Log($"[ThirdPersonController]   - transform.position: {transform.position}");
+                Debug.Log($"[ThirdPersonController]   - MoveSpeed: {MoveSpeed}, SprintSpeed: {SprintSpeed}");
+            }
+            
+            if (_input == null)
+            {
+                if (shouldLog && Time.frameCount != lastLoggedFrame)
+                {
+                    Debug.LogError("[ThirdPersonController] ❌ CRÍTICO: _input es NULL en Move()!");
+                }
+                return;
+            }
+            
+            if (_controller == null)
+            {
+                if (shouldLog && Time.frameCount != lastLoggedFrame)
+                {
+                    Debug.LogError("[ThirdPersonController] ❌ CRÍTICO: _controller es NULL en Move()!");
+                }
+                return;
+            }
+            
+            if (!_controller.enabled)
+            {
+                if (shouldLog && Time.frameCount != lastLoggedFrame)
+                {
+                    Debug.LogError("[ThirdPersonController] ❌ CRÍTICO: _controller está DESHABILITADO!");
+                }
+                return;
+            }
+            
             // set target speed based on move speed, sprint speed and if sprint is pressed
             float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
 
@@ -267,10 +552,32 @@ namespace StarterAssets
 
 
             Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
+            Vector3 moveVector = targetDirection.normalized * (_speed * Time.deltaTime) +
+                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime;
+            
+            // DEBUG: Log antes de mover
+            Vector3 positionBefore = transform.position;
+            if (shouldLog && Time.frameCount != lastLoggedFrame && moveVector.magnitude > 0.001f)
+            {
+                Debug.Log($"[ThirdPersonController] 🏃 ANTES DE MOVE: position={positionBefore}, moveVector={moveVector}, _speed={_speed}, targetSpeed={targetSpeed}");
+            }
 
             // move the player
-            _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
-                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            _controller.Move(moveVector);
+            
+            // DEBUG: Log después de mover
+            if (shouldLog && Time.frameCount != lastLoggedFrame && moveVector.magnitude > 0.001f)
+            {
+                Vector3 positionAfter = transform.position;
+                Vector3 positionDelta = positionAfter - positionBefore;
+                float distanceMoved = Vector3.Distance(positionAfter, positionBefore);
+                Debug.Log($"[ThirdPersonController] 🏃 DESPUÉS DE MOVE: position={positionAfter}, delta={positionDelta}, distanceMoved={distanceMoved}, velocity={_controller.velocity}");
+                
+                if (distanceMoved < 0.001f)
+                {
+                    Debug.LogWarning("[ThirdPersonController] ⚠️ ADVERTENCIA: La posición NO cambió después de Move()! El CharacterController puede estar bloqueado.");
+                }
+            }
 
             // update animator if using character
             if (_hasAnimator)

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "unity-editor": {
+      "command": "node",
+      "args": [
+        "/Users/miguel/Local/Github/juiciosoralesuni/unity-mcp-client.js"
+      ],
+      "env": {}
+    }
+  }
+}

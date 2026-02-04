@@ -380,6 +380,9 @@
         </div>
     </div>
 
+    <!-- LiveKit Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.11.0/dist/livekit-client.umd.min.js"></script>
+    
     <!-- Scripts de Unity -->
     <!-- Nota: el loader se inyectará más abajo, después de definir `config` -->
     <script>
@@ -504,6 +507,491 @@
             if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
             return navigator.permissions.query({ name: 'microphone' }).then(function(s) { return s.state; }).catch(function() { return 'unknown'; });
         };
+    </script>
+    
+    <!-- ===== LIVEKIT INTEGRATION ===== -->
+    <script>
+        // ===== SISTEMA DE AUDIO LIVEKIT (REEMPLAZO DE PEERJS) =====
+        window.LiveKitManager = (function() {
+            const LivekitClient = window.LivekitClient;
+            
+            // Estado del manager
+            let room = null;
+            let localAudioTrack = null;
+            let isConnected = false;
+            let currentRoomName = null;
+            let participantIdentity = null;
+            let unityToken = null;
+            
+            // Configuración
+            const config = {
+                serverUrl: '{{ config("livekit.host", "ws://localhost:7880") }}',
+                apiEndpoint: '/api/livekit/token',
+                reconnectAttempts: 3,
+                reconnectDelay: 2000
+            };
+            
+            // Audio elements para participantes remotos
+            const remoteAudioElements = new Map();
+            
+            /**
+             * Obtener token de LiveKit desde Laravel
+             */
+            async function getToken(roomName, participantName, identity) {
+                try {
+                    addDebugLog('api', 'LIVEKIT', `Solicitando token para sala: ${roomName}`);
+                    
+                    const response = await fetch(config.apiEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${unityToken}`,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            room_name: roomName,
+                            participant_name: participantName,
+                            participant_identity: identity
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    addDebugLog('api', 'LIVEKIT', 'Token obtenido exitosamente', { room: roomName });
+                    return data;
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error obteniendo token: ${error.message}`);
+                    throw error;
+                }
+            }
+            
+            /**
+             * Conectar a una sala de LiveKit
+             */
+            async function connect(roomName, participantName, identity, token) {
+                if (isConnected && currentRoomName === roomName) {
+                    addDebugLog('warning', 'LIVEKIT', 'Ya conectado a esta sala');
+                    return true;
+                }
+                
+                // Desconectar si está en otra sala
+                if (isConnected) {
+                    await disconnect();
+                }
+                
+                try {
+                    addDebugLog('phase', 'LIVEKIT', `Conectando a sala: ${roomName}`);
+                    
+                    // Guardar token de Unity para futuras peticiones
+                    unityToken = token;
+                    
+                    // Obtener token de LiveKit
+                    const tokenData = await getToken(roomName, participantName, identity);
+                    
+                    // Crear instancia de Room
+                    room = new LivekitClient.Room({
+                        adaptiveStream: true,
+                        dynacast: true,
+                        videoCaptureDefaults: {
+                            resolution: { width: 640, height: 480, frameRate: 15 }
+                        },
+                        audioCaptureDefaults: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+                    
+                    // Configurar event handlers
+                    setupRoomEvents();
+                    
+                    // Conectar
+                    await room.connect(tokenData.url || config.serverUrl, tokenData.token);
+                    
+                    isConnected = true;
+                    currentRoomName = roomName;
+                    participantIdentity = identity;
+                    
+                    addDebugLog('phase', 'LIVEKIT', `Conectado exitosamente a sala: ${roomName}`, {
+                        participants: room.numParticipants,
+                        localIdentity: room.localParticipant?.identity
+                    });
+                    
+                    // Notificar a Unity
+                    notifyUnity('LiveKitConnected', {
+                        roomName: roomName,
+                        identity: identity,
+                        participants: room.numParticipants
+                    });
+                    
+                    return true;
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error conectando: ${error.message}`);
+                    notifyUnity('LiveKitError', { error: error.message, type: 'connection' });
+                    return false;
+                }
+            }
+            
+            /**
+             * Configurar eventos del Room
+             */
+            function setupRoomEvents() {
+                if (!room) return;
+                
+                // Participante conectado
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Participante conectado: ${participant.identity}`);
+                    notifyUnity('ParticipantJoined', {
+                        identity: participant.identity,
+                        name: participant.name
+                    });
+                });
+                
+                // Participante desconectado
+                room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Participante desconectado: ${participant.identity}`);
+                    removeRemoteAudio(participant.identity);
+                    notifyUnity('ParticipantLeft', { identity: participant.identity });
+                });
+                
+                // Track suscrito (audio/video de otros participantes)
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Track suscrito: ${track.kind} de ${participant.identity}`);
+                    
+                    if (track.kind === 'audio') {
+                        attachRemoteAudio(track, participant.identity);
+                        window.setSpeakerActive(true);
+                    }
+                });
+                
+                // Track desuscrito
+                room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Track desuscrito: ${track.kind} de ${participant.identity}`);
+                    
+                    if (track.kind === 'audio') {
+                        removeRemoteAudio(participant.identity);
+                    }
+                });
+                
+                // Track publicado localmente
+                room.on(LivekitClient.RoomEvent.LocalTrackPublished, (publication, participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Track local publicado: ${publication.kind}`);
+                    if (publication.kind === 'audio') {
+                        window.setMicActive(true);
+                    }
+                });
+                
+                // Track local despublicado
+                room.on(LivekitClient.RoomEvent.LocalTrackUnpublished, (publication, participant) => {
+                    addDebugLog('event', 'LIVEKIT', `Track local despublicado: ${publication.kind}`);
+                    if (publication.kind === 'audio') {
+                        window.setMicActive(false);
+                    }
+                });
+                
+                // Reconexión
+                room.on(LivekitClient.RoomEvent.Reconnecting, () => {
+                    addDebugLog('warning', 'LIVEKIT', 'Reconectando...');
+                    notifyUnity('LiveKitReconnecting', {});
+                });
+                
+                room.on(LivekitClient.RoomEvent.Reconnected, () => {
+                    addDebugLog('phase', 'LIVEKIT', 'Reconectado exitosamente');
+                    notifyUnity('LiveKitReconnected', {});
+                });
+                
+                // Desconexión
+                room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
+                    addDebugLog('warning', 'LIVEKIT', `Desconectado: ${reason}`);
+                    isConnected = false;
+                    cleanupAudio();
+                    notifyUnity('LiveKitDisconnected', { reason: reason });
+                });
+                
+                // Datos recibidos (para mensajes de Unity)
+                room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant, kind) => {
+                    try {
+                        const decoder = new TextDecoder();
+                        const message = JSON.parse(decoder.decode(payload));
+                        addDebugLog('event', 'LIVEKIT', `Datos recibidos de ${participant?.identity}`, message);
+                        notifyUnity('DataReceived', {
+                            from: participant?.identity,
+                            data: message
+                        });
+                    } catch (e) {
+                        addDebugLog('error', 'LIVEKIT', 'Error parseando datos recibidos');
+                    }
+                });
+                
+                // Nivel de audio activo (para indicadores visuales)
+                room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+                    const speakerIds = speakers.map(s => s.identity);
+                    notifyUnity('ActiveSpeakersChanged', { speakers: speakerIds });
+                    
+                    // Actualizar indicador de speaker si hay audio entrante
+                    window.setSpeakerActive(speakers.length > 0);
+                });
+            }
+            
+            /**
+             * Adjuntar audio remoto
+             */
+            function attachRemoteAudio(track, identity) {
+                // Remover elemento anterior si existe
+                removeRemoteAudio(identity);
+                
+                // Crear elemento de audio
+                const audioElement = document.createElement('audio');
+                audioElement.id = `livekit-audio-${identity}`;
+                audioElement.autoplay = true;
+                audioElement.style.display = 'none';
+                document.body.appendChild(audioElement);
+                
+                // Adjuntar track
+                track.attach(audioElement);
+                remoteAudioElements.set(identity, audioElement);
+                
+                addDebugLog('info', 'LIVEKIT', `Audio adjuntado para: ${identity}`);
+            }
+            
+            /**
+             * Remover audio remoto
+             */
+            function removeRemoteAudio(identity) {
+                const audioElement = remoteAudioElements.get(identity);
+                if (audioElement) {
+                    audioElement.srcObject = null;
+                    audioElement.remove();
+                    remoteAudioElements.delete(identity);
+                    addDebugLog('info', 'LIVEKIT', `Audio removido para: ${identity}`);
+                }
+                
+                // Actualizar indicador si no hay más audio
+                if (remoteAudioElements.size === 0) {
+                    window.setSpeakerActive(false);
+                }
+            }
+            
+            /**
+             * Limpiar todos los elementos de audio
+             */
+            function cleanupAudio() {
+                remoteAudioElements.forEach((element, identity) => {
+                    element.srcObject = null;
+                    element.remove();
+                });
+                remoteAudioElements.clear();
+                window.setMicActive(false);
+                window.setSpeakerActive(false);
+            }
+            
+            /**
+             * Publicar audio del micrófono
+             */
+            async function publishAudio() {
+                if (!room || !isConnected) {
+                    addDebugLog('error', 'LIVEKIT', 'No conectado a ninguna sala');
+                    return false;
+                }
+                
+                try {
+                    addDebugLog('phase', 'LIVEKIT', 'Publicando audio del micrófono...');
+                    
+                    // Habilitar micrófono y publicar
+                    await room.localParticipant.setMicrophoneEnabled(true);
+                    
+                    addDebugLog('phase', 'LIVEKIT', 'Audio publicado exitosamente');
+                    window.setMicActive(true);
+                    notifyUnity('AudioPublished', { enabled: true });
+                    
+                    return true;
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error publicando audio: ${error.message}`);
+                    notifyUnity('LiveKitError', { error: error.message, type: 'audio' });
+                    return false;
+                }
+            }
+            
+            /**
+             * Detener publicación de audio
+             */
+            async function unpublishAudio() {
+                if (!room || !isConnected) return;
+                
+                try {
+                    await room.localParticipant.setMicrophoneEnabled(false);
+                    window.setMicActive(false);
+                    addDebugLog('info', 'LIVEKIT', 'Audio despublicado');
+                    notifyUnity('AudioPublished', { enabled: false });
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error despublicando audio: ${error.message}`);
+                }
+            }
+            
+            /**
+             * Toggle mute del micrófono
+             */
+            async function toggleMute() {
+                if (!room || !isConnected) return false;
+                
+                const isMuted = room.localParticipant.isMicrophoneEnabled;
+                await room.localParticipant.setMicrophoneEnabled(!isMuted);
+                window.setMicActive(!isMuted);
+                
+                addDebugLog('info', 'LIVEKIT', `Micrófono ${!isMuted ? 'activado' : 'silenciado'}`);
+                notifyUnity('MicrophoneToggled', { enabled: !isMuted });
+                
+                return !isMuted;
+            }
+            
+            /**
+             * Enviar datos a otros participantes
+             */
+            async function sendData(data, reliable = true) {
+                if (!room || !isConnected) {
+                    addDebugLog('error', 'LIVEKIT', 'No conectado para enviar datos');
+                    return false;
+                }
+                
+                try {
+                    const encoder = new TextEncoder();
+                    const payload = encoder.encode(JSON.stringify(data));
+                    
+                    await room.localParticipant.publishData(
+                        payload,
+                        reliable ? LivekitClient.DataPacket_Kind.RELIABLE : LivekitClient.DataPacket_Kind.LOSSY
+                    );
+                    
+                    addDebugLog('info', 'LIVEKIT', 'Datos enviados', data);
+                    return true;
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error enviando datos: ${error.message}`);
+                    return false;
+                }
+            }
+            
+            /**
+             * Desconectar de la sala
+             */
+            async function disconnect() {
+                if (!room) return;
+                
+                try {
+                    addDebugLog('phase', 'LIVEKIT', 'Desconectando de la sala...');
+                    
+                    cleanupAudio();
+                    await room.disconnect();
+                    room = null;
+                    isConnected = false;
+                    currentRoomName = null;
+                    
+                    addDebugLog('phase', 'LIVEKIT', 'Desconectado exitosamente');
+                } catch (error) {
+                    addDebugLog('error', 'LIVEKIT', `Error desconectando: ${error.message}`);
+                }
+            }
+            
+            /**
+             * Notificar a Unity
+             */
+            function notifyUnity(eventName, data) {
+                if (window.unityInstance && window.unityInstance.SendMessage) {
+                    try {
+                        window.unityInstance.SendMessage(
+                            'LiveKitManager',
+                            'OnLiveKitEvent',
+                            JSON.stringify({ event: eventName, data: data })
+                        );
+                    } catch (e) {
+                        // Unity puede no estar listo
+                    }
+                }
+                
+                // También disparar evento DOM para otros listeners
+                window.dispatchEvent(new CustomEvent('livekit:' + eventName, { detail: data }));
+            }
+            
+            /**
+             * Obtener estado actual
+             */
+            function getState() {
+                return {
+                    isConnected: isConnected,
+                    roomName: currentRoomName,
+                    identity: participantIdentity,
+                    participants: room ? room.numParticipants : 0,
+                    isMicEnabled: room?.localParticipant?.isMicrophoneEnabled || false
+                };
+            }
+            
+            /**
+             * Obtener lista de participantes
+             */
+            function getParticipants() {
+                if (!room) return [];
+                
+                const participants = [];
+                room.remoteParticipants.forEach((participant, identity) => {
+                    participants.push({
+                        identity: identity,
+                        name: participant.name,
+                        isSpeaking: participant.isSpeaking,
+                        audioLevel: participant.audioLevel
+                    });
+                });
+                
+                return participants;
+            }
+            
+            // API pública
+            return {
+                connect: connect,
+                disconnect: disconnect,
+                publishAudio: publishAudio,
+                unpublishAudio: unpublishAudio,
+                toggleMute: toggleMute,
+                sendData: sendData,
+                getState: getState,
+                getParticipants: getParticipants,
+                
+                // Acceso directo al room para casos avanzados
+                getRoom: function() { return room; }
+            };
+        })();
+        
+        // Exponer globalmente para Unity
+        window.livekit = window.LiveKitManager;
+        
+        // Funciones de conveniencia para Unity (legacy compatibility)
+        window.connectToLiveKitRoom = async function(roomName, participantName, identity, token) {
+            return await window.LiveKitManager.connect(roomName, participantName, identity, token);
+        };
+        
+        window.disconnectFromLiveKit = async function() {
+            return await window.LiveKitManager.disconnect();
+        };
+        
+        window.publishLiveKitAudio = async function() {
+            return await window.LiveKitManager.publishAudio();
+        };
+        
+        window.toggleLiveKitMute = async function() {
+            return await window.LiveKitManager.toggleMute();
+        };
+        
+        window.sendLiveKitData = async function(data) {
+            return await window.LiveKitManager.sendData(data);
+        };
+        
+        window.getLiveKitState = function() {
+            return window.LiveKitManager.getState();
+        };
+        
+        addDebugLog('phase', 'LIVEKIT', 'LiveKit Manager inicializado y listo');
+        // ===== FIN SISTEMA DE AUDIO LIVEKIT =====
     </script>
     <script>
         // ===== SISTEMA DE LOGGING EN HTML =====

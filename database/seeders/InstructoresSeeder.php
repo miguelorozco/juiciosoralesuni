@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 
 class InstructoresSeeder extends Seeder
 {
@@ -69,7 +68,7 @@ class InstructoresSeeder extends Seeder
                     'name' => $instructor['name'],
                     'apellido' => $instructor['apellido'],
                     'email' => $instructor['email'],
-                    'password' => Hash::make($instructor['password']),
+                    'password' => $instructor['password'],
                     'tipo' => $instructor['tipo'],
                     'activo' => $instructor['activo'],
                     'email_verified_at' => now(),
