@@ -342,7 +342,94 @@
         }
         .audio-pill.ok { background: #2e7d32; color: #e8f5e9; }
         .audio-pill.off { background: #424242; color: #e0e0e0; }
+        /* Panel de chat de voz (LiveKit) - WebGL */
+        #voice-chat-panel {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 100001;
+            min-width: 260px;
+            max-width: 320px;
+            background: rgba(20, 20, 24, 0.95);
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 13px;
+            color: #e8e8e8;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+        }
+        #voice-chat-panel .voice-panel-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #4CAF50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #voice-chat-panel .voice-panel-title .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+            flex-shrink: 0;
+        }
+        #voice-chat-panel .voice-panel-title .dot.connected { background: #4CAF50; box-shadow: 0 0 8px #4CAF50; }
+        #voice-chat-panel .voice-panel-title .dot.connecting { background: #FFC107; animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { opacity: 0.5; } }
+        #voice-chat-panel .voice-status-line {
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #b0b0b0;
+        }
+        #voice-chat-panel .voice-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #voice-chat-panel .voice-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+        #voice-chat-panel .voice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        #voice-chat-panel .voice-btn-enable {
+            background: #4CAF50;
+            color: #fff;
+        }
+        #voice-chat-panel .voice-btn-enable:hover:not(:disabled) { background: #66bb6a; }
+        #voice-chat-panel .voice-btn-mute {
+            background: #37474F;
+            color: #e0e0e0;
+        }
+        #voice-chat-panel .voice-btn-mute:hover:not(:disabled) { background: #455a64; }
+        #voice-chat-panel .voice-btn-mute.muted { background: #c62828; color: #fff; }
+        #voice-chat-panel .voice-btn-disconnect {
+            background: transparent;
+            color: #b0b0b0;
+            border: 1px solid #555;
+        }
+        #voice-chat-panel .voice-btn-disconnect:hover:not(:disabled) { background: rgba(255,255,255,0.06); color: #e0e0e0; }
     </style>
+
+    <!-- Panel Chat de voz (LiveKit) - habilitar, usar y ver conexión -->
+    <div id="voice-chat-panel" aria-label="Chat de voz">
+        <div class="voice-panel-title">
+            <span class="dot" id="voice-status-dot"></span>
+            <span>Chat de voz (LiveKit)</span>
+        </div>
+        <div class="voice-status-line" id="voice-status-text">Estado: Desconectado</div>
+        <div class="voice-buttons">
+            <button type="button" class="voice-btn voice-btn-enable" id="voice-btn-enable" onclick="window.voiceChatPanelEnable()">Habilitar micrófono</button>
+            <button type="button" class="voice-btn voice-btn-mute" id="voice-btn-mute" disabled onclick="window.voiceChatPanelToggleMute()">Silenciar / Activar mic</button>
+            <button type="button" class="voice-btn voice-btn-disconnect" id="voice-btn-disconnect" disabled onclick="window.voiceChatPanelDisconnect()">Desconectar</button>
+        </div>
+    </div>
 
     <div class="audio-status-fixed" id="audio-status-fixed" aria-hidden="false">
         <div id="micCardSmall" class="audio-card-small" title="Micrófono">
@@ -419,6 +506,148 @@
             };
             document.head.appendChild(loaderScript);
         };
+    </script>
+    <script>
+        // ===== SISTEMA DE LOGGING EN HTML (debe cargar antes de LiveKit/panel de voz) =====
+        let debugLogEnabled = true;
+        let debugLogs = [];
+        const MAX_LOG_ENTRIES = 1000;
+
+        function addDebugLog(level, category, message, data = null) {
+          if (!debugLogEnabled) return;
+
+          const timestamp = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+          const logEntry = { timestamp, level, category, message, data };
+
+          debugLogs.push(logEntry);
+          if (debugLogs.length > MAX_LOG_ENTRIES) {
+            debugLogs.shift();
+          }
+
+          const content = document.getElementById('debug-log-content');
+          if (content) {
+            const entry = document.createElement('div');
+            entry.className = `debug-log-entry ${level}`;
+
+            let html = `<span class="timestamp">[${timestamp}]</span>`;
+            html += `<span class="category">[${category}]</span>`;
+            html += `<span>${escapeHtml(message)}</span>`;
+
+            if (data) {
+              try {
+                html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(JSON.stringify(data, null, 2))}</span>`;
+              } catch (e) {
+                html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(String(data))}</span>`;
+              }
+            }
+
+            entry.innerHTML = html;
+            content.appendChild(entry);
+            content.scrollTop = content.scrollHeight;
+          }
+        }
+
+        function escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        }
+
+        function clearDebugLogs() {
+          debugLogs = [];
+          const content = document.getElementById('debug-log-content');
+          if (content) content.innerHTML = '';
+          addDebugLog('info', 'SYSTEM', 'Logs limpiados');
+        }
+
+        function toggleDebugLogWindow() {
+          const window = document.getElementById('debug-log-window');
+          if (window) window.classList.toggle('minimized');
+        }
+
+        function toggleDebugLogEnabled() {
+          debugLogEnabled = !debugLogEnabled;
+          const btn = document.getElementById('toggle-log-btn');
+          if (btn) btn.textContent = debugLogEnabled ? 'Desactivar' : 'Activar';
+          addDebugLog('info', 'SYSTEM', `Logging ${debugLogEnabled ? 'activado' : 'desactivado'}`);
+        }
+
+        // Interceptar console
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const originalInfo = console.info;
+
+        console.log = function(...args) {
+          originalLog.apply(console, args);
+          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+          addDebugLog('info', 'CONSOLE', message);
+        };
+
+        console.error = function(...args) {
+          originalError.apply(console, args);
+          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+          addDebugLog('error', 'CONSOLE', message);
+        };
+
+        console.warn = function(...args) {
+          originalWarn.apply(console, args);
+          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+          addDebugLog('warning', 'CONSOLE', message);
+        };
+
+        console.info = function(...args) {
+          originalInfo.apply(console, args);
+          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
+          addDebugLog('info', 'CONSOLE', message);
+        };
+
+        // Capturar errores globales
+        window.addEventListener('error', function(e) {
+          addDebugLog('error', 'GLOBAL_ERROR', `${e.message}`, {
+            filename: e.filename,
+            lineno: e.lineno,
+            colno: e.colno,
+            stack: e.error?.stack
+          });
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+          addDebugLog('error', 'PROMISE_REJECTION', `Promise rechazada: ${e.reason}`, {
+            reason: String(e.reason),
+            stack: e.reason?.stack
+          });
+        });
+
+        // Funciones para Unity
+        window.unityDebugLog = function(level, category, message, data) {
+          addDebugLog(level || 'info', category || 'UNITY', message || '', data);
+        };
+
+        window.unityLogPhase = function(phaseName, status, data) {
+          addDebugLog('phase', 'PHASE', `[${phaseName}] ${status}`, data);
+        };
+
+        window.unityLogAPI = function(method, url, status, data) {
+          addDebugLog('api', 'API', `[${method}] ${url} - ${status}`, data);
+        };
+
+        window.unityLogEvent = function(eventName, message, data) {
+          addDebugLog('event', 'EVENT', `[${eventName}] ${message}`, data);
+        };
+
+        window.addDebugLog = addDebugLog;
+        window.clearDebugLogs = clearDebugLogs;
+        window.toggleDebugLogWindow = toggleDebugLogWindow;
+        window.toggleDebugLogEnabled = toggleDebugLogEnabled;
+
+        addDebugLog('info', 'SYSTEM', 'Sistema de logging inicializado');
+        addDebugLog('phase', 'INIT', 'Página cargada', {
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        });
+        // ===== FIN SISTEMA DE LOGGING =====
     </script>
     <script>
         // Funciones globales para controlar los indicadores (para testing rápido)
@@ -992,149 +1221,82 @@
         
         addDebugLog('phase', 'LIVEKIT', 'LiveKit Manager inicializado y listo');
         // ===== FIN SISTEMA DE AUDIO LIVEKIT =====
+
+        // ===== UI PANEL CHAT DE VOZ (habilitar, usar, ver conexión) =====
+        function updateVoiceChatPanel() {
+            const dot = document.getElementById('voice-status-dot');
+            const text = document.getElementById('voice-status-text');
+            const btnEnable = document.getElementById('voice-btn-enable');
+            const btnMute = document.getElementById('voice-btn-mute');
+            const btnDisconnect = document.getElementById('voice-btn-disconnect');
+
+            if (!window.LiveKitManager) return;
+            const state = window.LiveKitManager.getState();
+
+            if (state.isConnected) {
+                if (dot) { dot.className = 'dot connected'; }
+                if (text) {
+                    const participants = window.LiveKitManager.getParticipants ? window.LiveKitManager.getParticipants().length : (state.participants || 0);
+                    text.textContent = 'Conectado a "' + (state.roomName || 'sala') + '" · ' + participants + ' participante(s)';
+                }
+                if (btnEnable) { btnEnable.disabled = true; btnEnable.textContent = 'Conectado'; }
+                if (btnMute) { btnMute.disabled = false; btnMute.textContent = state.isMicEnabled ? 'Silenciar mic' : 'Activar mic'; btnMute.classList.toggle('muted', !state.isMicEnabled); }
+                if (btnDisconnect) btnDisconnect.disabled = false;
+            } else {
+                if (dot) { dot.className = 'dot'; }
+                if (text) text.textContent = 'Estado: Desconectado';
+                if (btnEnable) { btnEnable.disabled = false; btnEnable.textContent = 'Habilitar micrófono'; }
+                if (btnMute) { btnMute.disabled = true; btnMute.textContent = 'Silenciar / Activar mic'; btnMute.classList.remove('muted'); }
+                if (btnDisconnect) btnDisconnect.disabled = true;
+            }
+        }
+
+        window.voiceChatPanelEnable = function() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                addDebugLog('error', 'VOICE_PANEL', 'Tu navegador no soporta acceso al micrófono');
+                return;
+            }
+            const text = document.getElementById('voice-status-text');
+            if (text) text.textContent = 'Solicitando permiso de micrófono...';
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(function(stream) {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    if (text) text.textContent = 'Permiso concedido. La conexión a la sala se hará desde Unity (Photon/LiveKit).';
+                    addDebugLog('phase', 'VOICE_PANEL', 'Micrófono autorizado; listo para conectar cuando Unity una a la sala.');
+                })
+                .catch(function(err) {
+                    if (text) text.textContent = 'Estado: Desconectado (permiso denegado)';
+                    addDebugLog('error', 'VOICE_PANEL', 'Error permiso micrófono: ' + err.message);
+                });
+        };
+
+        window.voiceChatPanelToggleMute = function() {
+            if (window.LiveKitManager && window.LiveKitManager.toggleMute) {
+                window.LiveKitManager.toggleMute().then(function() { updateVoiceChatPanel(); });
+            }
+        };
+
+        window.voiceChatPanelDisconnect = function() {
+            if (window.LiveKitManager && window.LiveKitManager.disconnect) {
+                window.LiveKitManager.disconnect().then(function() { updateVoiceChatPanel(); });
+            }
+        };
+
+        ['LiveKitConnected', 'LiveKitDisconnected', 'LiveKitReconnecting', 'LiveKitReconnected', 'LiveKitError'].forEach(function(ev) {
+            window.addEventListener('livekit:' + ev, function() {
+                if (ev === 'LiveKitReconnecting') {
+                    var t = document.getElementById('voice-status-text');
+                    if (t) t.textContent = 'Reconectando...';
+                    var d = document.getElementById('voice-status-dot');
+                    if (d) d.className = 'dot connecting';
+                }
+                updateVoiceChatPanel();
+            });
+        });
+        setInterval(updateVoiceChatPanel, 2000);
+        updateVoiceChatPanel();
     </script>
     <script>
-        // ===== SISTEMA DE LOGGING EN HTML =====
-        let debugLogEnabled = true;
-        let debugLogs = [];
-        const MAX_LOG_ENTRIES = 1000;
-        
-        function addDebugLog(level, category, message, data = null) {
-          if (!debugLogEnabled) return;
-          
-          const timestamp = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-          const logEntry = { timestamp, level, category, message, data };
-          
-          debugLogs.push(logEntry);
-          if (debugLogs.length > MAX_LOG_ENTRIES) {
-            debugLogs.shift();
-          }
-          
-          const content = document.getElementById('debug-log-content');
-          if (content) {
-            const entry = document.createElement('div');
-            entry.className = `debug-log-entry ${level}`;
-            
-            let html = `<span class="timestamp">[${timestamp}]</span>`;
-            html += `<span class="category">[${category}]</span>`;
-            html += `<span>${escapeHtml(message)}</span>`;
-            
-            if (data) {
-              try {
-                html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(JSON.stringify(data, null, 2))}</span>`;
-              } catch (e) {
-                html += `<br><span style="color: #888; margin-left: 20px;">${escapeHtml(String(data))}</span>`;
-              }
-            }
-            
-            entry.innerHTML = html;
-            content.appendChild(entry);
-            content.scrollTop = content.scrollHeight;
-          }
-        }
-        
-        function escapeHtml(text) {
-          const div = document.createElement('div');
-          div.textContent = text;
-          return div.innerHTML;
-        }
-        
-        function clearDebugLogs() {
-          debugLogs = [];
-          const content = document.getElementById('debug-log-content');
-          if (content) content.innerHTML = '';
-          addDebugLog('info', 'SYSTEM', 'Logs limpiados');
-        }
-        
-        function toggleDebugLogWindow() {
-          const window = document.getElementById('debug-log-window');
-          if (window) window.classList.toggle('minimized');
-        }
-        
-        function toggleDebugLogEnabled() {
-          debugLogEnabled = !debugLogEnabled;
-          const btn = document.getElementById('toggle-log-btn');
-          if (btn) btn.textContent = debugLogEnabled ? 'Desactivar' : 'Activar';
-          addDebugLog('info', 'SYSTEM', `Logging ${debugLogEnabled ? 'activado' : 'desactivado'}`);
-        }
-        
-        // Interceptar console
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-        const originalInfo = console.info;
-        
-        console.log = function(...args) {
-          originalLog.apply(console, args);
-          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
-          addDebugLog('info', 'CONSOLE', message);
-        };
-        
-        console.error = function(...args) {
-          originalError.apply(console, args);
-          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
-          addDebugLog('error', 'CONSOLE', message);
-        };
-        
-        console.warn = function(...args) {
-          originalWarn.apply(console, args);
-          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
-          addDebugLog('warning', 'CONSOLE', message);
-        };
-        
-        console.info = function(...args) {
-          originalInfo.apply(console, args);
-          const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ');
-          addDebugLog('info', 'CONSOLE', message);
-        };
-        
-        // Capturar errores globales
-        window.addEventListener('error', function(e) {
-          addDebugLog('error', 'GLOBAL_ERROR', `${e.message}`, {
-            filename: e.filename,
-            lineno: e.lineno,
-            colno: e.colno,
-            stack: e.error?.stack
-          });
-        });
-        
-        window.addEventListener('unhandledrejection', function(e) {
-          addDebugLog('error', 'PROMISE_REJECTION', `Promise rechazada: ${e.reason}`, {
-            reason: String(e.reason),
-            stack: e.reason?.stack
-          });
-        });
-        
-        // Funciones para Unity
-        window.unityDebugLog = function(level, category, message, data) {
-          addDebugLog(level || 'info', category || 'UNITY', message || '', data);
-        };
-        
-        window.unityLogPhase = function(phaseName, status, data) {
-          addDebugLog('phase', 'PHASE', `[${phaseName}] ${status}`, data);
-        };
-        
-        window.unityLogAPI = function(method, url, status, data) {
-          addDebugLog('api', 'API', `[${method}] ${url} - ${status}`, data);
-        };
-        
-        window.unityLogEvent = function(eventName, message, data) {
-          addDebugLog('event', 'EVENT', `[${eventName}] ${message}`, data);
-        };
-        
-        window.addDebugLog = addDebugLog;
-        window.clearDebugLogs = clearDebugLogs;
-        window.toggleDebugLogWindow = toggleDebugLogWindow;
-        window.toggleDebugLogEnabled = toggleDebugLogEnabled;
-        
-        addDebugLog('info', 'SYSTEM', 'Sistema de logging inicializado');
-        addDebugLog('phase', 'INIT', 'Página cargada', {
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        });
-        // ===== FIN SISTEMA DE LOGGING =====
-        
         // Configuración de Unity
         var container = document.querySelector("#unity-container");
         var canvas = document.querySelector("#unity-canvas");

@@ -336,6 +336,7 @@ Route::group(['prefix' => 'unity'], function () {
             
             // Nuevos endpoints para diálogos Unity
             Route::group(['prefix' => 'sesion'], function () {
+                Route::post('/{sesionJuicio}/iniciar-dialogo', [UnityDialogoController::class, 'iniciarDialogo']);
                 Route::get('/{sesionJuicio}/dialogo-estado', [UnityDialogoController::class, 'obtenerEstadoDialogo']);
                 Route::get('/{sesionJuicio}/respuestas-usuario/{usuario}', [UnityDialogoController::class, 'obtenerRespuestasUsuario']);
                 Route::post('/{sesionJuicio}/enviar-decision', [UnityDialogoController::class, 'enviarDecision']);

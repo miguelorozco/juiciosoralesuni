@@ -13,9 +13,86 @@ use App\Models\SesionJuicio;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Broadcast;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class UnityDialogoController extends Controller
 {
+    /**
+     * Iniciar diálogo en sesión (pasar estado de iniciado a en_curso).
+     * POST /api/unity/sesion/{sesionJuicio}/iniciar-dialogo
+     * Requiere unity.auth. Solo instructor o admin de la sesión.
+     */
+    public function iniciarDialogo(SesionJuicio $sesion): JsonResponse
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            if (!$sesion->puedeSerGestionadaPor($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para iniciar el diálogo en esta sesión',
+                ], 403);
+            }
+
+            $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
+                ->where('estado', 'iniciado')
+                ->with(['dialogo', 'nodoActual.rol'])
+                ->first();
+
+            if (!$sesionDialogo) {
+                $activo = SesionDialogo::where('sesion_id', $sesion->id)
+                    ->whereIn('estado', ['en_curso', 'pausado'])
+                    ->first();
+                return response()->json([
+                    'success' => false,
+                    'message' => $activo
+                        ? 'Ya hay un diálogo en curso en esta sesión'
+                        : 'No hay un diálogo iniciado para esta sesión. Configúralo desde la web.',
+                ], 400);
+            }
+
+            if (!$sesionDialogo->iniciar()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo iniciar el diálogo (por ejemplo, sin nodo inicial)',
+                ], 400);
+            }
+
+            $sesionDialogo->load(['nodoActual.rol']);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'estado' => $sesionDialogo->estado,
+                    'nodo_actual' => $sesionDialogo->nodoActual ? [
+                        'id' => $sesionDialogo->nodoActual->id,
+                        'titulo' => $sesionDialogo->nodoActual->titulo,
+                        'contenido' => $sesionDialogo->nodoActual->contenido,
+                        'rol_hablando' => $sesionDialogo->nodoActual->rol ? [
+                            'id' => $sesionDialogo->nodoActual->rol->id,
+                            'nombre' => $sesionDialogo->nodoActual->rol->nombre,
+                            'color' => $sesionDialogo->nodoActual->rol->color,
+                            'icono' => $sesionDialogo->nodoActual->rol->icono,
+                        ] : null,
+                        'es_final' => $sesionDialogo->nodoActual->es_final,
+                    ] : null,
+                ],
+                'message' => 'Diálogo iniciado correctamente',
+            ]);
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token inválido: ' . $e->getMessage(),
+            ], 401);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al iniciar el diálogo: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     /**
      * @OA\Get(
      *     path="/api/unity/sesion/{sesion}/dialogo-estado",

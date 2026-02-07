@@ -47,6 +47,24 @@ unity-integration/unity-project/*.userprefs
 unity-integration/unity-project/*.unityproj
 unity-integration/unity-project/*.mdb
 
+# Unity large files - artifacts and cache
+unity-project/Library/
+*.a
+*.dylib
+
+# Unity WebGL Build Output
+/WebGLBuild/
+*.jgz
+*.data
+*.wasm
+*.js.gz
+*.framework
+*.bundle
+*.symbols.json
+*.asm.code.unityweb
+/TemplateData/
+/StreamingAssets/
+
 # Workspace files
 *.code-workspace
 
