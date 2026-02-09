@@ -415,6 +415,18 @@
             border: 1px solid #555;
         }
         #voice-chat-panel .voice-btn-disconnect:hover:not(:disabled) { background: rgba(255,255,255,0.06); color: #e0e0e0; }
+        #voice-chat-panel .voice-btn-test { background: #1565c0; color: #fff; }
+        #voice-chat-panel .voice-btn-test:hover:not(:disabled) { background: #1976d2; }
+        #voice-chat-panel .voice-info-block { margin-bottom: 8px; font-size: 12px; color: #b0b0b0; }
+        #voice-chat-panel .voice-info-block strong { color: #e0e0e0; margin-right: 6px; }
+        #voice-chat-panel .voice-connection-state { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        #voice-chat-panel .voice-connection-state.disconnected { background: #424242; color: #b0b0b0; }
+        #voice-chat-panel .voice-connection-state.connecting { background: #FFC107; color: #333; }
+        #voice-chat-panel .voice-connection-state.connected { background: #2e7d32; color: #e8f5e9; }
+        #voice-chat-panel .voice-connection-state.reconnecting { background: #F57C00; color: #fff; }
+        #voice-chat-panel .voice-connection-state.error { background: #c62828; color: #fff; }
+        #voice-chat-panel .voice-mics-label { display: block; margin: 8px 0 4px; font-size: 11px; color: #888; }
+        #voice-chat-panel select.voice-mic-select { width: 100%; max-width: 100%; padding: 6px 8px; margin-bottom: 8px; font-size: 11px; background: #2a2a2e; color: #e0e0e0; border: 1px solid #444; border-radius: 4px; }
     </style>
 
     <!-- Panel Chat de voz (LiveKit) - habilitar, usar y ver conexión -->
@@ -423,9 +435,18 @@
             <span class="dot" id="voice-status-dot"></span>
             <span>Chat de voz (LiveKit)</span>
         </div>
-        <div class="voice-status-line" id="voice-status-text">Estado: Desconectado</div>
+        <div class="voice-info-block">
+            <strong>Sala:</strong> <span id="voice-room-name">—</span>
+        </div>
+        <div class="voice-info-block">
+            <strong>Estado conexión:</strong> <span id="voice-connection-state" class="voice-connection-state disconnected">Desconectado</span>
+        </div>
+        <div class="voice-status-line" id="voice-status-text">Sin conexión a sala de voz.</div>
+        <label class="voice-mics-label" id="voice-mics-label">Micrófonos disponibles:</label>
+        <select id="voice-mic-select" class="voice-mic-select" aria-label="Seleccionar micrófono" style="display:none;"></select>
         <div class="voice-buttons">
             <button type="button" class="voice-btn voice-btn-enable" id="voice-btn-enable" onclick="window.voiceChatPanelEnable()">Habilitar micrófono</button>
+            <button type="button" class="voice-btn voice-btn-test" id="voice-btn-test" onclick="window.voiceChatPanelTestConnect()" title="Probar conexión al servidor LiveKit (sala de prueba)">Conectar a sala de prueba</button>
             <button type="button" class="voice-btn voice-btn-mute" id="voice-btn-mute" disabled onclick="window.voiceChatPanelToggleMute()">Silenciar / Activar mic</button>
             <button type="button" class="voice-btn voice-btn-disconnect" id="voice-btn-disconnect" disabled onclick="window.voiceChatPanelDisconnect()">Desconectar</button>
         </div>
@@ -770,13 +791,11 @@
                 try {
                     addDebugLog('api', 'LIVEKIT', `Solicitando token para sala: ${roomName}`);
                     
+                    const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+                    if (unityToken) headers['Authorization'] = 'Bearer ' + unityToken;
                     const response = await fetch(config.apiEndpoint, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${unityToken}`,
-                            'Accept': 'application/json'
-                        },
+                        headers: headers,
                         body: JSON.stringify({
                             room_name: roomName,
                             participant_name: participantName,
@@ -1223,32 +1242,85 @@
         // ===== FIN SISTEMA DE AUDIO LIVEKIT =====
 
         // ===== UI PANEL CHAT DE VOZ (habilitar, usar, ver conexión) =====
+        var voicePanelConnectionState = 'disconnected';
+        function setVoiceConnectionState(s) { voicePanelConnectionState = s; }
+
         function updateVoiceChatPanel() {
             const dot = document.getElementById('voice-status-dot');
             const text = document.getElementById('voice-status-text');
             const btnEnable = document.getElementById('voice-btn-enable');
             const btnMute = document.getElementById('voice-btn-mute');
             const btnDisconnect = document.getElementById('voice-btn-disconnect');
+            const btnTest = document.getElementById('voice-btn-test');
+            const roomNameEl = document.getElementById('voice-room-name');
+            const stateBadge = document.getElementById('voice-connection-state');
 
-            if (!window.LiveKitManager) return;
+            if (roomNameEl) roomNameEl.textContent = '—';
+            if (stateBadge) { stateBadge.textContent = 'Desconectado'; stateBadge.className = 'voice-connection-state disconnected'; }
+
+            if (!window.LiveKitManager) {
+                refreshVoiceMicList();
+                return;
+            }
             const state = window.LiveKitManager.getState();
 
             if (state.isConnected) {
+                setVoiceConnectionState('connected');
                 if (dot) { dot.className = 'dot connected'; }
+                if (roomNameEl) roomNameEl.textContent = state.roomName || 'sala';
+                if (stateBadge) { stateBadge.textContent = 'Conectado'; stateBadge.className = 'voice-connection-state connected'; }
                 if (text) {
                     const participants = window.LiveKitManager.getParticipants ? window.LiveKitManager.getParticipants().length : (state.participants || 0);
-                    text.textContent = 'Conectado a "' + (state.roomName || 'sala') + '" · ' + participants + ' participante(s)';
+                    text.textContent = (state.roomName ? 'Sala "' + state.roomName + '"' : 'Sala') + ' · ' + participants + ' participante(s). Mic: ' + (state.isMicEnabled ? 'activado' : 'silenciado');
                 }
                 if (btnEnable) { btnEnable.disabled = true; btnEnable.textContent = 'Conectado'; }
+                if (btnTest) { btnTest.style.display = 'none'; }
                 if (btnMute) { btnMute.disabled = false; btnMute.textContent = state.isMicEnabled ? 'Silenciar mic' : 'Activar mic'; btnMute.classList.toggle('muted', !state.isMicEnabled); }
                 if (btnDisconnect) btnDisconnect.disabled = false;
             } else {
-                if (dot) { dot.className = 'dot'; }
-                if (text) text.textContent = 'Estado: Desconectado';
+                setVoiceConnectionState(voicePanelConnectionState === 'reconnecting' ? 'reconnecting' : 'disconnected');
+                if (dot) { dot.className = voicePanelConnectionState === 'reconnecting' ? 'dot connecting' : 'dot'; }
+                if (stateBadge) {
+                    stateBadge.textContent = voicePanelConnectionState === 'reconnecting' ? 'Reconectando' : 'Desconectado';
+                    stateBadge.className = 'voice-connection-state ' + (voicePanelConnectionState === 'reconnecting' ? 'reconnecting' : 'disconnected');
+                }
+                if (text) text.textContent = 'Sin conexión a sala de voz. Usa "Habilitar micrófono" y entra a una sesión desde Unity.';
                 if (btnEnable) { btnEnable.disabled = false; btnEnable.textContent = 'Habilitar micrófono'; }
+                if (btnTest) { btnTest.style.display = 'inline-block'; btnTest.disabled = false; }
                 if (btnMute) { btnMute.disabled = true; btnMute.textContent = 'Silenciar / Activar mic'; btnMute.classList.remove('muted'); }
                 if (btnDisconnect) btnDisconnect.disabled = true;
             }
+            refreshVoiceMicList();
+        }
+
+        function refreshVoiceMicList() {
+            const select = document.getElementById('voice-mic-select');
+            const label = document.getElementById('voice-mics-label');
+            if (!select || !label) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                select.style.display = 'none';
+                return;
+            }
+            navigator.mediaDevices.enumerateDevices().then(function(devices) {
+                var mics = devices.filter(function(d) { return d.kind === 'audioinput'; });
+                select.innerHTML = '';
+                if (mics.length === 0) {
+                    select.style.display = 'none';
+                    label.textContent = 'Micrófonos: concede permiso para listar.';
+                    return;
+                }
+                label.textContent = 'Micrófonos disponibles:';
+                select.style.display = 'block';
+                mics.forEach(function(mic, i) {
+                    var opt = document.createElement('option');
+                    opt.value = mic.deviceId;
+                    opt.textContent = mic.label || ('Micrófono ' + (i + 1));
+                    select.appendChild(opt);
+                });
+            }).catch(function() {
+                select.style.display = 'none';
+                label.textContent = 'Micrófonos: no se pudo listar.';
+            });
         }
 
         window.voiceChatPanelEnable = function() {
@@ -1261,12 +1333,27 @@
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(function(stream) {
                     stream.getTracks().forEach(function(t) { t.stop(); });
-                    if (text) text.textContent = 'Permiso concedido. La conexión a la sala se hará desde Unity (Photon/LiveKit).';
-                    addDebugLog('phase', 'VOICE_PANEL', 'Micrófono autorizado; listo para conectar cuando Unity una a la sala.');
+                    refreshVoiceMicList();
+                    var state = window.LiveKitManager ? window.LiveKitManager.getState() : {};
+                    if (state.isConnected && window.LiveKitManager.publishAudio) {
+                        if (text) text.textContent = 'Permiso concedido. Conectando micrófono a la sala...';
+                        window.LiveKitManager.publishAudio().then(function() {
+                            if (text) text.textContent = 'Micrófono habilitado en la sala.';
+                            updateVoiceChatPanel();
+                        }).catch(function(err) {
+                            if (text) text.textContent = 'Permiso concedido. Error al publicar audio: ' + (err && err.message ? err.message : '');
+                            updateVoiceChatPanel();
+                        });
+                    } else {
+                        if (text) text.textContent = 'Permiso concedido. Entra a una sesión desde Unity para usar el micrófono en la sala.';
+                        addDebugLog('phase', 'VOICE_PANEL', 'Micrófono autorizado; listo para cuando Unity una a la sala.');
+                        updateVoiceChatPanel();
+                    }
                 })
                 .catch(function(err) {
                     if (text) text.textContent = 'Estado: Desconectado (permiso denegado)';
                     addDebugLog('error', 'VOICE_PANEL', 'Error permiso micrófono: ' + err.message);
+                    updateVoiceChatPanel();
                 });
         };
 
@@ -1282,15 +1369,50 @@
             }
         };
 
+        window.voiceChatPanelTestConnect = function() {
+            if (!window.LiveKitManager || !window.LiveKitManager.connect) return;
+            var state = window.LiveKitManager.getState();
+            if (state.isConnected) {
+                addDebugLog('warning', 'VOICE_PANEL', 'Ya estás conectado a una sala.');
+                return;
+            }
+            function getQueryParam(name) {
+                var m = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.href);
+                return m ? decodeURIComponent(m[1]) : '';
+            }
+            var token = getQueryParam('token') || '';
+            var roomName = 'sala-prueba';
+            var participantName = 'Usuario';
+            var identity = 'user-' + Date.now();
+            var text = document.getElementById('voice-status-text');
+            if (text) text.textContent = 'Conectando a sala de prueba (LiveKit)...';
+            addDebugLog('phase', 'VOICE_PANEL', 'Conectando a sala de prueba: ' + roomName);
+            window.LiveKitManager.connect(roomName, participantName, identity, token).then(function(ok) {
+                if (ok) addDebugLog('phase', 'VOICE_PANEL', 'Conectado a sala de prueba.');
+                else if (text) text.textContent = 'Error al conectar. Revisa consola y que LiveKit esté en ws://localhost:7880';
+                updateVoiceChatPanel();
+            }).catch(function(err) {
+                addDebugLog('error', 'VOICE_PANEL', 'Error conectando a sala de prueba: ' + (err && err.message ? err.message : err));
+                if (text) text.textContent = 'Error: ' + (err && err.message ? err.message : 'No se pudo conectar al servidor LiveKit');
+                updateVoiceChatPanel();
+            });
+        };
+
         ['LiveKitConnected', 'LiveKitDisconnected', 'LiveKitReconnecting', 'LiveKitReconnected', 'LiveKitError'].forEach(function(ev) {
             window.addEventListener('livekit:' + ev, function() {
                 if (ev === 'LiveKitReconnecting') {
+                    setVoiceConnectionState('reconnecting');
                     var t = document.getElementById('voice-status-text');
                     if (t) t.textContent = 'Reconectando...';
                     var d = document.getElementById('voice-status-dot');
                     if (d) d.className = 'dot connecting';
                 }
+                if (ev === 'LiveKitDisconnected' || ev === 'LiveKitError') setVoiceConnectionState('disconnected');
+                if (ev === 'LiveKitReconnected') setVoiceConnectionState('connected');
                 updateVoiceChatPanel();
+                if (ev === 'LiveKitConnected' && window.LiveKitManager && window.LiveKitManager.publishAudio) {
+                    window.LiveKitManager.publishAudio().then(function() { updateVoiceChatPanel(); }).catch(function() { updateVoiceChatPanel(); });
+                }
             });
         });
         setInterval(updateVoiceChatPanel, 2000);
