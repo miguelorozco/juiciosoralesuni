@@ -17,6 +17,7 @@
 /public/hot
 /public/storage
 /storage/*.key
+/storage/*.pid
 /storage/pail
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
@@ -49,6 +50,9 @@ unity-integration/unity-project/*.mdb
 
 # Unity large files - artifacts and cache
 unity-project/Library/
+unity-project/Temp/
+unity-project/Logs/
+unity-project/UserSettings/
 *.a
 *.dylib
 
