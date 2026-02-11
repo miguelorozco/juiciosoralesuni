@@ -8,10 +8,10 @@ namespace JuiciosSimulator.API
     /// </summary>
     public static class UnityBridgeConfig
     {
-        private static string _baseUrl = "http://localhost:8000/api";
+        private static string _baseUrl = "http://localhost/api";
         private static string _token = "";
 
-        /// <summary>URL base del API (ej. http://localhost:8000/api).</summary>
+        /// <summary>URL base del API (ej. http://localhost/api).</summary>
         public static string BaseUrl
         {
             get => _baseUrl?.TrimEnd('/') ?? "";

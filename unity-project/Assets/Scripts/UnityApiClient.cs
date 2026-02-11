@@ -50,7 +50,7 @@ namespace JuiciosSimulator.API
                 req.SetRequestHeader("Authorization", "Bearer " + Token);
             req.SetRequestHeader("Accept", "application/json");
             req.SetRequestHeader("Content-Type", "application/json");
-            req.SetRequestHeader("X-Unity-Version", Application.unityVersion);
+            // No establecer X-Unity-Version: en WebGL lo gestiona Unity y genera warning
             req.SetRequestHeader("X-Unity-Platform", Application.platform.ToString());
         }
 
@@ -319,7 +319,23 @@ namespace JuiciosSimulator.API
                 string text = req.downloadHandler?.text ?? "";
                 if (req.result != UnityWebRequest.Result.Success)
                 {
-                    var err = new APIResponse<T> { success = false, message = req.error + (string.IsNullOrEmpty(text) ? "" : " | " + text) };
+                    // Con 4xx/5xx el servidor suele devolver JSON { success, message, data }; parsearlo para tener message y data correctos
+                    APIResponse<T> err;
+                    if (!string.IsNullOrEmpty(text) && (text.TrimStart().StartsWith("{") || text.TrimStart().StartsWith("[")))
+                    {
+                        try
+                        {
+                            var parsed = JsonConvert.DeserializeObject<APIResponse<T>>(text);
+                            if (parsed != null)
+                            {
+                                err = parsed;
+                                onDone?.Invoke(err);
+                                return;
+                            }
+                        }
+                        catch { /* ignorar y usar mensaje genérico */ }
+                    }
+                    err = new APIResponse<T> { success = false, message = req.error + (string.IsNullOrEmpty(text) ? "" : " | " + text) };
                     onDone?.Invoke(err);
                     return;
                 }

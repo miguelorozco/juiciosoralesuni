@@ -12,10 +12,10 @@ using JuiciosSimulator.API;
 public class DialogoManager : MonoBehaviour
 {
     [Header("Configuración")]
-    [Tooltip("ID de la sesión de juicio")]
-    public int sesionJuicioId = 1;
-    [Tooltip("ID del usuario actual (debe coincidir con el usuario logueado)")]
-    public int usuarioId = 1;
+    [Tooltip("ID de la sesión de juicio. Por defecto -1; se rellena con LaravelSessionData al entrar desde la web. En editor puedes poner un ID para pruebas.")]
+    public int sesionJuicioId = -1;
+    [Tooltip("ID del usuario actual. Por defecto -1; se rellena con LaravelSessionData al entrar desde la web. En editor puedes poner un ID para pruebas.")]
+    public int usuarioId = -1;
     [Tooltip("Intervalo de polling del estado (segundos). 0 = no hacer polling automático")]
     public float pollingInterval = 2f;
     [Tooltip("Si true, al iniciar hace un refresh inmediato del estado")]
@@ -60,6 +60,18 @@ public class DialogoManager : MonoBehaviour
             return;
         }
 
+        if (LaravelSessionData.HasData)
+        {
+            sesionJuicioId = LaravelSessionData.SessionId;
+            usuarioId = LaravelSessionData.UserId;
+        }
+
+        if (sesionJuicioId < 0 || usuarioId < 0)
+        {
+            Debug.LogWarning("DialogoManager: sesión o usuario no configurados (usa la web para entrar o asigna IDs en el inspector para pruebas). No se hará polling ni refresh.");
+            return;
+        }
+
         if (refreshOnStart)
             RefrescarEstado();
 
@@ -96,8 +108,10 @@ public class DialogoManager : MonoBehaviour
         if (!response.success)
         {
             _dialogoActivo = false;
-            _estadoActual = null;
+            _estadoActual = response.data;
             OnError?.Invoke(response.message ?? "Error al obtener estado");
+            if (_estadoActual != null)
+                OnEstadoActualizado?.Invoke(_estadoActual);
             return;
         }
 

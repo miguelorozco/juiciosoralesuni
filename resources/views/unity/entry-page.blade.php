@@ -93,7 +93,11 @@
                             <h6 class="text-muted">Configuración del Sistema</h6>
                             <p class="mb-1"><strong>Token:</strong> <code>{{ substr($token, 0, 20) }}...</code></p>
                             <p class="mb-1"><strong>Sesión ID:</strong> {{ $assignment->sesion->id }}</p>
-                            <p class="mb-0"><strong>Rol ID:</strong> {{ $assignment->rolDisponible->id }}</p>
+                            <p class="mb-1"><strong>Rol ID:</strong> {{ $assignment->rolDisponible->id }}</p>
+                            <p class="mb-0 text-muted small">
+                                <strong>[Debug] Título del diálogo:</strong>
+                                {{ $dialogoTitulo ?? '— No configurado —' }}
+                            </p>
                         </div>
                     </div>
                 </div>

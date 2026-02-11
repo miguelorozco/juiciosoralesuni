@@ -174,31 +174,33 @@
             display: none;
         }
         
-        /* Ventana de Logs de Debug */
+        /* Ventana de Logs de Debug: esquina superior derecha, discreta */
         #debug-log-window {
           position: fixed;
-          bottom: 10px;
-          left: 10px;
-          width: 600px;
-          max-height: 500px;
-          background: rgba(20, 20, 20, 0.95);
-          border: 2px solid #4CAF50;
-          border-radius: 8px;
+          top: 10px;
+          right: 10px;
+          left: auto;
+          bottom: auto;
+          width: 280px;
+          max-height: 200px;
+          background: rgba(20, 20, 20, 0.92);
+          border: 1px solid rgba(76, 175, 80, 0.5);
+          border-radius: 6px;
           z-index: 100000;
           display: flex;
           flex-direction: column;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
           font-family: 'Courier New', monospace;
-          font-size: 11px;
+          font-size: 10px;
         }
         
         #debug-log-header {
-          background: #2d2d2d;
-          padding: 8px 12px;
+          background: rgba(45, 45, 45, 0.95);
+          padding: 5px 8px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          border-bottom: 1px solid #4CAF50;
+          border-bottom: 1px solid rgba(76, 175, 80, 0.4);
           cursor: move;
           user-select: none;
         }
@@ -206,22 +208,22 @@
         #debug-log-title {
           color: #4CAF50;
           font-weight: bold;
-          font-size: 12px;
+          font-size: 10px;
         }
         
         #debug-log-controls {
           display: flex;
-          gap: 5px;
+          gap: 3px;
         }
         
         .debug-log-btn {
           background: #444;
-          border: 1px solid #666;
-          color: #fff;
-          padding: 4px 8px;
+          border: 1px solid #555;
+          color: #ccc;
+          padding: 2px 6px;
           border-radius: 3px;
           cursor: pointer;
-          font-size: 10px;
+          font-size: 9px;
         }
         
         .debug-log-btn:hover {
@@ -231,9 +233,9 @@
         #debug-log-content {
           flex: 1;
           overflow-y: auto;
-          padding: 8px;
+          padding: 4px 6px;
           color: #e0e0e0;
-          max-height: 450px;
+          max-height: 160px;
         }
         
         .debug-log-entry {
@@ -265,7 +267,7 @@
         
         #debug-log-window.minimized {
           height: auto;
-          max-height: 40px;
+          max-height: 28px;
         }
         
         #debug-log-window.minimized #debug-log-content {
@@ -291,8 +293,8 @@
     </style>
 </head>
 <body>
-    <!-- Ventana de Logs de Debug -->
-    <div id="debug-log-window">
+    <!-- Ventana de Logs de Debug (inicia minimizada en esquina superior derecha) -->
+    <div id="debug-log-window" class="minimized">
         <div id="debug-log-header">
             <div id="debug-log-title">📋 DEBUG LOGS</div>
             <div id="debug-log-controls">
@@ -1770,10 +1772,20 @@
                             sessionId: data.data.session.id
                         });
 
+                        // Siempre usar http://localhost para la API (requerido por LiveKit y misma BD)
+                        let apiBaseUrl = 'http://localhost/api';
+                        if (typeof window !== 'undefined' && window.location?.origin) {
+                            const origin = window.location.origin;
+                            if (origin.startsWith('https://')) apiBaseUrl = 'https://localhost/api';
+                            else if (origin.startsWith('http://127.0.0.1') || origin.startsWith('http://localhost')) apiBaseUrl = 'http://localhost/api';
+                            else apiBaseUrl = origin + '/api';
+                        }
                         const sessionPayload = {
                             user: data.data.user,
                             session: data.data.session,
-                            role: data.data.role
+                            role: data.data.role,
+                            token: token,
+                            baseUrl: apiBaseUrl
                         };
 
                         // Intentar enviar inmediatamente si Unity ya está listo

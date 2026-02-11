@@ -507,13 +507,25 @@ class SesionController extends Controller
                 ->toArray();
         }
 
-        $alumnos = User::where('tipo', 'alumno')->where('activo', true)->orderBy('name')->get();
+        // Participantes que se pueden asignar a roles: alumnos e instructores (y admin)
+        $participantesDisponibles = User::whereIn('tipo', ['alumno', 'instructor', 'admin'])
+            ->where('activo', true)
+            ->orderByRaw("CASE tipo WHEN 'admin' THEN 1 WHEN 'instructor' THEN 2 ELSE 3 END")
+            ->orderBy('name')
+            ->get();
         $asignaciones = $sesion->asignaciones()->with('usuario')->get()->keyBy('rol_id');
+        // Usuarios que pueden iniciar el diálogo (instructor de la sesión): admin e instructores
+        $instructoresDisponibles = User::whereIn('tipo', ['admin', 'instructor'])
+            ->where('activo', true)
+            ->orderBy('tipo')
+            ->orderBy('name')
+            ->get();
 
         return view('sesiones.edit', compact(
-            'sesion', 'roles', 'alumnos', 'asignaciones', 
+            'sesion', 'roles', 'participantesDisponibles', 'asignaciones',
             'dialogoActivo', 'dialogos', 'dialogoId',
-            'rolesConDecision', 'conteoNodosPorRol'
+            'rolesConDecision', 'conteoNodosPorRol',
+            'instructoresDisponibles'
         ));
     }
 
@@ -532,9 +544,18 @@ class SesionController extends Controller
             'max_participantes' => 'nullable|integer|min:1|max:20',
             'estado' => 'required|in:programada,en_curso,finalizada,cancelada',
             'dialogo_id' => 'required|exists:dialogos_v2,id',
+            'instructor_id' => 'required|exists:users,id',
             'asignaciones' => 'nullable|array',
             'asignaciones.*' => 'nullable|exists:users,id',
         ]);
+
+        // Solo admin o instructor pueden ser instructor de la sesión (pueden iniciar el diálogo)
+        $instructor = User::find($request->instructor_id);
+        if (!$instructor || !in_array($instructor->tipo, ['admin', 'instructor'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'instructor_id' => 'El instructor debe ser un usuario con rol Admin o Instructor.',
+            ]);
+        }
         
         // Validar que fecha_fin sea mayor o igual que fecha_inicio manualmente
         if ($request->fecha_fin) {
@@ -557,7 +578,7 @@ class SesionController extends Controller
         try {
             // Parsear fechas correctamente con timezone
             // datetime-local envía formato "Y-m-d\TH:i" sin timezone, lo parseamos como local y luego convertimos a UTC
-            $data = $request->only(['nombre','descripcion','tipo','max_participantes','estado']);
+            $data = $request->only(['nombre','descripcion','tipo','max_participantes','estado','instructor_id']);
             
             if ($request->fecha_inicio) {
                 // Parsear sin timezone primero, luego establecer UTC

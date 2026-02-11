@@ -62,9 +62,18 @@ namespace JuiciosSimulator.API
     {
         public bool dialogo_activo;
         public string estado;
+        /// <summary>Nombre del diálogo cuando está activo (debug).</summary>
+        public string dialogo_nombre;
+        /// <summary>ID del diálogo cuando está activo (debug).</summary>
+        public int dialogo_id;
+        /// <summary>Nombre del diálogo configurado para la sesión cuando no hay diálogo activo (debug).</summary>
+        public string dialogo_configurado_nombre;
+        /// <summary>ID del diálogo configurado cuando no hay diálogo activo (debug).</summary>
+        public int dialogo_configurado_id;
         public NodoActual nodo_actual;
         public List<Participante> participantes;
-        public float progreso;
+        /// <summary>Progreso 0..1. Null si la API no lo envía (se trata como 0).</summary>
+        public float? progreso;
         public int tiempo_transcurrido;
         public Dictionary<string, object> variables;
     }
@@ -142,7 +151,7 @@ namespace JuiciosSimulator.API
     public class NuevoEstado
     {
         public NodoActual nodo_actual;
-        public float progreso;
+        public float? progreso;
         public bool dialogo_finalizado;
     }
 

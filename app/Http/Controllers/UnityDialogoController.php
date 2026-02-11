@@ -13,6 +13,7 @@ use App\Models\SesionJuicio;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
 
@@ -23,10 +24,15 @@ class UnityDialogoController extends Controller
      * POST /api/unity/sesion/{sesionJuicio}/iniciar-dialogo
      * Requiere unity.auth. Solo instructor o admin de la sesión.
      */
-    public function iniciarDialogo(SesionJuicio $sesion): JsonResponse
+    public function iniciarDialogo(Request $request, SesionJuicio $sesionJuicio): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
-            $user = JWTAuth::parseToken()->authenticate();
+            // Usuario inyectado por UnityAuthMiddleware (token JWT o unity_entry)
+            $user = $request->get('unity_user');
+            if (!$user) {
+                $user = JWTAuth::parseToken()->authenticate();
+            }
 
             if (!$sesion->puedeSerGestionadaPor($user)) {
                 return response()->json([
@@ -34,6 +40,11 @@ class UnityDialogoController extends Controller
                     'message' => 'No tienes permisos para iniciar el diálogo en esta sesión',
                 ], 403);
             }
+
+            Log::info('Unity iniciar-dialogo: sesión consultada', [
+                'sesion_id' => $sesion->id,
+                'sesion_nombre' => $sesion->nombre,
+            ]);
 
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->where('estado', 'iniciado')
@@ -44,12 +55,51 @@ class UnityDialogoController extends Controller
                 $activo = SesionDialogo::where('sesion_id', $sesion->id)
                     ->whereIn('estado', ['en_curso', 'pausado'])
                     ->first();
-                return response()->json([
-                    'success' => false,
-                    'message' => $activo
-                        ? 'Ya hay un diálogo en curso en esta sesión'
-                        : 'No hay un diálogo iniciado para esta sesión. Configúralo desde la web.',
-                ], 400);
+                if ($activo) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ya hay un diálogo en curso en esta sesión',
+                    ], 400);
+                }
+
+                // Sin diálogo en 'iniciado': buscar uno finalizado para reiniciar, o ninguno
+                $cualquiera = SesionDialogo::where('sesion_id', $sesion->id)
+                    ->with(['dialogo'])
+                    ->first();
+
+                if ($cualquiera && $cualquiera->estado === 'finalizado') {
+                    // Reiniciar: dejar en 'iniciado' con nodo inicial para que iniciar() funcione
+                    $nodoInicial = $cualquiera->dialogo->nodo_inicial
+                        ?? $cualquiera->dialogo->nodos()->orderBy('orden')->first();
+                    if ($nodoInicial) {
+                        $cualquiera->update([
+                            'estado' => 'iniciado',
+                            'nodo_actual_id' => $nodoInicial->id,
+                            'fecha_inicio' => null,
+                            'fecha_fin' => null,
+                            'historial_nodos' => [],
+                            'variables' => [],
+                            'configuracion' => $cualquiera->configuracion ?? ['modo_automatico' => true, 'tiempo_respuesta' => 30, 'permite_pausa' => true],
+                        ]);
+                        $sesionDialogo = $cualquiera->fresh(['dialogo', 'nodoActual.rol']);
+                        Log::info('Unity iniciar-dialogo: diálogo reiniciado para sesión', ['sesion_id' => $sesion->id, 'sesion_dialogo_id' => $cualquiera->id]);
+                    } else {
+                        Log::warning('Unity iniciar-dialogo: diálogo sin nodo inicial', ['sesion_id' => $sesion->id, 'dialogo_id' => $cualquiera->dialogo_id]);
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'El diálogo no tiene nodo inicial. Revisa la configuración del diálogo en la web.',
+                        ], 400);
+                    }
+                } else {
+                    // No hay ningún registro de diálogo para esta sesión
+                    $editUrl = url('/sesiones/' . $sesion->id . '/edit');
+                    Log::warning('Unity iniciar-dialogo: no hay SesionDialogo para sesión', ['sesion_id' => $sesion->id, 'edit_url' => $editUrl]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No hay un diálogo configurado para esta sesión. En la web ve a Sesiones → Editar esta sesión, elige un "Diálogo a utilizar" y guarda.',
+                        'edit_url' => $editUrl,
+                    ], 400);
+                }
             }
 
             if (!$sesionDialogo->iniciar()) {
@@ -107,23 +157,62 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function obtenerEstadoDialogo(SesionJuicio $sesion): JsonResponse
+    public function obtenerEstadoDialogo(SesionJuicio $sesionJuicio): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
+            Log::info('Unity dialogo-estado: sesión consultada', [
+                'sesion_id' => $sesion->id,
+                'sesion_nombre' => $sesion->nombre,
+            ]);
+
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->whereIn('estado', ['iniciado', 'en_curso', 'pausado'])
-                ->with(['nodoActual.rol'])
+                ->with(['nodoActual.rol', 'dialogo'])
                 ->first();
 
+            // Fallback: si Eloquent no encuentra pero la BD sí tiene fila (p. ej. otra conexión), usar consulta directa
             if (!$sesionDialogo) {
+                $row = \DB::table('sesiones_dialogos_v2')
+                    ->where('sesion_id', $sesion->id)
+                    ->whereIn('estado', ['iniciado', 'en_curso', 'pausado'])
+                    ->first();
+                if ($row) {
+                    Log::warning('Unity dialogo-estado: Eloquent no encontró fila pero DB sí; recargando por id', ['row_id' => $row->id]);
+                    $sesionDialogo = SesionDialogo::with(['nodoActual.rol', 'dialogo'])->find($row->id);
+                }
+            }
+
+            if (!$sesionDialogo) {
+                // Diagnóstico: contar filas en BD para esta sesión
+                $countActivos = \DB::table('sesiones_dialogos_v2')
+                    ->where('sesion_id', $sesion->id)
+                    ->whereIn('estado', ['iniciado', 'en_curso', 'pausado'])
+                    ->count();
+                $cualquieraRow = \DB::table('sesiones_dialogos_v2')->where('sesion_id', $sesion->id)->first();
+                Log::warning('Unity dialogo-estado: no hay SesionDialogo activo', [
+                    'sesion_id' => $sesion->id,
+                    'db_count_activos' => $countActivos,
+                    'db_any_row' => $cualquieraRow ? ['id' => $cualquieraRow->id, 'estado' => $cualquieraRow->estado, 'dialogo_id' => $cualquieraRow->dialogo_id] : null,
+                ]);
+                // Info de debug: diálogo configurado para esta sesión (si existe)
+                $cualquiera = SesionDialogo::where('sesion_id', $sesion->id)->with('dialogo')->first();
+                $tieneDialogoAsignado = $cualquiera && $cualquiera->dialogo_id;
+                $data = [
+                    'dialogo_activo' => false,
+                    'estado' => 'sin_dialogo',
+                    'dialogo_configurado_nombre' => $cualquiera?->dialogo?->nombre,
+                    'dialogo_configurado_id' => $cualquiera?->dialogo_id ?? 0,
+                    'edit_url' => url('/sesiones/' . $sesion->id . '/edit'),
+                ];
+                $message = $tieneDialogoAsignado
+                    ? 'No hay un diálogo activo (configura uno en la web y pulsa "Iniciar diálogo" en Unity).'
+                    : 'Esta sesión no tiene un diálogo asignado. Ve a la web → Sesiones → Editar esta sesión → elige "Diálogo a utilizar" y guarda.';
                 return response()->json([
                     'success' => false,
-                    'message' => 'No hay un diálogo activo',
-                    'data' => [
-                        'dialogo_activo' => false,
-                        'estado' => 'sin_dialogo'
-                    ]
-                ]);
+                    'message' => $message,
+                    'data' => $data,
+                ], 400);
             }
 
             // Obtener participantes activos
@@ -135,6 +224,8 @@ class UnityDialogoController extends Controller
             $estadoUnity = [
                 'dialogo_activo' => true,
                 'estado' => $sesionDialogo->estado,
+                'dialogo_nombre' => $sesionDialogo->dialogo?->nombre,
+                'dialogo_id' => $sesionDialogo->dialogo_id ?? 0,
                 'nodo_actual' => [
                     'id' => $sesionDialogo->nodoActual->id,
                     'titulo' => $sesionDialogo->nodoActual->titulo,
@@ -148,7 +239,7 @@ class UnityDialogoController extends Controller
                     'tipo' => $sesionDialogo->nodoActual->tipo,
                     'es_final' => $sesionDialogo->nodoActual->es_final,
                 ],
-                'participantes' => $participantes->map(function($asignacion) {
+                'participantes' => $participantes->map(function ($asignacion) use ($sesionDialogo) {
                     return [
                         'usuario_id' => $asignacion->usuario_id,
                         'nombre' => $asignacion->usuario->name . ' ' . $asignacion->usuario->apellido,
@@ -161,9 +252,9 @@ class UnityDialogoController extends Controller
                         'es_turno' => $asignacion->rol_id === $sesionDialogo->nodoActual->rol_id,
                     ];
                 }),
-                'progreso' => $sesionDialogo->configuracion['progreso'] ?? null,
-                'tiempo_transcurrido' => $sesionDialogo->tiempo_transcurrido,
-                'variables' => $sesionDialogo->variables,
+                'progreso' => $this->normalizarProgresoParaUnity($sesionDialogo->configuracion['progreso'] ?? null),
+                'tiempo_transcurrido' => $sesionDialogo->tiempo_transcurrido ?? 0,
+                'variables' => $this->normalizarVariablesParaUnity($sesionDialogo->variables ?? []),
                 'audio_habilitado' => $sesionDialogo->audio_habilitado,
             ];
 
@@ -195,8 +286,9 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function obtenerRespuestasUsuario(SesionJuicio $sesion, $usuarioId): JsonResponse
+    public function obtenerRespuestasUsuario(SesionJuicio $sesionJuicio, $usuarioId): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->where('estado', 'en_curso')
@@ -310,8 +402,9 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function enviarDecision(Request $request, SesionJuicio $sesion): JsonResponse
+    public function enviarDecision(Request $request, SesionJuicio $sesionJuicio): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
             $validated = $request->validate([
                 'usuario_id' => 'required|exists:users,id',
@@ -384,7 +477,7 @@ class UnityDialogoController extends Controller
                         ],
                         'es_final' => $sesionDialogo->nodoActual->es_final,
                     ] : null,
-                    'progreso' => $sesionDialogo->progreso,
+                    'progreso' => $this->normalizarProgresoParaUnity($sesionDialogo->configuracion['progreso'] ?? null),
                     'dialogo_finalizado' => $sesionDialogo->estado === 'finalizado',
                 ],
             ];
@@ -429,8 +522,9 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function notificarHablando(Request $request, SesionJuicio $sesion): JsonResponse
+    public function notificarHablando(Request $request, SesionJuicio $sesionJuicio): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
             $validated = $request->validate([
                 'usuario_id' => 'required|exists:users,id',
@@ -493,8 +587,9 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function obtenerMovimientosPersonajes(SesionJuicio $sesion): JsonResponse
+    public function obtenerMovimientosPersonajes(SesionJuicio $sesionJuicio): JsonResponse
     {
+        $sesion = $sesionJuicio;
         try {
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->whereIn('estado', ['iniciado', 'en_curso', 'pausado'])
@@ -555,6 +650,43 @@ class UnityDialogoController extends Controller
     }
 
     /**
+     * Normaliza progreso para Unity: siempre devuelve un float 0..1 (nunca null).
+     * Unity deserializa a float y falla si recibe null.
+     */
+    private function normalizarProgresoParaUnity($progreso): float
+    {
+        if ($progreso === null) {
+            return 0.0;
+        }
+        if (is_array($progreso) && isset($progreso['porcentaje'])) {
+            $p = (float) $progreso['porcentaje'];
+            return min(1.0, max(0.0, $p / 100.0));
+        }
+        if (is_numeric($progreso)) {
+            $v = (float) $progreso;
+            return $v > 1.0 ? min(1.0, max(0.0, $v / 100.0)) : min(1.0, max(0.0, $v));
+        }
+        return 0.0;
+    }
+
+    /**
+     * Normaliza variables para Unity: siempre devuelve un valor que se serializa como JSON object ({}).
+     * Unity espera Dictionary<string, object> y falla si recibe un array JSON ([]).
+     */
+    private function normalizarVariablesParaUnity($variables)
+    {
+        if ($variables === null || $variables === []) {
+            return (object) [];
+        }
+        $arr = is_array($variables) ? $variables : [];
+        // Si es lista (índices numéricos 0,1,2...), Unity no puede mapearlo a Dictionary; devolver objeto vacío
+        if (array_is_list($arr)) {
+            return (object) [];
+        }
+        return $arr;
+    }
+
+    /**
      * Broadcast del estado del diálogo a otros clientes Unity
      */
     private function broadcastEstadoDialogo(SesionJuicio $sesion, array $estado)
@@ -581,7 +713,7 @@ class UnityDialogoController extends Controller
         // broadcast(new UnityEvent($sesion->unity_room_id, $evento));
         
         // Por ahora, solo log del evento
-        \Log::info('Unity Event', [
+        Log::info('Unity Event', [
             'sesion_id' => $sesion->id,
             'room_id' => $sesion->unity_room_id,
             'evento' => $evento

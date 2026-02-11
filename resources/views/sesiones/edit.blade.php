@@ -164,12 +164,31 @@
                                 @enderror
                             </div>
                             <div class="col-md-6">
+                                <label for="instructor_id" class="form-label">Instructor de la sesión (puede iniciar el diálogo) <span class="text-danger">*</span></label>
+                                <select class="form-select @error('instructor_id') is-invalid @enderror" 
+                                        id="instructor_id" 
+                                        name="instructor_id" 
+                                        required>
+                                    <option value="">Seleccionar instructor</option>
+                                    @isset($instructoresDisponibles)
+                                        @foreach($instructoresDisponibles as $u)
+                                            <option value="{{ $u->id }}" {{ (string)old('instructor_id', $sesion->instructor_id) === (string)$u->id ? 'selected' : '' }}>
+                                                {{ $u->name }} ({{ $u->email }}) — {{ $u->tipo === 'admin' ? 'Admin' : 'Instructor' }}
+                                            </option>
+                                        @endforeach
+                                    @endisset
+                                </select>
+                                @error('instructor_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Solo usuarios Admin o Instructor pueden iniciar el diálogo en Unity.</small>
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label">Información de la Sesión</label>
-                                <div class="alert alert-light">
+                                <div class="alert alert-light mb-0">
                                     <small>
                                         <strong>Creada:</strong> {{ $sesion->created_at->format('d/m/Y H:i') }}<br>
-                                        <strong>Instructor:</strong> {{ $sesion->instructor->name }}<br>
-                                        <strong>Participantes:</strong> {{ $sesion->asignaciones->count() }} / {{ $sesion->max_participantes }}
+                                        <strong>Participantes:</strong> {{ $sesion->asignaciones->count() }} / {{ $sesion->max_participantes ?? '—' }}
                                     </small>
                                 </div>
                             </div>
@@ -210,7 +229,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th style="width: 35%;">Rol en el Diálogo</th>
-                                            <th style="width: 35%;">Asignar a estudiante</th>
+                                            <th style="width: 35%;">Asignar participante</th>
                                             <th style="width: 15%;">Participación</th>
                                             <th style="width: 15%;">Estado</th>
                                         </tr>
@@ -243,11 +262,16 @@
                                                     <select class="form-select {{ $tieneDecision ? 'border-warning' : '' }}"
                                                             name="asignaciones[{{ $rol->id }}]">
                                                         <option value="">Sin asignar</option>
-                                                        @foreach($alumnos as $alumno)
-                                                            <option value="{{ $alumno->id }}" {{ (string)$selectedUsuario === (string)$alumno->id ? 'selected' : '' }}>
-                                                                {{ $alumno->name }} ({{ $alumno->email }})
-                                                            </option>
-                                                        @endforeach
+                                                        @isset($participantesDisponibles)
+                                                            @foreach($participantesDisponibles as $participante)
+                                                                @php
+                                                                    $etiquetaTipo = $participante->tipo === 'admin' ? 'Admin' : ($participante->tipo === 'instructor' ? 'Instructor' : 'Estudiante');
+                                                                @endphp
+                                                                <option value="{{ $participante->id }}" {{ (string)$selectedUsuario === (string)$participante->id ? 'selected' : '' }}>
+                                                                    {{ $participante->name }} ({{ $participante->email }}) — {{ $etiquetaTipo }}
+                                                                </option>
+                                                            @endforeach
+                                                        @endisset
                                                     </select>
                                                 </td>
                                                 <td class="text-center">
@@ -282,7 +306,7 @@
                             <div class="d-flex justify-content-between align-items-center mt-3">
                                 <small class="text-muted">
                                     <i class="bi bi-lightbulb me-1"></i>
-                                    Puedes dejar roles sin asignar; el sistema los resolverá automáticamente.
+                                    Puedes asignar estudiantes o instructores a cada rol. Deja sin asignar si lo prefieres.
                                 </small>
                                 <small class="text-muted">
                                     <strong>{{ $roles->count() }}</strong> roles en este diálogo | 

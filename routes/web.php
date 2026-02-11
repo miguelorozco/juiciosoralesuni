@@ -216,6 +216,28 @@ Route::get('/unity-build/{path}', function ($path) {
     }
 
     if (!$isValid || !file_exists($realPath)) {
+        // Fallback: StreamingAssets/unity-error-handling.json puede no existir en el build; devolver defaults
+        if (preg_match('#^StreamingAssets/unity-error-handling\.json$#', $path)) {
+            $default = [
+                'errorHandling' => [
+                    'suppressBlitterErrors' => true,
+                    'suppressFormatExceptions' => true,
+                    'suppressPhotonErrors' => true,
+                    'suppressServerCertificateErrors' => true,
+                    'logErrorsToConsole' => true,
+                    'showErrorsToUser' => false,
+                ],
+                'initialization' => [
+                    'preventMultipleInitialization' => true,
+                    'cleanupOnRetry' => true,
+                    'retryDelay' => 1000,
+                    'maxRetries' => 3,
+                ],
+            ];
+            return response()->json($default)
+                ->header('Content-Type', 'application/json')
+                ->header('Access-Control-Allow-Origin', '*');
+        }
         \Log::error('Unity asset not found: ' . $path . ' (realPath: ' . ($realPath ?: 'null') . ')');
         abort(404, 'File not found: ' . $path);
     }

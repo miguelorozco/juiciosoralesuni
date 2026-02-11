@@ -20,6 +20,8 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+        'http://localhost',       // Unity WebGL servido en puerto 80
+        'https://localhost',      // Unity WebGL HTTPS puerto 443
         'http://localhost:3000',  // Unity WebGL
         'https://localhost:3000', // Unity WebGL HTTPS
         'http://127.0.0.1:3000',  // Unity WebGL localhost
@@ -30,6 +32,8 @@ return [
         'https://127.0.0.1:8080', // Unity Editor localhost HTTPS
         'http://localhost:8000',  // Laravel local
         'https://localhost:8000', // Laravel local HTTPS
+        'http://127.0.0.1',       // localhost sin puerto
+        'https://127.0.0.1',
     ],
 
     'allowed_origins_patterns' => [

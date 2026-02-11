@@ -291,7 +291,71 @@ Route::group(['prefix' => 'unity'], function () {
                 'timestamp' => now()->toISOString()
             ]);
         });
-        
+
+        // Diagnóstico BD: qué ve la petición web (sin auth) para depurar sesión/diálogo
+        Route::get('/diagnostic-db', function () {
+            $conn = config('database.default');
+            $dbName = $conn === 'mysql' ? config('database.connections.mysql.database') : (config('database.connections.sqlite.database') ?? 'sqlite');
+            $rows = \DB::table('sesiones_dialogos_v2')->where('sesion_id', 1)->get();
+            $sesion1 = \DB::table('sesiones_juicios')->where('id', 1)->first();
+            return response()->json([
+                'success' => true,
+                'connection' => $conn,
+                'database' => $dbName,
+                'sesion_1' => $sesion1 ? ['id' => $sesion1->id, 'nombre' => $sesion1->nombre] : null,
+                'sesiones_dialogos_v2_count' => $rows->count(),
+                'rows' => $rows->map(fn ($r) => ['id' => $r->id, 'sesion_id' => $r->sesion_id, 'dialogo_id' => $r->dialogo_id, 'estado' => $r->estado]),
+            ]);
+        });
+
+        // [DEBUG] Verificar diálogo asociado a una sesión (sin auth, solo desarrollo)
+        Route::get('/debug/dialogo-sesion/{sesionId?}', function ($sesionId = null) {
+            $sesionId = (int) ($sesionId ?? request()->query('sesion_id', 1));
+            $sesion = \DB::table('sesiones_juicios')->where('id', $sesionId)->first();
+            if (!$sesion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Sesión {$sesionId} no encontrada",
+                    'sesion_id' => $sesionId,
+                ], 404);
+            }
+            $filas = \DB::table('sesiones_dialogos_v2')
+                ->where('sesion_id', $sesionId)
+                ->get();
+            $dialogos = [];
+            foreach ($filas as $f) {
+                $d = \DB::table('dialogos_v2')->where('id', $f->dialogo_id)->first();
+                $nodo = $f->nodo_actual_id ? \DB::table('nodos_dialogo_v2')->where('id', $f->nodo_actual_id)->first() : null;
+                $dialogos[] = [
+                    'sesion_dialogo_id' => $f->id,
+                    'dialogo_id' => $f->dialogo_id,
+                    'estado' => $f->estado,
+                    'nodo_actual_id' => $f->nodo_actual_id,
+                    'dialogo' => $d ? ['id' => $d->id, 'nombre' => $d->nombre, 'descripcion' => $d->descripcion] : null,
+                    'nodo_actual' => $nodo ? ['id' => $nodo->id, 'titulo' => $nodo->titulo] : null,
+                ];
+            }
+            $activo = collect($dialogos)->first(fn ($x) => in_array($x['estado'], ['iniciado', 'en_curso', 'pausado']));
+            return response()->json([
+                'success' => true,
+                'debug' => true,
+                'sesion_id' => $sesionId,
+                'sesion' => [
+                    'id' => $sesion->id,
+                    'nombre' => $sesion->nombre,
+                    'estado' => $sesion->estado,
+                ],
+                'sesiones_dialogos_v2_count' => count($dialogos),
+                'dialogos' => $dialogos,
+                'dialogo_que_devolveria_el_api' => $activo ? [
+                    'sesion_dialogo_id' => $activo['sesion_dialogo_id'],
+                    'dialogo_id' => $activo['dialogo_id'],
+                    'dialogo_nombre' => $activo['dialogo']['nombre'] ?? null,
+                    'estado' => $activo['estado'],
+                ] : null,
+            ]);
+        });
+
         // Rutas de autenticación Unity (sin middleware de auth)
         Route::group(['prefix' => 'auth'], function () {
             Route::post('login', [UnityAuthController::class, 'login']);

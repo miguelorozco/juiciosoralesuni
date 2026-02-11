@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\SesionJuicio;
 use App\Models\AsignacionRol;
+use App\Models\SesionDialogoV2;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
@@ -162,13 +163,23 @@ class UnityEntryController extends Controller
     }
 
     /**
+     * Base URL para enlaces Unity/LiveKit: siempre localhost (requerido por LiveKit).
+     */
+    private function unityBaseUrl(): string
+    {
+        $url = rtrim(config('app.url'), '/');
+        $url = preg_replace('#^https?://127\.0\.0\.1(:\d+)?#', 'http://localhost', $url);
+        $url = preg_replace('#^https?://localhost(:\d+)?#', 'http://localhost', $url);
+        return $url ?: 'http://localhost';
+    }
+
+    /**
      * Generar URL de entrada a Unity
      */
     private function generateUnityEntryUrl(string $accessToken, int $sessionId): string
     {
-        $baseUrl = config('app.url');
+        $baseUrl = $this->unityBaseUrl();
         $unityUrl = $baseUrl . '/unity-entry';
-        
         return $unityUrl . '?token=' . urlencode($accessToken) . '&session=' . $sessionId;
     }
 
@@ -208,10 +219,17 @@ class UnityEntryController extends Controller
                 ]);
             }
 
+            // Título del diálogo (debug): diálogo configurado para esta sesión
+            $sesionDialogo = SesionDialogoV2::where('sesion_id', $assignment->sesion_id)
+                ->with('dialogo')
+                ->first();
+            $dialogoTitulo = $sesionDialogo?->dialogo?->nombre;
+
             return view('unity.entry-page', [
                 'assignment' => $assignment,
                 'unityUrl' => $this->generateUnityWebGLUrl($token, $sessionId),
-                'token' => $token
+                'token' => $token,
+                'dialogoTitulo' => $dialogoTitulo,
             ]);
 
         } catch (\Exception $e) {
@@ -226,12 +244,12 @@ class UnityEntryController extends Controller
     }
 
     /**
-     * Generar URL de Unity WebGL
+     * Generar URL de Unity WebGL (siempre en localhost para LiveKit)
      */
     private function generateUnityWebGLUrl(string $token, int $sessionId): string
     {
-        // Servir el build desde Laravel en /unity-game para simplificar
-        $unityGameUrl = url('/unity-game');
+        $baseUrl = $this->unityBaseUrl();
+        $unityGameUrl = $baseUrl . '/unity-game';
         return $unityGameUrl . '?token=' . urlencode($token) . '&session=' . $sessionId;
     }
 
