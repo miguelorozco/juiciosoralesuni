@@ -108,12 +108,14 @@
     <Compile Include="Assets/Brick Project Studio/_BPS Basic Assets/Common/Scripts and Animations/Doors/opencloseStallDoor.cs" />
     <Compile Include="Assets/Scripts/RoleLabel.cs" />
     <Compile Include="Assets/Scripts/PlayerIdentity.cs" />
+    <Compile Include="Assets/Scripts/UnityDebugLog.cs" />
     <Compile Include="Assets/StarterAssets/Mobile/Scripts/CanvasInputs/UICanvasControllerInput.cs" />
     <Compile Include="Assets/Scripts/UnityApiClient.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/DropdownSample.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/VertexColorCycler.cs" />
     <Compile Include="Assets/Photon/PhotonChat/Demos/Demo Chat/Code/ChatNewGui.cs" />
     <Compile Include="Assets/Scripts/LiveKitManager.cs" />
+    <Compile Include="Assets/Scripts/UnityApiTypesValidator.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/ObjectSpin.cs" />
     <Compile Include="Assets/TextMesh Pro/Examples &amp; Extras/Scripts/TMP_PhoneNumberValidator.cs" />
     <Compile Include="Assets/Scripts/GestionRedJugador.cs" />

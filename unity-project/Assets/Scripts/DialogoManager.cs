@@ -41,6 +41,9 @@ public class DialogoManager : MonoBehaviour
     /// <summary>Es el turno del usuario actual (rol del nodo = mi rol).</summary>
     public bool EsMiTurno => _esMiTurno;
 
+    /// <summary>True si puede actuar en este nodo (su turno o instructor que puede avanzar por otro rol).</summary>
+    public bool PuedoActuar => _esMiTurno || (_estadoActual?.puede_actuar ?? false);
+
     /// <summary>Respuestas disponibles en este momento (solo si es mi turno).</summary>
     public IReadOnlyList<RespuestaUsuario> RespuestasActuales => _respuestasActuales;
 
@@ -119,6 +122,11 @@ public class DialogoManager : MonoBehaviour
         _dialogoActivo = _estadoActual != null && _estadoActual.dialogo_activo;
         _estadoSesionDialogo = _estadoActual?.estado ?? "";
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (_estadoActual != null)
+            UnityApiTypesValidator.ValidateDialogoEstado(_estadoActual, logWarnings: true);
+#endif
+
         if (_estadoActual?.participantes != null)
         {
             foreach (var p in _estadoActual.participantes)
@@ -137,8 +145,17 @@ public class DialogoManager : MonoBehaviour
         if (_estadoActual?.estado == "finalizado" || (_estadoActual?.nodo_actual?.es_final ?? false))
             OnDialogoFinalizado?.Invoke(true);
 
-        if (_esMiTurno && _dialogoActivo)
+        bool puedeActuar = _esMiTurno || (_estadoActual?.puede_actuar ?? false);
+        if (puedeActuar && _dialogoActivo)
+        {
+            UnityDebugLog.ToLaravel("dialogo_solicitar_respuestas", "Solicitando respuestas (Tu turno o instructor)", new System.Collections.Generic.Dictionary<string, object> {
+                { "sesion_id", sesionJuicioId },
+                { "usuario_id", usuarioId },
+                { "es_mi_turno", _esMiTurno },
+                { "puede_actuar", _estadoActual?.puede_actuar ?? false },
+            });
             CargarRespuestasUsuario();
+        }
         else
             _respuestasActuales.Clear();
     }
@@ -153,11 +170,34 @@ public class DialogoManager : MonoBehaviour
     private void OnRespuestasReceived(APIResponse<RespuestasResponse> response)
     {
         _respuestasActuales.Clear();
+
         if (!response.success || response.data == null)
+        {
+            UnityDebugLog.ToLaravel("dialogo_respuestas_error", "API respuestas falló o data null", new System.Collections.Generic.Dictionary<string, object> {
+                { "success", response.success },
+                { "message", response.message ?? "" },
+            });
             return;
-        if (!response.data.respuestas_disponibles || response.data.respuestas == null)
+        }
+
+        bool disponibles = response.data.respuestas_disponibles;
+        var lista = response.data.respuestas;
+        int count = lista != null ? lista.Count : 0;
+
+        UnityDebugLog.ToLaravel("dialogo_respuestas_recibidas", disponibles ? (count > 0 ? "Mostrando " + count + " opciones" : "Mostrando botón Continuar") : "No hay opciones (no es turno)", new System.Collections.Generic.Dictionary<string, object> {
+                { "respuestas_disponibles", disponibles },
+                { "count", count },
+            });
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        UnityApiTypesValidator.ValidateRespuestasResponse(response.data, logWarnings: true);
+#endif
+
+        if (!disponibles)
             return;
-        _respuestasActuales.AddRange(response.data.respuestas);
+
+        if (lista != null)
+            _respuestasActuales.AddRange(lista);
         OnRespuestasDisponibles?.Invoke(_respuestasActuales);
     }
 
@@ -198,6 +238,22 @@ public class DialogoManager : MonoBehaviour
             OnDialogoFinalizado?.Invoke(true);
 
         RefrescarEstado();
+    }
+
+    /// <summary>Avanza al siguiente nodo cuando el actual no tiene opciones (nodo narrativo). Llama al API y refresca estado.</summary>
+    public void AvanzarNodo(Action<bool, string> onDone = null)
+    {
+        if (UnityApiClient.Instance == null)
+        {
+            onDone?.Invoke(false, "UnityApiClient no disponible");
+            return;
+        }
+        UnityApiClient.Instance.AvanzarNodo(sesionJuicioId, response =>
+        {
+            if (response.success)
+                RefrescarEstado();
+            onDone?.Invoke(response.success, response.message ?? "");
+        });
     }
 
     /// <summary>Inicia el diálogo (estado iniciado -> en_curso). Solo instructor/admin.</summary>

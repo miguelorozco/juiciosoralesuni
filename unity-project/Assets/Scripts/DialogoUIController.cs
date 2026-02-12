@@ -48,6 +48,33 @@ public class DialogoUIController : MonoBehaviour
         }
 
         ResolverReferencias();
+        AcomodarLabelTiempoSesion();
+    }
+
+    /// <summary>Formatea segundos totales como horas:minutos:segundos (ej. 0:00:00, 1:23:45).</summary>
+    private static string FormatearTiempoSesion(float segundosTotales)
+    {
+        if (float.IsNaN(segundosTotales) || segundosTotales < 0) return "0:00:00";
+        int s = Mathf.FloorToInt(segundosTotales);
+        int h = s / 3600;
+        int m = (s % 3600) / 60;
+        int sec = s % 60;
+        return $"{h}:{m:D2}:{sec:D2}";
+    }
+
+    /// <summary>Coloca el label de tiempo en la esquina superior derecha del panel, por encima del resto.</summary>
+    private void AcomodarLabelTiempoSesion()
+    {
+        if (tiempo == null || panelRoot == null) return;
+        var rect = tiempo.GetComponent<RectTransform>();
+        if (rect == null) return;
+        tiempo.transform.SetParent(panelRoot.transform, true);
+        tiempo.transform.SetAsLastSibling();
+        rect.anchorMin = new Vector2(1f, 1f);
+        rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(-12f, -12f);
+        rect.sizeDelta = new Vector2(180f, 28f);
     }
 
     private void ResolverReferencias()
@@ -63,6 +90,11 @@ public class DialogoUIController : MonoBehaviour
         if (mensajeErrorOFinal == null) mensajeErrorOFinal = panelRoot?.transform.Find("MensajeError")?.GetComponent<TMP_Text>();
         if (textoSesionUsuario == null) textoSesionUsuario = panelRoot?.transform.Find("TextoSesionUsuario")?.GetComponent<TMP_Text>();
         if (botonIniciarDialogo == null) botonIniciarDialogo = panelRoot?.transform.Find("BotonIniciarDialogo")?.GetComponent<Button>();
+        if (botonIniciarDialogo != null)
+        {
+            var btnLabel = botonIniciarDialogo.GetComponentInChildren<TMP_Text>(true);
+            if (btnLabel != null) btnLabel.text = "Iniciar diálogo";
+        }
         if (botonRespuestaPrefab == null && contenedorRespuestas != null)
         {
             var canvas = contenedorRespuestas.GetComponentInParent<Canvas>();
@@ -71,6 +103,13 @@ public class DialogoUIController : MonoBehaviour
                 var btn = canvas.transform.Find("BotonRespuesta");
                 if (btn != null) botonRespuestaPrefab = btn.gameObject;
             }
+            if (botonRespuestaPrefab == null && panelRoot != null)
+            {
+                var btn = panelRoot.transform.Find("BotonRespuesta");
+                if (btn != null) botonRespuestaPrefab = btn.gameObject;
+            }
+            if (botonRespuestaPrefab == null && Resources.Load<GameObject>("BotonRespuesta") != null)
+                botonRespuestaPrefab = Resources.Load<GameObject>("BotonRespuesta");
         }
     }
 
@@ -142,10 +181,12 @@ public class DialogoUIController : MonoBehaviour
 
         if (estado == null || !estado.dialogo_activo)
         {
+            // Sin diálogo activo: mostrar botón para poder iniciar (si hay diálogo configurado)
+            if (botonIniciarDialogo != null) botonIniciarDialogo.gameObject.SetActive(true);
             bool sinAsignar = estado != null && estado.dialogo_configurado_id == 0 && string.IsNullOrEmpty(estado.dialogo_configurado_nombre);
             SetText(contenidoNodo, sinAsignar
                 ? "Esta sesión no tiene un diálogo asignado.\n\nVe a la web → Sesiones → Editar esta sesión → elige \"Diálogo a utilizar\" y guarda. Luego recarga Unity."
-                : "No hay diálogo activo.");
+                : "No hay diálogo activo. Pulsa \"Iniciar diálogo\" para comenzar.");
             SetText(rolHablando, "");
             SetText(progreso, "");
             SetText(tiempo, "");
@@ -154,41 +195,145 @@ public class DialogoUIController : MonoBehaviour
             return;
         }
 
+        // Diálogo activo: ocultar "Iniciar diálogo" solo cuando ya está en curso o pausado (según API Laravel)
+        bool dialogoYaIniciado = estado.estado == "en_curso" || estado.estado == "pausado";
+        if (botonIniciarDialogo != null)
+            botonIniciarDialogo.gameObject.SetActive(!dialogoYaIniciado);
+
         var nodo = estado.nodo_actual;
         var rol = nodo?.rol_hablando;
-        SetText(tituloNodo, nodo?.titulo ?? "");
-        SetText(contenidoNodo, nodo?.contenido ?? "");
+        SetText(tituloNodo, !string.IsNullOrEmpty(nodo?.titulo) ? nodo.titulo : "Diálogo en curso");
+        SetText(contenidoNodo, !string.IsNullOrEmpty(nodo?.contenido) ? nodo.contenido : "(Cargando nodo...)");
         SetText(rolHablando, rol != null ? rol.nombre : "");
         float p = estado.progreso ?? 0f;
         SetText(progreso, p > 0 ? $"{p:P0}" : "");
-        SetText(tiempo, estado.tiempo_transcurrido > 0 ? $"{estado.tiempo_transcurrido}s" : "");
+        SetText(tiempo, FormatearTiempoSesion(estado.tiempo_transcurrido));
         SetText(mensajeErrorOFinal, "");
 
         if (_dialogoManager.EsMiTurno)
             SetText(mensajeTurno, "Tu turno");
+        else if (_dialogoManager.PuedoActuar)
+            SetText(mensajeTurno, "Puedes avanzar (instructor)");
         else
             SetText(mensajeTurno, rol != null ? $"Esperando a {rol.nombre}..." : "Esperando...");
 
-        if (!_dialogoManager.EsMiTurno)
+        if (!_dialogoManager.PuedoActuar)
             LimpiarRespuestas();
     }
 
     private void OnRespuestasDisponibles(List<RespuestaUsuario> respuestas)
     {
+        int count = respuestas != null ? respuestas.Count : 0;
+        UnityDebugLog.ToLaravel("dialogo_respuestas_ui", "OnRespuestasDisponibles recibido", new Dictionary<string, object> { { "count", count } });
+
         _dialogoManager.MarcarInicioRespuesta();
         LimpiarRespuestas();
-        if (contenedorRespuestas == null || botonRespuestaPrefab == null || respuestas == null) return;
-
-        foreach (var r in respuestas)
+        if (contenedorRespuestas == null)
         {
-            var resp = r;
-            var btnGo = Instantiate(botonRespuestaPrefab, contenedorRespuestas);
-            btnGo.SetActive(true);
-            var btn = btnGo.GetComponent<Button>();
-            var label = btnGo.GetComponentInChildren<TMP_Text>();
-            if (label != null) label.text = resp.texto ?? "";
-            if (btn != null)
-                btn.onClick.AddListener(() => EnviarDecision(resp.id));
+            Debug.LogWarning("DialogoUIController: ContenedorRespuestas no asignado. Asigna el objeto ContenedorRespuestas en el panel de diálogo.");
+            UnityDebugLog.ToLaravel("dialogo_ui_error", "ContenedorRespuestas no asignado", null);
+            return;
+        }
+        ResolverReferencias();
+        if (botonRespuestaPrefab == null)
+        {
+            Debug.LogWarning("DialogoUIController: Prefab de botón de respuesta no encontrado. Asegúrate de tener un objeto 'BotonRespuesta' bajo Canvas o PanelDialogo, o un prefab en Resources/BotonRespuesta.");
+            UnityDebugLog.ToLaravel("dialogo_ui_error", "Prefab BotonRespuesta no encontrado", null);
+            return;
+        }
+        if (contenedorRespuestas.gameObject.activeSelf == false)
+            contenedorRespuestas.gameObject.SetActive(true);
+
+        // Si no hay opciones (nodo narrativo), mostrar un solo botón "Continuar" que avanza al siguiente nodo
+        if (respuestas == null || respuestas.Count == 0)
+        {
+            UnityDebugLog.ToLaravel("dialogo_boton_aparece", "Aparece botón: Continuar", new Dictionary<string, object> { { "tipo", "continuar" } });
+            CrearBotonRespuesta("Continuar", () =>
+            {
+                UnityDebugLog.ToLaravel("dialogo_boton_presionado", "Presiono el botón: Continuar", new Dictionary<string, object> { { "boton", "Continuar" } });
+                if (_dialogoManager != null)
+                {
+                    _dialogoManager.AvanzarNodo((ok, msg) =>
+                    {
+                        if (!ok && !string.IsNullOrEmpty(msg))
+                            SetText(mensajeErrorOFinal, msg);
+                        else
+                            SetText(mensajeErrorOFinal, "");
+                    });
+                }
+                LimpiarRespuestas();
+            });
+            RebuildLayoutContenedor();
+            return;
+        }
+
+        for (int i = 0; i < respuestas.Count; i++)
+        {
+            var resp = respuestas[i];
+            string texto = resp.texto ?? ("Opción " + (i + 1));
+            UnityDebugLog.ToLaravel("dialogo_boton_aparece", "Aparece botón opción " + (i + 1) + ": " + texto, new Dictionary<string, object> { { "indice", i + 1 }, { "texto", texto }, { "respuesta_id", resp.id } });
+            var respCopy = resp;
+            CrearBotonRespuesta(texto, () =>
+            {
+                UnityDebugLog.ToLaravel("dialogo_boton_presionado", "Presiono el botón: " + (respCopy.texto ?? "opción"), new Dictionary<string, object> { { "texto", respCopy.texto }, { "respuesta_id", respCopy.id } });
+                EnviarDecision(respCopy.id);
+            });
+        }
+        RebuildLayoutContenedor();
+    }
+
+    private void RebuildLayoutContenedor()
+    {
+        if (contenedorRespuestas == null) return;
+        var rect = contenedorRespuestas as RectTransform;
+        if (rect != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+    }
+
+    /// <summary>Crea un botón en el contenedor de respuestas con texto y acción. Usado para opciones y para "Continuar".</summary>
+    private void CrearBotonRespuesta(string texto, UnityEngine.Events.UnityAction onClick)
+    {
+        if (contenedorRespuestas == null || botonRespuestaPrefab == null) return;
+
+        var btnGo = Instantiate(botonRespuestaPrefab, contenedorRespuestas);
+        btnGo.SetActive(true);
+
+        var rect = btnGo.GetComponent<RectTransform>();
+        if (rect != null)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.offsetMin = new Vector2(0f, 0f);
+            rect.offsetMax = new Vector2(0f, 0f);
+        }
+
+        var layout = btnGo.GetComponent<LayoutElement>();
+        if (layout == null) layout = btnGo.AddComponent<LayoutElement>();
+        layout.minHeight = 44f;
+        layout.preferredHeight = -1f;
+        layout.flexibleHeight = 0f;
+        layout.preferredWidth = -1f;
+        layout.flexibleWidth = 1f;
+
+        var btn = btnGo.GetComponent<Button>();
+        if (btn != null)
+        {
+            btn.onClick.RemoveAllListeners();
+            if (onClick != null) btn.onClick.AddListener(onClick);
+            var colors = btn.colors;
+            colors.highlightedColor = new Color(0.85f, 0.9f, 1f);
+            colors.pressedColor = new Color(0.75f, 0.82f, 0.95f);
+            colors.selectedColor = new Color(0.9f, 0.93f, 1f);
+            btn.colors = colors;
+        }
+
+        var label = btnGo.GetComponentInChildren<TMP_Text>(true);
+        if (label != null)
+        {
+            label.text = texto;
+            label.enableWordWrapping = true;
+            label.overflowMode = TextOverflowModes.Overflow;
         }
     }
 
@@ -213,10 +358,18 @@ public class DialogoUIController : MonoBehaviour
 
     private void OnClickIniciarDialogo()
     {
+        UnityDebugLog.ToLaravel("button_clicked", "IniciarDialogo", new System.Collections.Generic.Dictionary<string, object> {
+            { "button", "IniciarDialogo" },
+            { "session_id", _dialogoManager != null ? _dialogoManager.sesionJuicioId : -1 },
+            { "user_id", _dialogoManager != null ? _dialogoManager.usuarioId : -1 }
+        });
         if (_dialogoManager == null) return;
+        SetText(mensajeErrorOFinal, "Iniciando...");
         _dialogoManager.IniciarDialogo((ok, msg) =>
         {
-            SetText(mensajeErrorOFinal, ok ? "Diálogo iniciado." : (msg ?? "Error"));
+            SetText(mensajeErrorOFinal, ok ? "Diálogo iniciado. Cargando..." : (msg ?? "Error"));
+            if (ok)
+                _dialogoManager.RefrescarEstado();
         });
     }
 

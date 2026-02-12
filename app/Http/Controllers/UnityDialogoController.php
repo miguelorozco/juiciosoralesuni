@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 /**
- * @deprecated Este controlador usa modelos antiguos (SesionDialogo v1).
- * Se mantiene temporalmente para compatibilidad con Unity.
- * TODO: Refactorizar para usar SesionDialogoV2 después de migración completa.
+ * Controlador de diálogos para Unity.
+ * Las respuestas JSON deben cumplir el contrato de tipos Laravel-Unity para evitar
+ * fallos de deserialización en el cliente. Ver docs/unity-api-types-contract.md.
+ *
+ * @deprecated Nomenclatura v1; internamente usa SesionDialogoV2.
  */
 
 use App\Models\SesionDialogoV2 as SesionDialogo;
@@ -35,9 +37,16 @@ class UnityDialogoController extends Controller
             }
 
             if (!$sesion->puedeSerGestionadaPor($user)) {
+                Log::warning('Unity iniciar-dialogo: permiso denegado', [
+                    'user_id' => $user->id,
+                    'user_tipo' => $user->tipo ?? null,
+                    'sesion_id' => $sesion->id,
+                    'sesion_instructor_id' => $sesion->instructor_id,
+                    'motivo' => 'Solo instructor de la sesión, admin o usuario con rol Juez pueden iniciar.',
+                ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'No tienes permisos para iniciar el diálogo en esta sesión',
+                    'message' => 'No tienes permisos para iniciar el diálogo en esta sesión. Solo el instructor de la sesión, un administrador o quien tenga el rol Juez puede iniciarlo.',
                 ], 403);
             }
 
@@ -201,8 +210,8 @@ class UnityDialogoController extends Controller
                 $data = [
                     'dialogo_activo' => false,
                     'estado' => 'sin_dialogo',
-                    'dialogo_configurado_nombre' => $cualquiera?->dialogo?->nombre,
-                    'dialogo_configurado_id' => $cualquiera?->dialogo_id ?? 0,
+                    'dialogo_configurado_nombre' => $cualquiera?->dialogo?->nombre ?? '',
+                    'dialogo_configurado_id' => (int) ($cualquiera?->dialogo_id ?? 0),
                     'edit_url' => url('/sesiones/' . $sesion->id . '/edit'),
                 ];
                 $message = $tieneDialogoAsignado
@@ -215,47 +224,90 @@ class UnityDialogoController extends Controller
                 ], 400);
             }
 
-            // Obtener participantes activos
+            // Si el nodo actual no existe (ej. nodo_actual_id inválido o nodo/rol borrados), no intentar leer ->id
+            $nodoActual = $sesionDialogo->nodoActual;
+            if (!$nodoActual) {
+                Log::warning('Unity dialogo-estado: sesion_dialogo sin nodo actual válido', [
+                    'sesion_id' => $sesion->id,
+                    'sesion_dialogo_id' => $sesionDialogo->id,
+                    'nodo_actual_id' => $sesionDialogo->nodo_actual_id,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El diálogo tiene un nodo actual inválido o eliminado. Edita la sesión en la web y asigna de nuevo el diálogo o reinicia el diálogo.',
+                    'data' => [
+                        'dialogo_activo' => false,
+                        'estado' => 'sin_dialogo',
+                        'dialogo_configurado_id' => (int) ($sesionDialogo->dialogo_id ?? 0),
+                    ],
+                ], 400);
+            }
+
+            $rolHablando = $nodoActual->rol;
+            $rolHablandoId = $rolHablando?->id ?? null;
+
+            // ¿El usuario actual (JWT) puede actuar en este nodo? (su turno O es instructor)
+            $userEstado = null;
+            try {
+                $userEstado = JWTAuth::parseToken()->authenticate();
+            } catch (\Exception $e) {
+                // Sin token o inválido
+            }
+            $puedeActuar = false;
+            if ($userEstado) {
+                $asignacionUsuario = $sesion->obtenerParticipantePorUsuario($userEstado->id);
+                $esSuTurnoEstado = $asignacionUsuario && $asignacionUsuario->rol_id === $rolHablandoId;
+                $puedeActuar = $esSuTurnoEstado || $sesion->puedeSerGestionadaPor($userEstado);
+            }
+
+            // Incluir TODAS las asignaciones (confirmado o no) para que Unity siempre encuentre
+            // al usuario actual en la lista y pueda mostrar "Tu turno" correctamente cuando
+            // el rol del nodo coincide con el del usuario (p. ej. Juez conectado y nodo del Juez).
             $participantes = $sesion->asignaciones()
                 ->with(['usuario', 'rol'])
-                ->where('confirmado', true)
                 ->get();
 
             $estadoUnity = [
                 'dialogo_activo' => true,
-                'estado' => $sesionDialogo->estado,
-                'dialogo_nombre' => $sesionDialogo->dialogo?->nombre,
-                'dialogo_id' => $sesionDialogo->dialogo_id ?? 0,
+                'estado' => (string) $sesionDialogo->estado,
+                'dialogo_nombre' => $sesionDialogo->dialogo?->nombre ?? '',
+                'dialogo_id' => (int) ($sesionDialogo->dialogo_id ?? 0),
                 'nodo_actual' => [
-                    'id' => $sesionDialogo->nodoActual->id,
-                    'titulo' => $sesionDialogo->nodoActual->titulo,
-                    'contenido' => $sesionDialogo->nodoActual->contenido,
-                    'rol_hablando' => [
-                        'id' => $sesionDialogo->nodoActual->rol->id,
-                        'nombre' => $sesionDialogo->nodoActual->rol->nombre,
-                        'color' => $sesionDialogo->nodoActual->rol->color,
-                        'icono' => $sesionDialogo->nodoActual->rol->icono,
-                    ],
-                    'tipo' => $sesionDialogo->nodoActual->tipo,
-                    'es_final' => $sesionDialogo->nodoActual->es_final,
+                    'id' => (int) $nodoActual->id,
+                    'titulo' => $nodoActual->titulo ?? '',
+                    'contenido' => $nodoActual->contenido ?? '',
+                    'rol_hablando' => $rolHablando ? [
+                        'id' => (int) $rolHablando->id,
+                        'nombre' => $rolHablando->nombre ?? '',
+                        'color' => $rolHablando->color ?? '',
+                        'icono' => $rolHablando->icono ?? '',
+                    ] : null,
+                    'tipo' => $nodoActual->tipo ?? '',
+                    'es_final' => (bool) $nodoActual->es_final,
                 ],
-                'participantes' => $participantes->map(function ($asignacion) use ($sesionDialogo) {
+                'participantes' => $participantes->map(function ($asignacion) use ($sesionDialogo, $rolHablandoId) {
+                    $usuario = $asignacion->usuario;
+                    $rol = $asignacion->rol;
+                    $nombre = $usuario
+                        ? trim(($usuario->name ?? '') . ' ' . ($usuario->apellido ?? ''))
+                        : 'Usuario #' . $asignacion->usuario_id;
                     return [
-                        'usuario_id' => $asignacion->usuario_id,
-                        'nombre' => $asignacion->usuario->name . ' ' . $asignacion->usuario->apellido,
-                        'rol' => [
-                            'id' => $asignacion->rol->id,
-                            'nombre' => $asignacion->rol->nombre,
-                            'color' => $asignacion->rol->color,
-                            'icono' => $asignacion->rol->icono,
-                        ],
-                        'es_turno' => $asignacion->rol_id === $sesionDialogo->nodoActual->rol_id,
+                        'usuario_id' => (int) $asignacion->usuario_id,
+                        'nombre' => $nombre,
+                        'rol' => $rol ? [
+                            'id' => (int) $rol->id,
+                            'nombre' => $rol->nombre ?? '',
+                            'color' => $rol->color ?? '',
+                            'icono' => $rol->icono ?? '',
+                        ] : null,
+                        'es_turno' => (bool) ($rolHablandoId !== null && $asignacion->rol_id === $rolHablandoId),
                     ];
                 }),
                 'progreso' => $this->normalizarProgresoParaUnity($sesionDialogo->configuracion['progreso'] ?? null),
-                'tiempo_transcurrido' => $sesionDialogo->tiempo_transcurrido ?? 0,
+                'tiempo_transcurrido' => $this->normalizarTiempoTranscurridoParaUnity($sesionDialogo->tiempo_transcurrido ?? 0),
                 'variables' => $this->normalizarVariablesParaUnity($sesionDialogo->variables ?? []),
-                'audio_habilitado' => $sesionDialogo->audio_habilitado,
+                'audio_habilitado' => (bool) $sesionDialogo->audio_habilitado,
+                'puede_actuar' => $puedeActuar,
             ];
 
             return response()->json([
@@ -290,11 +342,21 @@ class UnityDialogoController extends Controller
     {
         $sesion = $sesionJuicio;
         try {
+            $user = JWTAuth::parseToken()->authenticate();
+            if ((int) $usuarioId !== (int) $user->id && !$sesion->puedeSerGestionadaPor($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado a consultar respuestas de otro usuario',
+                    'data' => ['respuestas_disponibles' => false],
+                ], 403);
+            }
+
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->where('estado', 'en_curso')
+                ->with(['nodoActual.rol'])
                 ->first();
 
-            if (!$sesionDialogo) {
+            if (!$sesionDialogo || !$sesionDialogo->nodoActual) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No hay un diálogo activo',
@@ -305,37 +367,38 @@ class UnityDialogoController extends Controller
                 ]);
             }
 
-            // Obtener asignación del usuario
             $asignacion = $sesion->obtenerParticipantePorUsuario($usuarioId);
-            
-            if (!$asignacion) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no asignado a esta sesión',
-                    'data' => [
-                        'respuestas_disponibles' => false,
-                        'mensaje' => 'Usuario no asignado'
-                    ]
-                ]);
-            }
+            $esInstructor = $sesion->puedeSerGestionadaPor($user);
+            $rolIdDelNodo = $sesionDialogo->nodoActual->rol_id;
+            $esSuTurno = $asignacion && $asignacion->rol_id === $rolIdDelNodo;
 
-            // Verificar si es el turno del usuario
-            $esSuTurno = $sesionDialogo->nodoActual->rol_id === $asignacion->rol_id;
-            
-            if (!$esSuTurno) {
+            // Puede ver opciones: es su turno (su rol es el del nodo) O es instructor (avanza por rol sin nadie o en nombre del rol)
+            $puedeActuar = $esSuTurno || $esInstructor;
+
+            if (!$puedeActuar) {
                 return response()->json([
                     'success' => true,
                     'data' => [
                         'respuestas_disponibles' => false,
                         'mensaje' => 'No es tu turno',
-                        'rol_actual' => $sesionDialogo->nodoActual->rol->nombre,
-                        'tu_rol' => $asignacion->rol->nombre,
+                        'rol_actual' => $sesionDialogo->nodoActual->rol?->nombre,
+                        'tu_rol' => $asignacion ? $asignacion->rol->nombre : null,
                     ],
                     'message' => 'No es el turno del usuario'
                 ]);
             }
 
-            $respuestas = $sesionDialogo->obtenerRespuestasDisponibles($usuarioId, $asignacion->rol_id);
+            if (!$asignacion && !$esInstructor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no asignado a esta sesión',
+                    'data' => ['respuestas_disponibles' => false, 'mensaje' => 'Usuario no asignado'],
+                ], 404);
+            }
+
+            // Rol a usar: el del nodo (instructor actúa en nombre del rol que habla; el participante ya coincide)
+            $rolIdParaRespuestas = $rolIdDelNodo;
+            $respuestas = $sesionDialogo->obtenerRespuestasDisponibles($usuarioId, $rolIdParaRespuestas);
 
             $respuestasUnity = $respuestas->map(function($respuesta) {
                 return [
@@ -349,6 +412,10 @@ class UnityDialogoController extends Controller
                 ];
             });
 
+            $rolParaRespuesta = $esInstructor && !$asignacion
+                ? $sesionDialogo->nodoActual->rol
+                : ($asignacion ? $asignacion->rol : $sesionDialogo->nodoActual->rol);
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -360,11 +427,11 @@ class UnityDialogoController extends Controller
                         'contenido' => $sesionDialogo->nodoActual->contenido,
                         'instrucciones' => $sesionDialogo->nodoActual->instrucciones,
                     ],
-                    'rol_usuario' => [
-                        'id' => $asignacion->rol->id,
-                        'nombre' => $asignacion->rol->nombre,
-                        'color' => $asignacion->rol->color,
-                    ],
+                    'rol_usuario' => $rolParaRespuesta ? [
+                        'id' => (int) $rolParaRespuesta->id,
+                        'nombre' => $rolParaRespuesta->nombre ?? '',
+                        'color' => $rolParaRespuesta->color ?? '',
+                    ] : null,
                 ],
                 'message' => 'Respuestas obtenidas exitosamente'
             ]);
@@ -373,6 +440,95 @@ class UnityDialogoController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener las respuestas: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Avanzar al siguiente nodo cuando el actual no tiene opciones (nodo narrativo).
+     * POST /api/unity/sesion/{sesion}/avanzar-nodo
+     */
+    public function avanzarNodo(SesionJuicio $sesionJuicio): JsonResponse
+    {
+        $sesion = $sesionJuicio;
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            $userId = $user->id;
+
+            $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
+                ->where('estado', 'en_curso')
+                ->with(['nodoActual', 'dialogo'])
+                ->first();
+
+            if (!$sesionDialogo || !$sesionDialogo->nodoActual) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay diálogo activo o nodo actual',
+                ], 404);
+            }
+
+            $asignacion = $sesion->obtenerParticipantePorUsuario($userId);
+            $esInstructor = $sesion->puedeSerGestionadaPor($user);
+            $esSuTurno = $asignacion && $sesionDialogo->nodoActual->rol_id === $asignacion->rol_id;
+            $puedeActuar = $esSuTurno || $esInstructor;
+
+            if (!$puedeActuar) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No es tu turno. Solo quien tiene el rol del nodo o el instructor puede avanzar.',
+                ], 403);
+            }
+
+            if (!$asignacion && !$esInstructor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no asignado a esta sesión',
+                ], 404);
+            }
+
+            $respuestas = $sesionDialogo->obtenerRespuestasDisponibles($userId, $asignacion->rol_id);
+            if ($respuestas->isNotEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Este nodo tiene opciones; usa enviar-decision con la respuesta elegida',
+                ], 400);
+            }
+
+            $actual = $sesionDialogo->nodoActual;
+            $siguiente = $sesionDialogo->dialogo->nodos()
+                ->where('orden', '>', $actual->orden)
+                ->orderBy('orden')
+                ->first();
+
+            if (!$siguiente) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay siguiente nodo (fin del diálogo o nodo final)',
+                ], 400);
+            }
+
+            $rolIdParaHistorial = $asignacion ? $asignacion->rol_id : $sesionDialogo->nodoActual->rol_id;
+            if (!$sesionDialogo->avanzarANodo($siguiente->id, $userId, $rolIdParaHistorial)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo avanzar al siguiente nodo',
+                ], 500);
+            }
+
+            $sesionDialogo->refresh();
+            $sesionDialogo->load(['nodoActual.rol', 'dialogo']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Nodo avanzado correctamente',
+                'data' => [
+                    'nodo_actual_id' => $sesionDialogo->nodo_actual_id,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al avanzar: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -414,31 +570,52 @@ class UnityDialogoController extends Controller
                 'metadata' => 'nullable|array',
             ]);
 
+            $user = JWTAuth::parseToken()->authenticate();
+            if ((int) $validated['usuario_id'] !== (int) $user->id && !$sesion->puedeSerGestionadaPor($user)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado a enviar decisión por otro usuario',
+                ], 403);
+            }
+
             $sesionDialogo = SesionDialogo::where('sesion_id', $sesion->id)
                 ->where('estado', 'en_curso')
+                ->with(['nodoActual'])
                 ->first();
 
-            if (!$sesionDialogo) {
+            if (!$sesionDialogo || !$sesionDialogo->nodoActual) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No hay un diálogo activo en esta sesión'
                 ], 404);
             }
 
-            // Obtener asignación del usuario
             $asignacion = $sesion->obtenerParticipantePorUsuario($validated['usuario_id']);
-            
-            if (!$asignacion) {
+            $esInstructor = $sesion->puedeSerGestionadaPor($user);
+            $rolIdDelNodo = $sesionDialogo->nodoActual->rol_id;
+            $esSuTurno = $asignacion && $asignacion->rol_id === $rolIdDelNodo;
+            $puedeActuar = $esSuTurno || $esInstructor;
+
+            if (!$puedeActuar) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'El usuario no está asignado a esta sesión'
+                    'message' => 'No es tu turno. Solo el rol del nodo o el instructor pueden elegir una opción.',
+                ], 403);
+            }
+
+            if (!$asignacion && !$esInstructor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El usuario no está asignado a esta sesión',
                 ], 404);
             }
 
-            // Procesar la decisión
+            $rolIdParaDecision = $asignacion ? $asignacion->rol_id : $rolIdDelNodo;
+
+            // Procesar la decisión (instructor sin asignación usa el rol del nodo en el historial)
             $decision = $sesionDialogo->procesarDecision(
                 $validated['usuario_id'],
-                $asignacion->rol_id,
+                $rolIdParaDecision,
                 $validated['respuesta_id'],
                 $validated['decision_texto'] ?? null,
                 $validated['tiempo_respuesta'] ?? null
@@ -647,6 +824,17 @@ class UnityDialogoController extends Controller
                 'message' => 'Error al obtener los movimientos: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Normaliza tiempo_transcurrido para Unity: siempre float (segundos).
+     * Unity espera float; si Laravel devuelve int (p. ej. diffInSeconds), JSON lo serializa como entero
+     * y en algunos casos puede llegar decimal. Forzar (float) evita tipo inconsistente.
+     * Ver docs/unity-api-types-contract.md.
+     */
+    private function normalizarTiempoTranscurridoParaUnity($valor): float
+    {
+        return (float) ($valor ?? 0);
     }
 
     /**

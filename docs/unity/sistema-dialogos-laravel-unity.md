@@ -2,6 +2,8 @@
 
 Descripción del flujo del sistema de diálogos entre Laravel (origen de verdad: nodos, respuestas, decisiones) y Unity (cliente que muestra el diálogo y envía decisiones), usando el API existente y el cliente C# implementado.
 
+**Contrato de tipos:** Para evitar errores de deserialización (ej. `tiempo_transcurrido` int vs float), existe un contrato explícito: [unity-api-types-contract.md](../unity-api-types-contract.md). Laravel normaliza los tipos antes de enviar; Unity valida en desarrollo con `UnityApiTypesValidator`.
+
 ---
 
 ## Visión general

@@ -50,16 +50,26 @@ public class RoleLabel : MonoBehaviour
         ActualizarTexto();
     }
 
+    private float _nextRefreshTime;
+
     private void LateUpdate()
     {
         if (_canvas != null && Camera.main != null && _canvas.worldCamera != Camera.main)
             _canvas.worldCamera = Camera.main;
+        // Actualizar texto cada 0.5s por si PlayerIdentity se rellenó tarde (p. ej. tras reintentos de LaravelUnityEntryManager)
+        if (Time.time >= _nextRefreshTime)
+        {
+            _nextRefreshTime = Time.time + 0.5f;
+            ActualizarTexto();
+        }
     }
 
     /// <summary>Actualiza el texto del label según PlayerIdentity (rol o "Invitado").</summary>
     public void ActualizarTexto()
     {
         if (_label == null) return;
+        if (_identity == null)
+            _identity = GetComponentInParent<PlayerIdentity>();
 
         string texto = "Invitado";
         if (_identity != null)

@@ -342,6 +342,11 @@ Route::middleware(['web.auth'])->group(function () {
     // La vista `resources/views/unity/game.blade.php` carga los assets
     // mediante la ruta `unity.assets` y maneja mejor errores y logging.
     Route::get('/unity-game', function () {
+        \Log::info('[Unity entry-info] Página unity-game cargada', [
+            'has_token' => request()->has('token'),
+            'has_session' => request()->has('session'),
+            'session' => request()->get('session'),
+        ]);
         return view('unity.game');
     })->name('unity.game');
 });

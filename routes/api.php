@@ -292,6 +292,20 @@ Route::group(['prefix' => 'unity'], function () {
             ]);
         });
 
+        // Debug: Unity envía eventos (botones, asignación rol/user, etc.) para verlos en laravel.log
+        Route::post('/debug-log', function (\Illuminate\Http\Request $request) {
+            $payload = $request->all();
+            $event = $payload['event'] ?? 'unknown';
+            $message = $payload['message'] ?? '';
+            $data = $payload['data'] ?? $payload;
+            unset($data['event'], $data['message']);
+            \Illuminate\Support\Facades\Log::info('[Unity debug] ' . $event, [
+                'message' => $message,
+                'data' => $data,
+            ]);
+            return response()->json(['success' => true]);
+        });
+
         // Diagnóstico BD: qué ve la petición web (sin auth) para depurar sesión/diálogo
         Route::get('/diagnostic-db', function () {
             $conn = config('database.default');
@@ -403,6 +417,7 @@ Route::group(['prefix' => 'unity'], function () {
                 Route::post('/{sesionJuicio}/iniciar-dialogo', [UnityDialogoController::class, 'iniciarDialogo']);
                 Route::get('/{sesionJuicio}/dialogo-estado', [UnityDialogoController::class, 'obtenerEstadoDialogo']);
                 Route::get('/{sesionJuicio}/respuestas-usuario/{usuario}', [UnityDialogoController::class, 'obtenerRespuestasUsuario']);
+                Route::post('/{sesionJuicio}/avanzar-nodo', [UnityDialogoController::class, 'avanzarNodo']);
                 Route::post('/{sesionJuicio}/enviar-decision', [UnityDialogoController::class, 'enviarDecision']);
                 Route::post('/{sesionJuicio}/notificar-hablando', [UnityDialogoController::class, 'notificarHablando']);
                 Route::get('/{sesionJuicio}/movimientos-personajes', [UnityDialogoController::class, 'obtenerMovimientosPersonajes']);

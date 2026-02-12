@@ -71,6 +71,11 @@ public class LaravelUnityEntryManager : MonoBehaviour
             if (payload?.user == null || payload.session == null || payload.role == null)
             {
                 Debug.LogWarning("[LaravelUnityEntryManager] JSON incompleto (falta user/session/role).");
+                UnityDebugLog.ToLaravel("identity_data_rejected", "JSON incompleto: falta user, session o role", new System.Collections.Generic.Dictionary<string, object> {
+                    { "has_user", payload?.user != null },
+                    { "has_session", payload?.session != null },
+                    { "has_role", payload?.role != null }
+                });
                 return;
             }
 
@@ -81,6 +86,19 @@ public class LaravelUnityEntryManager : MonoBehaviour
 
             LaravelSessionData.Set(userId, sessionId, roleId, roleNombre);
             Debug.Log($"[LaravelUnityEntryManager] Datos recibidos: usuario={userId}, sesión={sessionId}, rol={roleId} ({roleNombre})");
+            UnityDebugLog.ToLaravel("identity_data_received", "ReceiveLaravelData: user/session/role asignados en LaravelSessionData", new System.Collections.Generic.Dictionary<string, object> {
+                { "user_id", userId },
+                { "session_id", sessionId },
+                { "role_id", roleId },
+                { "role_nombre", roleNombre ?? "" }
+            });
+
+            // Marcar al usuario como confirmado en la sesión para que el API de diálogo lo incluya
+            // en participantes y muestre "Tu turno" cuando corresponda (evita "Esperando a Juez" siendo el Juez).
+            if (UnityApiClient.Instance != null)
+                UnityApiClient.Instance.SesionesConfirmarRol(sessionId, _ => { });
+            else
+                StartCoroutine(ConfirmarRolCuandoApiEsteLista(sessionId));
 
             if (!string.IsNullOrEmpty(payload.token))
             {
@@ -100,13 +118,17 @@ public class LaravelUnityEntryManager : MonoBehaviour
         catch (System.Exception e)
         {
             Debug.LogError($"[LaravelUnityEntryManager] Error parseando JSON: {e.Message}");
+            UnityDebugLog.ToLaravel("identity_data_error", "Excepción al parsear ReceiveLaravelData", new System.Collections.Generic.Dictionary<string, object> {
+                { "error", e.Message }
+            });
         }
     }
 
     /// <summary>Busca el jugador local (PhotonView.IsMine) y actualiza su PlayerIdentity y RoleLabel.</summary>
     private void AplicarIdentidadALocalPlayer()
     {
-        var identities = FindObjectsOfType<PlayerIdentity>();
+        var identities = FindObjectsOfType<PlayerIdentity>(true);
+        bool localActualizado = false;
         foreach (var identity in identities)
         {
             var pv = identity.GetComponentInParent<PhotonView>();
@@ -120,8 +142,29 @@ public class LaravelUnityEntryManager : MonoBehaviour
             if (roleLabel != null)
                 roleLabel.ActualizarTexto();
 
-            Debug.Log($"[LaravelUnityEntryManager] PlayerIdentity actualizado: rol={identity.nombreRol}, usuarioId={identity.usuarioId}");
+            Debug.Log($"[LaravelUnityEntryManager] PlayerIdentity actualizado: rol={identity.nombreRol} (id={identity.rolId}), usuarioId={identity.usuarioId}");
+            UnityDebugLog.ToLaravel("identity_applied", "PlayerIdentity y RoleLabel actualizados en jugador local", new System.Collections.Generic.Dictionary<string, object> {
+                { "role_id", identity.rolId },
+                { "role_nombre", identity.nombreRol ?? "" },
+                { "user_id", identity.usuarioId }
+            });
+            localActualizado = true;
             break;
+        }
+
+        if (!localActualizado)
+        {
+            var reason = identities.Length == 0 ? "no_player_identity_in_scene" : "no_local_player_is_mine";
+            if (identities.Length == 0)
+                Debug.LogWarning("[LaravelUnityEntryManager] No hay ningún PlayerIdentity en la escena. ¿El prefab del jugador tiene el componente?");
+            else
+                Debug.LogWarning("[LaravelUnityEntryManager] Ningún PlayerIdentity es el jugador local (IsMine). Se reintentará en 0.3s, 0.8s, 1.5s, 3s y 5s.");
+            UnityDebugLog.ToLaravel("identity_not_applied", reason, new System.Collections.Generic.Dictionary<string, object> {
+                { "identities_found", identities.Length },
+                { "laravel_has_data", LaravelSessionData.HasData },
+                { "laravel_user_id", LaravelSessionData.UserId },
+                { "laravel_role_id", LaravelSessionData.RoleId }
+            });
         }
 
         var dialogoManager = FindObjectOfType<DialogoManager>();
@@ -130,7 +173,23 @@ public class LaravelUnityEntryManager : MonoBehaviour
             dialogoManager.sesionJuicioId = LaravelSessionData.SessionId;
             dialogoManager.usuarioId = LaravelSessionData.UserId;
             Debug.Log($"[LaravelUnityEntryManager] DialogoManager actualizado: sesion={LaravelSessionData.SessionId}, usuarioId={LaravelSessionData.UserId}");
+            UnityDebugLog.ToLaravel("dialogo_manager_updated", "DialogoManager sesion/usuario asignados", new System.Collections.Generic.Dictionary<string, object> {
+                { "session_id", LaravelSessionData.SessionId },
+                { "user_id", LaravelSessionData.UserId }
+            });
             dialogoManager.RefrescarEstado();
+        }
+    }
+
+    /// <summary>Llama a confirmar-rol cuando UnityApiClient esté disponible (por si llega antes que el API bridge).</summary>
+    private IEnumerator ConfirmarRolCuandoApiEsteLista(int sessionId)
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            yield return new WaitForSeconds(0.5f);
+            if (UnityApiClient.Instance == null) continue;
+            UnityApiClient.Instance.SesionesConfirmarRol(sessionId, _ => { });
+            yield break;
         }
     }
 
@@ -139,7 +198,7 @@ public class LaravelUnityEntryManager : MonoBehaviour
     {
         if (!LaravelSessionData.HasData) yield break;
 
-        float[] delays = { 0.5f, 1.5f, 3f };
+        float[] delays = { 0.3f, 0.8f, 1.5f, 3f, 5f, 7f, 10f, 15f };
         foreach (float d in delays)
         {
             yield return new WaitForSeconds(d);

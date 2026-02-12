@@ -3,11 +3,16 @@ using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 
+/// <summary>
+/// En el prefab del jugador (Player_X): deshabilita en el JUGADOR REMOTO cámara, listener
+/// y los scripts en codigosQueIgnorar. PlayerIdentity se deja activo en el remoto para
+/// recibir por Photon el rol del dueño y mostrar el label correcto (Juez, Testigo1, etc.).
+/// </summary>
 [DefaultExecutionOrder(-100)]
 public class RedesJugador : MonoBehaviour
 {
+    [Tooltip("Scripts a deshabilitar en el jugador remoto (solo corre en el local). Puedes añadir aquí otros que no deban ejecutarse en el clon.)")]
     public MonoBehaviour[] codigosQueIgnorar;
-
 
     private PhotonView photonView;
 

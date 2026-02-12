@@ -118,10 +118,10 @@ namespace JuiciosSimulator.API
             StartCoroutine(GetJson(FullUrl("unity/sesiones/" + sesionId + "/mi-rol"), null, onDone));
         }
 
-        /// <summary>POST /api/unity/sesiones/{id}/confirmar-rol</summary>
+        /// <summary>POST /api/unity/sesiones/{id}/confirmar-rol. Marca al usuario actual como confirmado en la sesión.</summary>
         public void SesionesConfirmarRol(int sesionId, Action<APIResponse<object>> onDone)
         {
-            StartCoroutine(PostJson(FullUrl("unity/sesiones/" + sesionId + "/confirmar-rol"), new { }, onDone));
+            StartCoroutine(PostJson(FullUrl("unity/sesiones/" + sesionId + "/confirmar-rol"), new { confirmado = true }, onDone));
         }
 
         /// <summary>GET /api/unity/sesiones/disponibles</summary>
@@ -150,6 +150,12 @@ namespace JuiciosSimulator.API
         public void GetRespuestasUsuario(int sesionJuicio, int usuarioId, Action<APIResponse<RespuestasResponse>> onDone)
         {
             StartCoroutine(GetJson(FullUrl($"unity/sesion/{sesionJuicio}/respuestas-usuario/{usuarioId}"), null, onDone));
+        }
+
+        /// <summary>POST /api/unity/sesion/{sesionJuicio}/avanzar-nodo. Avanza al siguiente nodo cuando el actual no tiene opciones.</summary>
+        public void AvanzarNodo(int sesionJuicio, Action<APIResponse<object>> onDone)
+        {
+            StartCoroutine(PostJson(FullUrl("unity/sesion/" + sesionJuicio + "/avanzar-nodo"), new { }, onDone));
         }
 
         /// <summary>POST /api/unity/sesion/{sesionJuicio}/enviar-decision</summary>
@@ -282,6 +288,34 @@ namespace JuiciosSimulator.API
         public void RoomsGetLiveKitStatus(string roomId, Action<APIResponse<object>> onDone)
         {
             StartCoroutine(GetJson(FullUrl("unity/rooms/" + Uri.EscapeDataString(roomId) + "/livekit-status"), null, onDone));
+        }
+
+        /// <summary>Envía un evento de debug a Laravel (se escribe en laravel.log con [Unity debug]).</summary>
+        public void SendDebugLog(string eventName, string message, object data = null)
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "event", eventName ?? "unknown" },
+                { "message", message ?? "" },
+                { "data", data ?? new Dictionary<string, object>() }
+            };
+            StartCoroutine(PostDebugLogCoroutine(body));
+        }
+
+        private IEnumerator PostDebugLogCoroutine(Dictionary<string, object> body)
+        {
+            string url = FullUrl("unity/debug-log");
+            if (logRequests) Debug.Log("[UnityApiClient] POST " + url + " (debug-log)");
+            string json = JsonConvert.SerializeObject(body);
+            byte[] raw = Encoding.UTF8.GetBytes(json);
+            using (var req = new UnityWebRequest(url, "POST", new DownloadHandlerBuffer(), new UploadHandlerRaw(raw)))
+            {
+                req.SetRequestHeader("Content-Type", "application/json");
+                req.SetRequestHeader("Accept", "application/json");
+                if (!string.IsNullOrEmpty(Token))
+                    req.SetRequestHeader("Authorization", "Bearer " + Token);
+                yield return req.SendWebRequest();
+            }
         }
 
         #endregion

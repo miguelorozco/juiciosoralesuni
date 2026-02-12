@@ -209,11 +209,29 @@ class SesionJuicio extends Model
     }
 
     /**
-     * Verificar si un usuario puede gestionar esta sesión
+     * Verificar si un usuario puede gestionar esta sesión (iniciar diálogo, etc.).
+     * Pueden: admin, instructor (tipo o instructor de la sesión), o quien tenga el rol Juez en esta sesión.
      */
     public function puedeSerGestionadaPor($user)
     {
-        return $this->instructor_id === $user->id || $user->tipo === 'admin';
+        if ($user->tipo === 'admin') {
+            return true;
+        }
+        if ($user->tipo === 'instructor' || $this->instructor_id === $user->id) {
+            return true;
+        }
+        return $this->tieneRolEnSesion($user, 'Juez');
+    }
+
+    /**
+     * Comprueba si el usuario tiene asignado un rol por nombre en esta sesión.
+     */
+    public function tieneRolEnSesion($user, string $nombreRol): bool
+    {
+        return $this->asignaciones()
+            ->where('usuario_id', $user->id)
+            ->whereHas('rolDisponible', fn ($q) => $q->where('nombre', $nombreRol))
+            ->exists();
     }
 
     /**

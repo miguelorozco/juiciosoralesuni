@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace JuiciosSimulator.API
 {
+    // Contrato de tipos con Laravel: docs/unity-api-types-contract.md (en el repo raíz).
+    // Los tipos aquí deben coincidir con lo que envía la API para evitar errores de deserialización.
+
     /// <summary>Respuesta genérica del API Laravel.</summary>
     [Serializable]
     public class APIResponse<T>
@@ -74,8 +77,11 @@ namespace JuiciosSimulator.API
         public List<Participante> participantes;
         /// <summary>Progreso 0..1. Null si la API no lo envía (se trata como 0).</summary>
         public float? progreso;
-        public int tiempo_transcurrido;
+        /// <summary>Tiempo transcurrido en segundos (la API puede enviar float).</summary>
+        public float tiempo_transcurrido;
         public Dictionary<string, object> variables;
+        /// <summary>True si este usuario puede actuar (es su turno o es instructor y puede avanzar por otro rol).</summary>
+        public bool puede_actuar;
     }
 
     [Serializable]

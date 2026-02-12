@@ -254,42 +254,101 @@ class UnityEntryController extends Controller
     }
 
     /**
-     * Obtener información de entrada para Unity
+     * Obtener información de entrada para Unity (user, session, role).
+     * Lo llama la página unity-game vía fetch cuando hay token en la URL.
+     * Los datos se envían a Unity por SendMessage para rellenar PlayerIdentity.
      */
     public function getUnityEntryInfo(Request $request): JsonResponse
     {
+        $logPrefix = '[Unity entry-info]';
+
         try {
             $token = $request->get('token');
-            
+
+            Log::info("{$logPrefix} Petición recibida", [
+                'has_token' => !empty($token),
+                'token_length' => $token ? strlen($token) : 0,
+                'query_keys' => array_keys($request->query()),
+            ]);
+
             if (!$token) {
+                Log::warning("{$logPrefix} Rechazado: token no proporcionado");
                 return response()->json([
                     'success' => false,
                     'message' => 'Token no proporcionado'
                 ], 400);
             }
 
-            // Decodificar token
-            $payload = json_decode(base64_decode($token), true);
-            
-            if (!$payload || $payload['expires_at'] < time()) {
+            // Decodificar token (base64 JSON con user_id, session_id, expires_at, type)
+            $decoded = base64_decode($token, true);
+            $payload = $decoded !== false ? json_decode($decoded, true) : null;
+
+            if (!$payload) {
+                Log::warning("{$logPrefix} Rechazado: token no decodificable o JSON inválido");
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token inválido'
+                ], 401);
+            }
+
+            if (empty($payload['expires_at']) || $payload['expires_at'] < time()) {
+                Log::warning("{$logPrefix} Rechazado: token expirado", [
+                    'expires_at' => $payload['expires_at'] ?? null,
+                    'now' => time(),
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Token expirado o inválido'
                 ], 401);
             }
 
-            // Obtener información completa
-            $assignment = AsignacionRol::where('usuario_id', $payload['user_id'])
-                ->where('sesion_id', $payload['session_id'])
+            $userId = (int) ($payload['user_id'] ?? 0);
+            $sessionId = (int) ($payload['session_id'] ?? 0);
+
+            Log::info("{$logPrefix} Token válido, buscando asignación", [
+                'user_id' => $userId,
+                'session_id' => $sessionId,
+            ]);
+
+            $assignment = AsignacionRol::where('usuario_id', $userId)
+                ->where('sesion_id', $sessionId)
                 ->with(['sesion', 'rolDisponible', 'usuario'])
                 ->first();
 
             if (!$assignment) {
+                Log::warning("{$logPrefix} Asignación no encontrada", [
+                    'user_id' => $userId,
+                    'session_id' => $sessionId,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Asignación no encontrada'
                 ], 404);
             }
+
+            if (!$assignment->rolDisponible) {
+                Log::warning("{$logPrefix} Asignación sin rol", [
+                    'assignment_id' => $assignment->id,
+                    'user_id' => $userId,
+                    'session_id' => $sessionId,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Rol no configurado en la asignación'
+                ], 404);
+            }
+
+            $roleId = $assignment->rolDisponible->id;
+            $roleNombre = $assignment->rolDisponible->nombre;
+
+            Log::info("{$logPrefix} OK – datos enviados a Unity (user, session, role)", [
+                'user_id' => $assignment->usuario->id,
+                'user_name' => $assignment->usuario->name,
+                'session_id' => $assignment->sesion->id,
+                'session_nombre' => $assignment->sesion->nombre,
+                'role_id' => $roleId,
+                'role_nombre' => $roleNombre,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -305,8 +364,8 @@ class UnityEntryController extends Controller
                         'estado' => $assignment->sesion->estado
                     ],
                     'role' => [
-                        'id' => $assignment->rolDisponible->id,
-                        'nombre' => $assignment->rolDisponible->nombre,
+                        'id' => $roleId,
+                        'nombre' => $roleNombre,
                         'descripcion' => $assignment->rolDisponible->descripcion,
                         'color' => $assignment->rolDisponible->color,
                         'icono' => $assignment->rolDisponible->icono
@@ -315,8 +374,9 @@ class UnityEntryController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error("Error obteniendo información de entrada a Unity", [
-                'error' => $e->getMessage()
+            Log::error("{$logPrefix} Excepción", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
