@@ -37,6 +37,7 @@ public class DialogoUIController : MonoBehaviour
     public TMP_Text textoSesionUsuario;
 
     private DialogoManager _dialogoManager;
+    private readonly List<Button> _botonesActuales = new List<Button>();
 
     private void Awake()
     {
@@ -221,6 +222,25 @@ public class DialogoUIController : MonoBehaviour
             LimpiarRespuestas();
     }
 
+    private void Update()
+    {
+        if (contenedorRespuestas == null || _botonesActuales.Count == 0) return;
+        if (panelRoot != null && !panelRoot.activeInHierarchy) return;
+
+        int index = -1;
+        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) index = 0;
+        else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) index = 1;
+        else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) index = 2;
+        else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) index = 3;
+
+        if (index >= 0 && index < _botonesActuales.Count)
+        {
+            var btn = _botonesActuales[index];
+            if (btn != null && btn.interactable)
+                btn.onClick.Invoke();
+        }
+    }
+
     private void OnRespuestasDisponibles(List<RespuestaUsuario> respuestas)
     {
         int count = respuestas != null ? respuestas.Count : 0;
@@ -262,7 +282,7 @@ public class DialogoUIController : MonoBehaviour
                     });
                 }
                 LimpiarRespuestas();
-            });
+            }, 0);
             RebuildLayoutContenedor();
             return;
         }
@@ -270,14 +290,16 @@ public class DialogoUIController : MonoBehaviour
         for (int i = 0; i < respuestas.Count; i++)
         {
             var resp = respuestas[i];
-            string texto = resp.texto ?? ("Opción " + (i + 1));
-            UnityDebugLog.ToLaravel("dialogo_boton_aparece", "Aparece botón opción " + (i + 1) + ": " + texto, new Dictionary<string, object> { { "indice", i + 1 }, { "texto", texto }, { "respuesta_id", resp.id } });
+            string texto = !string.IsNullOrEmpty(resp.texto) ? resp.texto
+                : (!string.IsNullOrEmpty(resp.descripcion) ? resp.descripcion : ("Opción " + (i + 1)));
+            int numeroAtajo = i + 1;
+            UnityDebugLog.ToLaravel("dialogo_boton_aparece", "Aparece botón opción " + numeroAtajo + ": " + texto, new Dictionary<string, object> { { "indice", numeroAtajo }, { "texto", texto }, { "respuesta_id", resp.id } });
             var respCopy = resp;
             CrearBotonRespuesta(texto, () =>
             {
                 UnityDebugLog.ToLaravel("dialogo_boton_presionado", "Presiono el botón: " + (respCopy.texto ?? "opción"), new Dictionary<string, object> { { "texto", respCopy.texto }, { "respuesta_id", respCopy.id } });
                 EnviarDecision(respCopy.id);
-            });
+            }, numeroAtajo);
         }
         RebuildLayoutContenedor();
     }
@@ -290,13 +312,28 @@ public class DialogoUIController : MonoBehaviour
             LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
     }
 
-    /// <summary>Crea un botón en el contenedor de respuestas con texto y acción. Usado para opciones y para "Continuar".</summary>
-    private void CrearBotonRespuesta(string texto, UnityEngine.Events.UnityAction onClick)
+    /// <summary>Obtiene el transform del botón interactivo dentro del prefab. Prefab puede ser: [raíz] o [raíz → Canvas (Environment) → BotonRespuesta].</summary>
+    private static Transform ObtenerBotonRoot(GameObject prefabInstance)
+    {
+        Transform root = prefabInstance.transform;
+        Transform canvas = root.Find("Canvas (Environment)");
+        if (canvas != null)
+        {
+            Transform inner = canvas.Find("BotonRespuesta");
+            if (inner != null) return inner;
+        }
+        return root;
+    }
+
+    /// <summary>Crea un botón en el contenedor de respuestas con texto y acción. numeroAtajo: 1-4 (o más) se muestra como tag "[1]"; 0 = sin número (ej. Continuar).</summary>
+    private void CrearBotonRespuesta(string texto, UnityEngine.Events.UnityAction onClick, int numeroAtajo = 0)
     {
         if (contenedorRespuestas == null || botonRespuestaPrefab == null) return;
 
         var btnGo = Instantiate(botonRespuestaPrefab, contenedorRespuestas);
         btnGo.SetActive(true);
+
+        Transform buttonRoot = ObtenerBotonRoot(btnGo);
 
         var rect = btnGo.GetComponent<RectTransform>();
         if (rect != null)
@@ -311,12 +348,24 @@ public class DialogoUIController : MonoBehaviour
         var layout = btnGo.GetComponent<LayoutElement>();
         if (layout == null) layout = btnGo.AddComponent<LayoutElement>();
         layout.minHeight = 44f;
-        layout.preferredHeight = -1f;
+        layout.preferredHeight = 44f;
         layout.flexibleHeight = 0f;
+        layout.minWidth = 260f;
         layout.preferredWidth = -1f;
         layout.flexibleWidth = 1f;
 
-        var btn = btnGo.GetComponent<Button>();
+        // Asegurar que se vea como botón: Image y Button pueden estar en la raíz o en el botón anidado
+        var img = buttonRoot.GetComponent<Image>();
+        if (img == null) img = btnGo.GetComponent<Image>();
+        if (img != null)
+        {
+            img.enabled = true;
+            img.raycastTarget = true;
+            img.color = new Color(0.25f, 0.42f, 0.72f, 1f);
+        }
+
+        var btn = buttonRoot.GetComponent<Button>();
+        if (btn == null) btn = btnGo.GetComponent<Button>();
         if (btn != null)
         {
             btn.onClick.RemoveAllListeners();
@@ -326,14 +375,59 @@ public class DialogoUIController : MonoBehaviour
             colors.pressedColor = new Color(0.75f, 0.82f, 0.95f);
             colors.selectedColor = new Color(0.9f, 0.93f, 1f);
             btn.colors = colors;
+            _botonesActuales.Add(btn);
         }
 
-        var label = btnGo.GetComponentInChildren<TMP_Text>(true);
-        if (label != null)
+        // NumeroTag: bajo buttonRoot (TextoOpcion y NumeroTag son hermanos del mismo BotonRespuesta)
+        Transform numTagT = buttonRoot.Find("NumeroTag");
+        TMP_Text numTagText = null;
+        if (numTagT != null)
         {
-            label.text = texto;
-            label.enableWordWrapping = true;
-            label.overflowMode = TextOverflowModes.Overflow;
+            var numTagLabel = numTagT.Find("NumeroTagLabel");
+            if (numTagLabel != null) numTagText = numTagLabel.GetComponent<TMP_Text>();
+            if (numTagText == null) numTagText = numTagT.GetComponentInChildren<TMP_Text>(true);
+            var numTagRect = numTagT.GetComponent<RectTransform>();
+            if (numTagRect == null) numTagRect = numTagT.gameObject.AddComponent<RectTransform>();
+            if (numeroAtajo > 0 && numTagText != null)
+            {
+                numTagText.text = numeroAtajo.ToString();
+                numTagText.enableWordWrapping = false;
+                numTagText.alignment = TMPro.TextAlignmentOptions.Center;
+                numTagT.gameObject.SetActive(true);
+                numTagRect.anchorMin = new Vector2(0f, 0.5f);
+                numTagRect.anchorMax = new Vector2(0f, 0.5f);
+                numTagRect.pivot = new Vector2(0.5f, 0.5f);
+                numTagRect.anchoredPosition = new Vector2(22f, 0f);
+                numTagRect.sizeDelta = new Vector2(24f, 24f);
+            }
+            else
+                numTagT.gameObject.SetActive(false);
+        }
+
+        // Texto principal de la opción: asignar a TODOS los TMP_Text del botón que no sean el NumeroTag,
+        // para que no quede ningún label mostrando el placeholder "Opción" del prefab.
+        string textoMostrar = (numTagText != null && numeroAtajo > 0) ? texto : (numeroAtajo > 0 ? "[" + numeroAtajo + "] " + texto : texto);
+
+        float marginLeft = (numTagText != null && numeroAtajo > 0) ? 36f : 10f;
+        var allTmp = btnGo.GetComponentsInChildren<TMP_Text>(true);
+        foreach (var t in allTmp)
+        {
+            if (numTagT != null && t.transform.IsChildOf(numTagT))
+                continue; // No tocar el número del badge (1, 2, 3, 4)
+            t.text = textoMostrar;
+            t.enableWordWrapping = true;
+            t.overflowMode = TextOverflowModes.Overflow;
+            t.alignment = TMPro.TextAlignmentOptions.Left;
+            t.ForceMeshUpdate(true);
+            t.gameObject.SetActive(true);
+            var labelRect = t.GetComponent<RectTransform>();
+            if (labelRect != null)
+            {
+                labelRect.anchorMin = new Vector2(0f, 0f);
+                labelRect.anchorMax = new Vector2(1f, 1f);
+                labelRect.offsetMin = new Vector2(marginLeft, 6f);
+                labelRect.offsetMax = new Vector2(-10f, -6f);
+            }
         }
     }
 
@@ -375,6 +469,7 @@ public class DialogoUIController : MonoBehaviour
 
     private void LimpiarRespuestas()
     {
+        _botonesActuales.Clear();
         if (contenedorRespuestas == null) return;
         for (int i = contenedorRespuestas.childCount - 1; i >= 0; i--)
         {

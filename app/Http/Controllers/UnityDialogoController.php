@@ -338,11 +338,26 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function obtenerRespuestasUsuario(SesionJuicio $sesionJuicio, $usuarioId): JsonResponse
+    public function obtenerRespuestasUsuario(Request $request, SesionJuicio $sesionJuicio, $usuarioId): JsonResponse
     {
         $sesion = $sesionJuicio;
+        Log::info('Unity respuestas-usuario: entrada', ['sesion_id' => $sesion->id, 'usuario_id' => $usuarioId]);
         try {
-            $user = JWTAuth::parseToken()->authenticate();
+            // Usuario ya autenticado por UnityAuthMiddleware (JWT o token unity_entry); no usar JWTAuth de nuevo
+            // porque el token unity_entry no es un JWT de 3 segmentos y JWTAuth::parseToken() lanza "Wrong number of segments"
+            $user = $request->get('unity_user');
+            if (!$user) {
+                try {
+                    $user = JWTAuth::parseToken()->authenticate();
+                } catch (\Throwable $e) {
+                    Log::warning('Unity respuestas-usuario: sin usuario en request ni JWT válido', ['error' => $e->getMessage()]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Token de autenticación inválido o expirado',
+                        'data' => ['respuestas_disponibles' => false],
+                    ], 401);
+                }
+            }
             if ((int) $usuarioId !== (int) $user->id && !$sesion->puedeSerGestionadaPor($user)) {
                 return response()->json([
                     'success' => false,
@@ -357,6 +372,11 @@ class UnityDialogoController extends Controller
                 ->first();
 
             if (!$sesionDialogo || !$sesionDialogo->nodoActual) {
+                Log::info('Unity respuestas-usuario: no hay diálogo en curso o nodo actual', [
+                    'sesion_id' => $sesion->id,
+                    'hay_sesion_dialogo' => (bool) $sesionDialogo,
+                    'nodo_actual_id' => $sesionDialogo?->nodo_actual_id,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'No hay un diálogo activo',
@@ -416,11 +436,19 @@ class UnityDialogoController extends Controller
                 ? $sesionDialogo->nodoActual->rol
                 : ($asignacion ? $asignacion->rol : $sesionDialogo->nodoActual->rol);
 
+            $respuestasArray = $respuestasUnity->values()->all();
+            Log::info('Unity respuestas-usuario: OK', [
+                'sesion_id' => $sesion->id,
+                'usuario_id' => $usuarioId,
+                'count_respuestas' => count($respuestasArray),
+                'nodo_id' => $sesionDialogo->nodoActual->id,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'respuestas_disponibles' => true,
-                    'respuestas' => $respuestasUnity,
+                    'respuestas' => $respuestasArray,
                     'nodo_actual' => [
                         'id' => $sesionDialogo->nodoActual->id,
                         'titulo' => $sesionDialogo->nodoActual->titulo,
@@ -436,10 +464,19 @@ class UnityDialogoController extends Controller
                 'message' => 'Respuestas obtenidas exitosamente'
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::error('Unity obtenerRespuestasUsuario: excepción', [
+                'sesion_id' => $sesion->id,
+                'usuario_id' => $usuarioId,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener las respuestas: ' . $e->getMessage()
+                'message' => 'Error al obtener las respuestas: ' . $e->getMessage(),
+                'data' => ['respuestas_disponibles' => false],
             ], 500);
         }
     }
@@ -564,7 +601,7 @@ class UnityDialogoController extends Controller
         try {
             $validated = $request->validate([
                 'usuario_id' => 'required|exists:users,id',
-                'respuesta_id' => 'required|exists:respuestas_dialogo,id',
+                'respuesta_id' => 'required|exists:respuestas_dialogo_v2,id',
                 'decision_texto' => 'nullable|string',
                 'tiempo_respuesta' => 'nullable|integer|min:0',
                 'metadata' => 'nullable|array',

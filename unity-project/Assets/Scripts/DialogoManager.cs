@@ -173,7 +173,7 @@ public class DialogoManager : MonoBehaviour
 
         if (!response.success || response.data == null)
         {
-            UnityDebugLog.ToLaravel("dialogo_respuestas_error", "API respuestas falló o data null", new System.Collections.Generic.Dictionary<string, object> {
+            UnityDebugLog.ToLaravel("dialogo_respuestas_error", "API respuestas falló o data null. Revisar laravel.log para 'Unity obtenerRespuestasUsuario: excepción' o 'Unity respuestas-usuario:'. Mensaje servidor: " + (response.message ?? "(vacío)"), new System.Collections.Generic.Dictionary<string, object> {
                 { "success", response.success },
                 { "message", response.message ?? "" },
             });

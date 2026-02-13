@@ -122,15 +122,23 @@ namespace JuiciosSimulator.API
         public RolHablando rol_usuario;
     }
 
+    /// <summary>Coincide con el array "respuestas" que envía Laravel en respuestas-usuario (keys: id, texto, descripcion, color, puntuacion, tiene_consecuencias, es_final).</summary>
     [Serializable]
     public class RespuestaUsuario
     {
+        [Newtonsoft.Json.JsonProperty("id")]
         public int id;
+        [Newtonsoft.Json.JsonProperty("texto")]
         public string texto;
+        [Newtonsoft.Json.JsonProperty("descripcion")]
         public string descripcion;
+        [Newtonsoft.Json.JsonProperty("color")]
         public string color;
+        [Newtonsoft.Json.JsonProperty("puntuacion")]
         public int puntuacion;
+        [Newtonsoft.Json.JsonProperty("tiene_consecuencias")]
         public bool tiene_consecuencias;
+        [Newtonsoft.Json.JsonProperty("es_final")]
         public bool es_final;
     }
 
