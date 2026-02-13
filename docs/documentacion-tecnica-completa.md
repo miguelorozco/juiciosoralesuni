@@ -37,7 +37,7 @@
 ✅ **Sistema de Autenticación JWT** completo con roles (admin, instructor, alumno)  
 ✅ **Editor Visual de Diálogos** con drag & drop y sistema ramificado  
 ✅ **Integración Unity WebGL** para experiencia 3D inmersiva  
-✅ **Comunicación de Voz en Tiempo Real** mediante PeerJS  
+✅ **Comunicación de Voz en Tiempo Real** (LiveKit / WebRTC según despliegue)  
 ✅ **Multiplayer Sincronizado** con Photon PUN2  
 ✅ **Sistema de Evaluación Automática** con puntuaciones y consecuencias  
 ✅ **Dashboard Interactivo** con estadísticas y reportes  
@@ -94,8 +94,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │              UNITY WEBGL CLIENT (Navegador)                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │ LaravelAPI   │  │ Photon PUN2  │  │   PeerJS (Audio)    │ │
-│  │ (HTTP REST)  │  │ (Multiplayer)│  │   (WebRTC)          │ │
+│  │ LaravelAPI   │  │ Photon PUN2  │  │   Audio (WebRTC)    │ │
+│  │ (HTTP REST)  │  │ (Multiplayer)│  │   (LiveKit, etc.)   │ │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘ │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
 │  │ GameManager  │  │ DialogueUI    │  │   PlayerController  │ │
@@ -108,8 +108,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │              SERVICIOS EXTERNOS                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │ Photon Cloud │  │ PeerJS       │  │   STUN/TURN         │ │
-│  │ (Multiplayer)│  │ (Audio P2P)  │  │   (WebRTC)          │ │
+│  │ Photon Cloud │  │ LiveKit/Voz  │  │   STUN/TURN         │ │
+│  │ (Multiplayer)│  │ (Audio)      │  │   (WebRTC)          │ │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -133,7 +133,7 @@
 
 #### 4. **Servicios Externos**
 - **Photon PUN2**: Multiplayer en tiempo real
-- **PeerJS**: Comunicación de voz P2P
+- **LiveKit / WebRTC**: Comunicación de voz (según despliegue)
 - **STUN/TURN**: Servidores para WebRTC
 
 ---
@@ -173,8 +173,8 @@
 
 | Tecnología | Versión | Propósito |
 |------------|---------|-----------|
-| **PeerJS** | 1.5.5 | Audio P2P |
 | **REST API** | HTTP/1.1 | Comunicación Unity-Laravel |
+| **LiveKit / WebRTC** | - | Comunicación de voz (según despliegue) |
 
 ### Herramientas de Desarrollo
 
@@ -315,7 +315,7 @@ public SessionData currentSessionData;
 2. Obtener rol desde Laravel
 3. Unirse a sala de sesión
 4. Instanciar jugador con rol
-5. Inicializar audio (PeerJS)
+5. Inicializar audio (WebRTC / LiveKit según despliegue)
 
 #### 3. **SessionManager.cs**
 
@@ -739,10 +739,10 @@ Unity WebGL Build
     │         ├─── Sincronizar Jugadores
     │         └─── Inicializar Audio
     │
-    └─── JavaScript (index.html) ──► PeerJS
+    └─── JavaScript (index.html) ──► Audio WebRTC
               │
               ├─── initVoiceCall()
-              ├─── callPeer()
+              ├─── Conexión con otros participantes
               └─── WebRTC Audio
 ```
 
@@ -782,7 +782,7 @@ Unity WebGL Build
    ```
    Application.ExternalCall("initVoiceCall", roomId, actorId)
    → JavaScript: initVoiceCall()
-   → PeerJS: Crear Peer
+   → Configurar WebRTC / servicio de voz
    → Notificar a Unity: OnVoiceReady()
    ```
 
@@ -828,9 +828,6 @@ public class UnityConfig : ScriptableObject
     public string apiBaseURL = "http://localhost:8000/api";
     public string photonAppId = "YOUR_PHOTON_APP_ID";
     public string photonRegion = "us";
-    public string peerjsHost = "peerjs.com";
-    public int peerjsPort = 443;
-    public bool peerjsSecure = true;
 }
 ```
 
@@ -871,48 +868,14 @@ Unity Client (WebGL)
               │         ├─── navigator.mediaDevices.getUserMedia()
               │         │         └─── Obtener stream de micrófono
               │         │
-              │         └─── new Peer(myId, config)
-              │                   │
-              │                   └─── Conectar a servidor PeerJS
+              │         └─── Conectar a servicio de voz (LiveKit / WebRTC)
+              │                   └─── Notificar a Unity: OnVoiceReady(id)
               │
-              ├─── peer.on('open', id => ...)
-              │         └─── Notificar a Unity: OnVoiceReady(id)
+              ├─── Descubrimiento de otros participantes en la sala
               │
-              ├─── startAutoDial()
-              │         └─── Buscar otros peers en la sala
-              │
-              └─── callPeer(peerId)
-                        └─── peer.call(peerId, localStream)
-                                  └─── Establecer conexión WebRTC
+              └─── Establecer conexión WebRTC con cada participante
+                        └─── Transmitir stream de audio P2P
 ```
-
-### Servidores PeerJS
-
-**Configuración Actual** (servidores públicos):
-```javascript
-const peerConfigs = [
-  {
-    host: 'peerjs.com',
-    port: 443,
-    secure: true,
-    path: '/peerjs'
-  },
-  {
-    host: '0.peerjs.com',
-    port: 443,
-    secure: true,
-    path: '/peerjs'
-  },
-  {
-    host: '1.peerjs.com',
-    port: 443,
-    secure: true,
-    path: '/peerjs'
-  }
-];
-```
-
-**Sistema de Respaldo**: Si un servidor falla, automáticamente intenta con el siguiente.
 
 ### STUN Servers
 
@@ -930,19 +893,19 @@ iceServers: [
 1. **Inicialización**
    - Unity llama a `initVoiceCall(roomId, actorId)`
    - JavaScript solicita acceso al micrófono
-   - Se crea un Peer con ID único: `{roomId}_{actorId}`
+   - Se configura el cliente de voz con ID único: `{roomId}_{actorId}`
 
 2. **Conexión**
-   - Peer se conecta al servidor PeerJS
-   - Se obtiene un Peer ID único
-   - Se notifica a Unity con `OnVoiceReady(peerId)`
+   - El cliente se conecta al servicio de voz (LiveKit / WebRTC)
+   - Se obtiene un ID único
+   - Se notifica a Unity con `OnVoiceReady(id)`
 
 3. **Descubrimiento**
-   - Sistema busca automáticamente otros peers en la sala
+   - Sistema busca automáticamente otros participantes en la sala
    - Intenta conectar con IDs: `{roomId}_1`, `{roomId}_2`, etc.
 
 4. **Llamadas**
-   - Cuando se encuentra un peer, se establece una llamada WebRTC
+   - Cuando se encuentra un participante, se establece una llamada WebRTC
    - El stream de audio se transmite P2P
    - Se crea un elemento `<audio>` para reproducir el stream remoto
 
@@ -955,7 +918,7 @@ iceServers: [
 El sistema incluye logs detallados en la consola del navegador:
 - ✅ Inicialización del sistema
 - ✅ Obtención del micrófono
-- ✅ Conexión a PeerJS
+- ✅ Conexión al servicio de voz
 - ✅ Llamadas entrantes/salientes
 - ✅ Streams de audio
 - ✅ Errores y advertencias
@@ -1112,17 +1075,17 @@ El sistema evalúa automáticamente:
 
 2. JavaScript inicializa audio
    ├─── Solicitar acceso al micrófono
-   ├─── Crear Peer con ID único
-   ├─── Conectar a servidor PeerJS
-   └─── Notificar a Unity: OnVoiceReady(peerId)
+   ├─── Configurar cliente de voz con ID único
+   ├─── Conectar a servicio de voz (LiveKit / WebRTC)
+   └─── Notificar a Unity: OnVoiceReady(id)
 
-3. Búsqueda automática de peers
+3. Búsqueda automática de participantes
    ├─── Sistema busca otros jugadores en la sala
    ├─── Intenta conectar con cada uno
    └─── Establece llamadas WebRTC
 
 4. Comunicación de voz
-   ├─── Stream de micrófono → PeerJS → Otros jugadores
+   ├─── Stream de micrófono → Servicio de voz → Otros jugadores
    ├─── Streams remotos → Elementos <audio> → Altavoces
    └─── Indicadores visuales muestran audio activo
 ```
@@ -1305,7 +1268,7 @@ docker run -p 8000:8000 juiciosorales
 
 ### Seguridad de Unity
 
-- **HTTPS Requerido**: Para WebRTC y PeerJS
+- **HTTPS Requerido**: Para WebRTC (voz y datos en tiempo real)
 - **Token Validation**: Verificación de JWT en cada request
 - **Origin Validation**: Verificación de origen de requests
 
@@ -1341,10 +1304,10 @@ php artisan config:clear
 - Asegurar que se accede vía HTTPS (o localhost)
 - Verificar que no hay otros programas usando el micrófono
 
-#### 5. Error: "PeerJS connection failed"
+#### 5. Error: "Conexión de voz fallida"
 **Solución**:
 - Verificar conexión a internet
-- Verificar que los servidores PeerJS están disponibles
+- Verificar que el servicio de voz (LiveKit / WebRTC) está disponible
 - Revisar logs en consola del navegador
 
 #### 6. Error: "Rol vacío" en Unity
@@ -1366,7 +1329,7 @@ tail -f storage/logs/laravel.log
 
 #### Navegador Console
 - F12 → Console
-- Ver logs detallados de PeerJS y Unity
+- Ver logs detallados de audio/voz y Unity
 
 ---
 
