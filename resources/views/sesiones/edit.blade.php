@@ -198,6 +198,72 @@
             </div>
         </div>
 
+        @if(!empty($puedeGestionar))
+        <!-- Panel de control: solo instructor o admin -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            Panel de control (instructor/admin)
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <h6 class="text-muted mb-2"><i class="bi bi-people-fill me-1"></i> Conectados</h6>
+                                @if(isset($conectados) && $conectados->isNotEmpty())
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach($conectados as $u)
+                                            <li><span class="badge bg-success me-1">●</span> {{ $u->name }} ({{ $u->email }})</li>
+                                        @endforeach
+                                    </ul>
+                                    <small class="text-muted">{{ $conectados->count() }} conectado(s)</small>
+                                @else
+                                    <p class="mb-0 text-muted">Nadie conectado en la sala Unity</p>
+                                @endif
+                            </div>
+                            <div class="col-md-4">
+                                <h6 class="text-muted mb-2"><i class="bi bi-clock me-1"></i> Duración de la sesión</h6>
+                                <p class="mb-0">{{ $duracionSesion ?? '—' }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6 class="text-muted mb-2"><i class="bi bi-graph-up me-1"></i> Progreso del diálogo</h6>
+                                @if(!empty($progresoDialogo))
+                                    <div class="mb-1">
+                                        <div class="d-flex justify-content-between small">
+                                            <span>{{ $progresoDialogo['nodos_visitados'] ?? 0 }} / {{ $progresoDialogo['total_nodos'] ?? 0 }} nodos</span>
+                                            <span>{{ number_format($progresoDialogo['porcentaje'] ?? 0, 0) }}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar" role="progressbar" style="width: {{ min(100, $progresoDialogo['porcentaje'] ?? 0) }}%"></div>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Nodo actual: {{ $progresoDialogo['nodo_actual'] ?? '—' }}</small>
+                                    @if(!empty($progresoDialogo['tiempo_dialogo']))
+                                        <br><small class="text-muted">Tiempo en diálogo: {{ $progresoDialogo['tiempo_dialogo'] }}</small>
+                                    @endif
+                                @else
+                                    <p class="mb-0 text-muted">Sin diálogo en curso</p>
+                                @endif
+                            </div>
+                            @if(!empty($sesionDialogoActivo))
+                            <div class="col-12 pt-2 border-top">
+                                <button type="button" class="btn btn-outline-danger" id="btn-reiniciar-dialogo">
+                                    <i class="bi bi-arrow-counterclockwise me-2"></i>
+                                    Reiniciar diálogo al inicio
+                                </button>
+                                <small class="text-muted ms-2">El diálogo volverá al primer nodo. Solo instructor/admin.</small>
+                            </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+
         <!-- Asignación de Roles del Diálogo -->
         <div class="row mb-4">
             <div class="col-12">
@@ -399,5 +465,38 @@ function asignarEstudiante(rolId) {
     // Implementar lógica para asignar estudiante
     console.log('Asignar estudiante al rol:', rolId);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var btnReiniciar = document.getElementById('btn-reiniciar-dialogo');
+    if (btnReiniciar) {
+        btnReiniciar.addEventListener('click', function() {
+            if (!confirm('¿Reiniciar el diálogo al inicio? El progreso actual se perderá y todos los clientes Unity verán el diálogo desde el principio.')) return;
+            btnReiniciar.disabled = true;
+            fetch('{{ route("sesiones.reiniciar-dialogo", $sesion) }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    alert(data.message || 'Diálogo reiniciado.');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'No se pudo reiniciar'));
+                    btnReiniciar.disabled = false;
+                }
+            })
+            .catch(function(err) {
+                console.error(err);
+                alert('Error al reiniciar el diálogo');
+                btnReiniciar.disabled = false;
+            });
+        });
+    }
+});
 </script>
 @endsection

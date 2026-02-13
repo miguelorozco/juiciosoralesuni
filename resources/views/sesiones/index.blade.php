@@ -60,6 +60,7 @@
                                         <div class="d-flex gap-2">
                                             <a href="{{ route('sesiones.show', $item) }}" class="btn btn-sm btn-outline-info">Ver</a>
                                             @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                            <a href="{{ route('sesiones.progreso', $item) }}" class="btn btn-sm btn-outline-secondary" title="Ver progreso del diálogo">Progreso</a>
                                             <a href="{{ route('sesiones.edit', $item) }}" class="btn btn-sm btn-outline-warning">Editar</a>
                                             @endif
                                         </div>
@@ -280,7 +281,7 @@
                                         </td>
                                         <td>
                                             <span class="badge bg-info">
-                                                {{ $sesion->participantes_count ?? 0 }} / {{ $sesion->max_participantes ?? '∞' }}
+                                                {{ $sesion->max_participantes ?? '∞' }}
                                             </span>
                                         </td>
                                         <td>
@@ -297,6 +298,11 @@
                                                     <i class="bi bi-eye"></i>
                                                 </a>
                                                 @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                                <a href="{{ route('sesiones.progreso', $sesion) }}" 
+                                                   class="btn btn-outline-secondary" 
+                                                   title="Ver progreso del diálogo">
+                                                    <i class="bi bi-graph-up-arrow"></i>
+                                                </a>
                                                 <a href="{{ route('sesiones.edit', $sesion) }}" 
                                                    class="btn btn-outline-warning" 
                                                    title="Editar">
@@ -355,7 +361,7 @@
                                                 </div>
                                                 <div class="col-6">
                                                     <small class="text-muted d-block">Participantes</small>
-                                                    <strong>{{ $sesion->participantes_count ?? 0 }}/{{ $sesion->max_participantes ?? '∞' }}</strong>
+                                                    <strong>{{ $sesion->max_participantes ?? '∞' }}</strong>
                                                 </div>
                                             </div>
                                             <hr>
@@ -372,6 +378,11 @@
                                                     Ver
                                                 </a>
                                                 @if(auth()->user()->tipo === 'admin' || auth()->user()->tipo === 'instructor')
+                                                <a href="{{ route('sesiones.progreso', $sesion) }}" 
+                                                   class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi bi-graph-up-arrow me-1"></i>
+                                                    Progreso
+                                                </a>
                                                 <a href="{{ route('sesiones.edit', $sesion) }}" 
                                                    class="btn btn-outline-warning btn-sm">
                                                     <i class="bi bi-pencil me-1"></i>

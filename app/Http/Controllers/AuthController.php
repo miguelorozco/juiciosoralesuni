@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cookie;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
 
@@ -205,7 +206,7 @@ class AuthController extends Controller
             Log::info('Sesión web establecida con guard "web"');
             
             Log::info('=== LOGIN WEB EXITOSO ===');
-            return response()->json([
+            $response = response()->json([
                 'success' => true,
                 'message' => 'Login exitoso',
                 'token' => $token,
@@ -216,6 +217,9 @@ class AuthController extends Controller
                     'tipo' => $user->tipo,
                 ]
             ]);
+            // Cookie con el token para que la navegación normal (full page) funcione sin depender solo de sesión
+            $response->cookie(Cookie::make('web_auth_token', $token, 60 * 24, '/', null, false, true));
+            return $response;
             
         } catch (JWTException $e) {
             Log::error('Error JWT: ' . $e->getMessage());
@@ -348,21 +352,24 @@ class AuthController extends Controller
      * 
      * Log the user out (Invalidate the token).
      */
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
         try {
-            JWTAuth::invalidate(JWTAuth::getToken());
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Logout exitoso'
-            ]);
+            $token = JWTAuth::getToken();
+            if ($token) {
+                JWTAuth::invalidate($token);
+            }
         } catch (JWTException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo cerrar la sesión'
-            ], 500);
+            // Token puede no existir si solo había sesión/cookie
         }
+        Cookie::queue(Cookie::forget('web_auth_token'));
+        return response()->json([
+            'success' => true,
+            'message' => 'Logout exitoso'
+        ]);
     }
 
     /**

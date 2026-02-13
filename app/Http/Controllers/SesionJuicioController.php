@@ -16,7 +16,8 @@ class SesionJuicioController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = SesionJuicio::with(['instructor', 'plantilla', 'asignaciones.usuario', 'asignaciones.rol']);
+            $query = SesionJuicio::withCount('asignaciones')
+                ->with(['instructor', 'plantilla', 'asignaciones.usuario', 'asignaciones.rol']);
 
             // Filtros opcionales
             if ($request->has('estado')) {

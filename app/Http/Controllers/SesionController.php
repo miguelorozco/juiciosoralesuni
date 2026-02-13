@@ -9,6 +9,8 @@ use App\Models\RolDisponible;
 use App\Models\DialogoV2;
 use App\Models\NodoDialogoV2;
 use App\Models\SesionDialogoV2;
+use App\Models\DecisionDialogoV2;
+use App\Models\UnityRoom;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use App\Services\ProcesamientoAutomaticoService;
@@ -333,7 +335,32 @@ class SesionController extends Controller
     public function show(SesionJuicio $sesion)
     {
         $sesion->load(['instructor', 'asignaciones.usuario', 'asignaciones.rolDisponible']);
-        return view('sesiones.show', compact('sesion'));
+
+        $conectadosIds = [];
+        $room = UnityRoom::salaActivaParaSesion($sesion->id, $sesion->unity_room_id);
+        if ($room && !empty($room->participantes_activos)) {
+            $conectadosIds = array_map('intval', array_keys($room->participantes_activos));
+        }
+
+        return view('sesiones.show', compact('sesion', 'conectadosIds'));
+    }
+
+    /**
+     * Mostrar progreso / timeline de decisiones de la sesión (solo admin e instructores).
+     */
+    public function progreso(SesionJuicio $sesion)
+    {
+        $user = auth()->user();
+        if (!in_array($user->tipo, ['admin', 'instructor'], true)) {
+            abort(403, 'No tienes permiso para ver el progreso de esta sesión.');
+        }
+
+        $decisiones = DecisionDialogoV2::whereHas('sesionDialogo', fn ($q) => $q->where('sesion_id', $sesion->id))
+            ->with(['usuario', 'rol', 'nodoDialogo'])
+            ->orderBy('created_at')
+            ->get();
+
+        return view('sesiones.progreso', compact('sesion', 'decisiones'));
     }
     
     /**
@@ -521,12 +548,102 @@ class SesionController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Panel de control (solo visible para admin o instructor de la sesión)
+        $puedeGestionar = auth()->check() && $sesion->puedeSerGestionadaPor(auth()->user());
+        $conectados = collect();
+        $duracionSesion = null;
+        $progresoDialogo = null;
+        $sesionDialogoActivo = null;
+
+        if ($puedeGestionar) {
+            $room = UnityRoom::salaActivaParaSesion($sesion->id, $sesion->unity_room_id);
+            if ($room && !empty($room->participantes_activos)) {
+                $ids = array_map('intval', array_keys($room->participantes_activos));
+                $conectados = User::whereIn('id', $ids)->get(['id', 'name', 'email']);
+            }
+
+            $sesionDialogoActivo = SesionDialogoV2::where('sesion_id', $sesion->id)
+                ->whereIn('estado', ['iniciado', 'en_curso', 'pausado'])
+                ->with(['nodoActual', 'dialogo'])
+                ->first();
+
+            if ($sesion->fecha_inicio) {
+                $fin = $sesion->fecha_fin ?? now();
+                $duracionSesion = Carbon::parse($sesion->fecha_inicio)->diffForHumans($fin, true);
+            }
+
+            if ($sesionDialogoActivo) {
+                $prog = $sesionDialogoActivo->configuracion['progreso'] ?? null;
+                $progresoDialogo = [
+                    'porcentaje' => $prog['porcentaje'] ?? 0,
+                    'nodos_visitados' => $prog['nodos_visitados'] ?? 0,
+                    'total_nodos' => $prog['total_nodos'] ?? 0,
+                    'nodo_actual' => $sesionDialogoActivo->nodoActual?->titulo ?? '—',
+                    'estado' => $sesionDialogoActivo->estado,
+                ];
+                if ($sesionDialogoActivo->fecha_inicio) {
+                    $progresoDialogo['tiempo_dialogo'] = Carbon::parse($sesionDialogoActivo->fecha_inicio)->diffForHumans(now(), true);
+                }
+            }
+        }
+
         return view('sesiones.edit', compact(
             'sesion', 'roles', 'participantesDisponibles', 'asignaciones',
             'dialogoActivo', 'dialogos', 'dialogoId',
             'rolesConDecision', 'conteoNodosPorRol',
-            'instructoresDisponibles'
+            'instructoresDisponibles',
+            'puedeGestionar', 'conectados', 'duracionSesion', 'progresoDialogo', 'sesionDialogoActivo'
         ));
+    }
+
+    /**
+     * Reiniciar el diálogo de la sesión al nodo inicial (solo admin o instructor).
+     */
+    public function reiniciarDialogo(Request $request, SesionJuicio $sesion): JsonResponse
+    {
+        if (!auth()->check() || !$sesion->puedeSerGestionadaPor(auth()->user())) {
+            return response()->json(['success' => false, 'message' => 'No autorizado. Solo el instructor o un administrador pueden reiniciar el diálogo.'], 403);
+        }
+
+        $sesionDialogo = SesionDialogoV2::where('sesion_id', $sesion->id)->with('dialogo')->first();
+        if (!$sesionDialogo) {
+            return response()->json(['success' => false, 'message' => 'No hay un diálogo configurado para esta sesión.'], 404);
+        }
+
+        $nodoInicial = $sesionDialogo->dialogo->nodo_inicial ?? $sesionDialogo->dialogo->nodos()->orderBy('orden')->first();
+        if (!$nodoInicial) {
+            return response()->json(['success' => false, 'message' => 'El diálogo no tiene nodo inicial definido.'], 400);
+        }
+
+        // Eliminar decisiones previas para que el progreso/timeline refleje solo la nueva ejecución
+        DecisionDialogoV2::where('sesion_dialogo_id', $sesionDialogo->id)->delete();
+
+        $config = $sesionDialogo->configuracion ?? [];
+        $variablesIniciales = $config['variables_iniciales'] ?? ($sesionDialogo->dialogo->configuracion['variables_iniciales'] ?? []);
+
+        $sesionDialogo->update([
+            'estado' => 'en_curso',
+            'nodo_actual_id' => $nodoInicial->id,
+            'fecha_inicio' => now(),
+            'fecha_fin' => null,
+            'historial_nodos' => [],
+            'variables' => $variablesIniciales,
+            'configuracion' => array_merge($config, [
+                'progreso' => [
+                    'nodos_visitados' => 0,
+                    'total_nodos' => $sesionDialogo->dialogo->nodos()->count(),
+                    'porcentaje' => 0,
+                    'tiempo_transcurrido' => 0,
+                ],
+            ]),
+        ]);
+
+        Log::info('Sesión diálogo reiniciado desde la web', ['sesion_id' => $sesion->id, 'sesion_dialogo_id' => $sesionDialogo->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Diálogo reiniciado al inicio. El progreso se ha restablecido.',
+        ]);
     }
 
     /**

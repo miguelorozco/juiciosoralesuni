@@ -175,16 +175,6 @@
                                                    title="Editar">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
-                                                <form action="{{ route('roles.toggle-activo', $rol) }}" 
-                                                      method="POST" 
-                                                      class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" 
-                                                            class="btn btn-outline-{{ $rol->activo ? 'secondary' : 'success' }}" 
-                                                            title="{{ $rol->activo ? 'Desactivar' : 'Activar' }}">
-                                                        <i class="bi bi-{{ $rol->activo ? 'pause' : 'play' }}"></i>
-                                                    </button>
-                                                </form>
                                                 <form action="{{ route('roles.destroy', $rol) }}" 
                                                       method="POST" 
                                                       class="d-inline"
@@ -247,15 +237,6 @@
                                                     <i class="bi bi-pencil me-1"></i>
                                                     Editar
                                                 </a>
-                                                <form action="{{ route('roles.toggle-activo', $rol) }}" 
-                                                      method="POST" 
-                                                      class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" 
-                                                            class="btn btn-outline-{{ $rol->activo ? 'secondary' : 'success' }} btn-sm">
-                                                        <i class="bi bi-{{ $rol->activo ? 'pause' : 'play' }}"></i>
-                                                    </button>
-                                                </form>
                                             </div>
                                         </div>
                                     </div>

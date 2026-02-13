@@ -217,6 +217,7 @@ Route::middleware('auth:api')->group(function () {
     // Estas rutas aceptan autenticación web (sesiones)
     // ========================================
     Route::group(['prefix' => 'estadisticas', 'middleware' => ['web', 'web.auth']], function () {
+        Route::match(['get', 'post'], '/debug-log', [EstadisticasController::class, 'debugLog']);
         Route::get('/dashboard', [EstadisticasController::class, 'dashboard']);
         Route::get('/top-instructores', [EstadisticasController::class, 'topInstructores']);
         Route::get('/actividad-reciente', [EstadisticasController::class, 'actividadReciente']);

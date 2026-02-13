@@ -35,66 +35,37 @@
         (function() {
             console.log('🔐 Sistema de autenticación inicializado');
             
-            // Interceptar todas las peticiones para incluir el token
+            // Incluir token en peticiones same-origin (incluye /api/) para que estadísticas y demás funcionen
             const originalFetch = window.fetch;
             window.fetch = function(url, options = {}) {
                 const token = localStorage.getItem('auth_token');
-                if (token && typeof url === 'string' && url.startsWith('/') && !url.startsWith('/api/')) {
+                if (token && typeof url === 'string' && url.startsWith('/')) {
                     if (!options.headers) {
                         options.headers = {};
                     }
-                    options.headers['Authorization'] = `Bearer ${token}`;
+                    options.headers['Authorization'] = 'Bearer ' + token;
                     options.headers['X-Requested-With'] = 'XMLHttpRequest';
                 }
                 return originalFetch(url, options);
             };
             
-            // Interceptar navegación para mantener autenticación
-            document.addEventListener('click', function(e) {
-                const link = e.target.closest('a');
-                if (link && link.href && link.href.startsWith(window.location.origin)) {
-                    e.preventDefault();
-                    const url = link.href;
-                    const token = localStorage.getItem('auth_token');
-                    
-                    if (token) {
-                        console.log('🔄 Navegando con token:', url);
-                        fetch(url, {
-                            method: 'GET',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                            }
-                        }).then(response => {
-                            if (response.ok) {
-                                return response.text();
-                            }
-                            throw new Error('Error en respuesta');
-                        }).then(html => {
-                            document.open();
-                            document.write(html);
-                            document.close();
-                            history.pushState(null, '', url);
-                        }).catch(() => {
-                            console.log('⚠️ Fallback a navegación normal');
-                            window.location.href = url;
-                        });
-                    } else {
-                        console.log('❌ No hay token, redirigiendo a login');
-                        window.location.href = '/login';
-                    }
-                }
-            });
+            // No interceptar clics en enlaces: navegación siempre normal (full page) para que sesión y menú funcionen bien.
             
-            // Verificar autenticación al cargar la página
+            // Verificar autenticación al cargar la página (solo cuando se usa token JWT)
+            // En /estadisticas no se verifica token para evitar cualquier redirección o efecto secundario.
             window.addEventListener('load', function() {
+                var path = window.location.pathname || '';
+                if (path === '/estadisticas') {
+                    console.log('[ESTADISTICAS] Layout: evento load disparado (sin verificación de token)');
+                    fetch('/api/estadisticas/debug-log?event=layout_load_estadisticas', { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }).catch(function() {});
+                    return;
+                }
                 const token = localStorage.getItem('auth_token');
-                if (!token && !window.location.pathname.includes('/login')) {
-                    console.log('❌ No hay token, redirigiendo a login');
-                    window.location.href = '/login';
-                } else if (token && !window.location.pathname.includes('/login')) {
-                    // Si hay token pero no estamos en login, verificar autenticación
+                if (window.location.pathname.includes('/login')) {
+                    return;
+                }
+                if (token) {
+                    // Verificar que el token siga siendo válido
                     console.log('🔍 Verificando autenticación con token...');
                     fetch('/api/auth/me', {
                         headers: {
@@ -104,7 +75,6 @@
                     }).then(response => {
                         if (response.ok) {
                             console.log('✅ Token válido, usuario autenticado');
-                            // Re-autenticar al usuario en Laravel usando el token
                             fetch(window.location.href, {
                                 method: 'GET',
                                 headers: {
@@ -122,16 +92,22 @@
                                 console.log('⚠️ Error re-autenticando, pero continuando...');
                             });
                         } else {
-                            console.log('❌ Token inválido, redirigiendo a login');
+                            // Token inválido o caducado: solo limpiar; no redirigir.
+                            console.log('⚠️ Token inválido o caducado, se elimina. La sesión web sigue activa.');
+                            if (path === '/estadisticas') {
+                                fetch('/api/estadisticas/debug-log?event=token_verificacion_fallo_no_redirect', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).catch(function() {});
+                            }
                             localStorage.removeItem('auth_token');
-                            window.location.href = '/login';
                         }
                     }).catch(() => {
-                        console.log('❌ Error verificando token, redirigiendo a login');
+                        console.log('⚠️ Error verificando token, se elimina. La sesión web sigue activa.');
+                        if (path === '/estadisticas') {
+                            fetch('/api/estadisticas/debug-log?event=token_verificacion_error_red_no_redirect', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).catch(function() {});
+                        }
                         localStorage.removeItem('auth_token');
-                        window.location.href = '/login';
                     });
                 }
+                // Sin token: no redirigir; el servidor ya validó la sesión al servir la página
             });
             
             console.log('✅ Interceptor de autenticación configurado');
@@ -175,7 +151,7 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>Perfil</a></li>
-                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Configuración</a></li>
+                        {{-- <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Configuración</a></li> --}}
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <form method="POST" action="/logout" class="d-inline">

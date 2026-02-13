@@ -80,6 +80,25 @@ class UnityRoom extends Model
     }
 
     /**
+     * Obtiene la sala que debe usarse para mostrar conectados de una sesión.
+     * Prioriza: (1) sala indicada por room_id en la sesión, (2) sala activa/pausada, (3) última sala por id.
+     */
+    public static function salaActivaParaSesion(int $sesionId, ?string $sesionUnityRoomId = null): ?self
+    {
+        if ($sesionUnityRoomId && str_starts_with($sesionUnityRoomId, 'room_')) {
+            $byRoomId = self::where('room_id', $sesionUnityRoomId)->first();
+            if ($byRoomId) {
+                return $byRoomId;
+            }
+        }
+        return self::where('sesion_juicio_id', $sesionId)
+            ->whereIn('estado', ['activa', 'pausada'])
+            ->orderByDesc('ultima_actividad')
+            ->first()
+            ?? self::porSesion($sesionId)->orderByDesc('id')->first();
+    }
+
+    /**
      * Accessors
      */
     public function getEstaActivaAttribute(): bool

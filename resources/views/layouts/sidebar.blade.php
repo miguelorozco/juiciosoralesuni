@@ -30,7 +30,7 @@
     @endif
 
     <!-- Estadísticas -->
-    <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('estadisticas.*') ? 'bg-primary text-white' : 'text-dark' }}" 
+    <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('estadisticas') ? 'bg-primary text-white' : 'text-dark' }}" 
        href="/estadisticas">
         <i class="bi bi-graph-up me-3 fs-5"></i>
         <span class="fw-medium">Estadísticas</span>
@@ -39,12 +39,14 @@
     <!-- Separador -->
     <hr class="my-3">
 
-    <!-- Configuración -->
+    {{-- Configuración (oculto por el momento) --}}
+    {{--
     <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('configuracion.*') ? 'bg-primary text-white' : 'text-dark' }}" 
        href="/configuracion">
         <i class="bi bi-gear me-3 fs-5"></i>
         <span class="fw-medium">Configuración</span>
     </a>
+    --}}
 
     <!-- Perfil -->
     <a class="nav-link d-flex align-items-center py-3 px-3 rounded-3 mb-2 {{ request()->routeIs('profile.*') ? 'bg-primary text-white' : 'text-dark' }}" 

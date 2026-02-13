@@ -3,7 +3,16 @@
 @section('title', 'Estadísticas - Simulador de Juicios Orales')
 
 @section('content')
-<div x-data="estadisticasManager()" class="container-fluid py-4">
+<script>
+(function() {
+    console.log('[ESTADISTICAS] Vista: script ejecutado (DOM listo para estadísticas)');
+    fetch('/api/estadisticas/debug-log?event=vista_estadisticas_script_ejecutado', { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }).catch(function() {});
+})();
+</script>
+<div x-data="estadisticasManager()" class="container-fluid py-4" x-init="
+    console.log('[ESTADISTICAS] Alpine init ejecutado');
+    fetch('/api/estadisticas/debug-log?event=alpine_init_estadisticas', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } }).catch(function() {});
+">
     <!-- Header Principal -->
     <div class="row mb-4">
         <div class="col-12">
@@ -169,74 +178,78 @@
         </div>
     </div>
 
-    <!-- Estadísticas Detalladas -->
+    <!-- Estadísticas Detalladas: solo se muestran si hay datos reales -->
     <div class="row mb-4">
-        <!-- Top Instructores -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark">
-                        <i class="bi bi-trophy me-2 text-warning"></i>
-                        Top Instructores
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="space-y-3">
-                        <template x-for="(instructor, index) in topInstructores" :key="instructor.id">
-                            <div class="d-flex align-items-center">
-                                <div class="flex-shrink-0 me-3">
-                                    <div class="bg-warning bg-opacity-10 rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                        <span class="fw-bold text-warning" x-text="index + 1"></span>
+        <!-- Top Instructores (solo si hay instructores con sesiones) -->
+        <template x-if="topInstructores && topInstructores.length > 0">
+            <div class="col-lg-6 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 py-3">
+                        <h5 class="card-title mb-0 fw-bold text-dark">
+                            <i class="bi bi-trophy me-2 text-warning"></i>
+                            Top Instructores
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="space-y-3">
+                            <template x-for="(instructor, index) in topInstructores" :key="instructor.id">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-shrink-0 me-3">
+                                        <div class="bg-warning bg-opacity-10 rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                            <span class="fw-bold text-warning" x-text="index + 1"></span>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-semibold text-dark" x-text="instructor.name"></div>
+                                        <div class="text-muted small">
+                                            <span x-text="instructor.sesiones_count"></span> sesiones •
+                                            <span x-text="instructor.participantes_count"></span> participantes
+                                        </div>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <div class="text-end">
+                                            <div class="fw-bold text-dark" x-text="(instructor.puntuacion_promedio ?? 0) + '/10'"></div>
+                                            <div class="text-muted small">Promedio</div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="flex-grow-1">
-                                    <div class="fw-semibold text-dark" x-text="instructor.name"></div>
-                                    <div class="text-muted small">
-                                        <span x-text="instructor.sesiones_count"></span> sesiones • 
-                                        <span x-text="instructor.participantes_count"></span> participantes
-                                    </div>
-                                </div>
-                                <div class="flex-shrink-0">
-                                    <div class="text-end">
-                                        <div class="fw-bold text-dark" x-text="instructor.puntuacion_promedio + '/10'"></div>
-                                        <div class="text-muted small">Promedio</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </template>
 
-        <!-- Actividad Reciente -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0 fw-bold text-dark">
-                        <i class="bi bi-activity me-2 text-info"></i>
-                        Actividad Reciente
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="space-y-3" style="max-height: 400px; overflow-y: auto;">
-                        <template x-for="actividad in actividadReciente" :key="actividad.id">
-                            <div class="d-flex align-items-start">
-                                <div class="flex-shrink-0 me-3">
-                                    <div class="bg-info bg-opacity-10 rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                                        <i class="bi bi-circle-fill text-info" style="font-size: 8px;"></i>
+        <!-- Actividad Reciente (solo si hay actividad) -->
+        <template x-if="actividadReciente && actividadReciente.length > 0">
+            <div class="col-lg-6 mb-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 py-3">
+                        <h5 class="card-title mb-0 fw-bold text-dark">
+                            <i class="bi bi-activity me-2 text-info"></i>
+                            Actividad Reciente
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="space-y-3" style="max-height: 400px; overflow-y: auto;">
+                            <template x-for="actividad in actividadReciente" :key="actividad.id">
+                                <div class="d-flex align-items-start">
+                                    <div class="flex-shrink-0 me-3">
+                                        <div class="bg-info bg-opacity-10 rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                            <i class="bi bi-circle-fill text-info" style="font-size: 8px;"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="text-dark small" x-text="actividad.descripcion"></div>
+                                        <div class="text-muted small" x-text="formatTime(actividad.fecha)"></div>
                                     </div>
                                 </div>
-                                <div class="flex-grow-1">
-                                    <div class="text-dark small" x-text="actividad.descripcion"></div>
-                                    <div class="text-muted small" x-text="formatTime(actividad.fecha)"></div>
-                                </div>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </template>
     </div>
 
     <!-- Tabla de Rendimiento por Sesión -->
@@ -296,12 +309,17 @@
                                             <span x-text="sesion.duracion || '0h 0m'"></span>
                                         </td>
                                         <td>
-                                            <div class="d-flex align-items-center">
-                                                <span class="fw-semibold me-2" x-text="sesion.puntuacion_promedio || '0'"></span>
-                                                <div class="progress" style="width: 60px; height: 6px;">
-                                                    <div class="progress-bar bg-success" :style="`width: ${(sesion.puntuacion_promedio || 0) * 10}%`"></div>
+                                            <template x-if="sesion.puntuacion_promedio != null">
+                                                <div class="d-flex align-items-center">
+                                                    <span class="fw-semibold me-2" x-text="sesion.puntuacion_promedio"></span>
+                                                    <div class="progress" style="width: 60px; height: 6px;">
+                                                        <div class="progress-bar bg-success" :style="'width: ' + (sesion.puntuacion_promedio * 10) + '%'"></div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </template>
+                                            <template x-if="sesion.puntuacion_promedio == null">
+                                                <span class="text-muted">—</span>
+                                            </template>
                                         </td>
                                         <td>
                                             <span class="badge" :class="{
@@ -419,27 +437,28 @@ function estadisticasManager() {
                     const data = await response.json();
                     const sesiones = data.data?.data || data.data || [];
                     
-                    // Enriquecer datos de sesiones con información calculada
+                    // Enriquecer datos de sesiones con información real (sin simulaciones)
                     this.sesionesFiltradas = sesiones.map(sesion => {
-                        // Calcular duración si hay fechas
+                        const participantes = sesion.asignaciones_count ?? sesion.participantes_count ?? (Array.isArray(sesion.asignaciones) ? sesion.asignaciones.length : 0);
                         let duracion = '0h 0m';
                         if (sesion.fecha_inicio && sesion.fecha_fin) {
                             const inicio = new Date(sesion.fecha_inicio);
                             const fin = new Date(sesion.fecha_fin);
-                            const minutos = Math.floor((fin - inicio) / (1000 * 60));
-                            const horas = Math.floor(minutos / 60);
-                            const mins = minutos % 60;
-                            duracion = `${horas}h ${mins}m`;
+                            let minutos = Math.floor((fin - inicio) / (1000 * 60));
+                            if (minutos < 0) {
+                                duracion = (sesion.estado === 'en_curso' || sesion.estado === 'programada') ? 'En curso' : '0h 0m';
+                            } else {
+                                const h = Math.floor(minutos / 60);
+                                const m = minutos % 60;
+                                duracion = h + 'h ' + m + 'm';
+                            }
                         }
-                        
-                        // Calcular puntuación promedio (simulado por ahora, basado en participantes)
-                        const participantes = sesion.participantes_count || sesion.asignaciones?.length || 0;
-                        const puntuacionPromedio = participantes > 0 ? Math.min(10, Math.max(5, participantes * 0.5 + 5)).toFixed(1) : '0';
-                        
+                        // Puntuación real: solo sesión finalizada tiene 10; en curso/programada no hay puntuación
+                        const puntuacionPromedio = sesion.estado === 'finalizada' ? 10 : null;
                         return {
                             ...sesion,
                             duracion: duracion,
-                            puntuacion_promedio: parseFloat(puntuacionPromedio),
+                            puntuacion_promedio: puntuacionPromedio,
                             participantes_count: participantes,
                             instructor: sesion.instructor || { name: 'Sin asignar' }
                         };
@@ -629,7 +648,7 @@ function estadisticasManager() {
         
         exportarTabla() {
             const csv = this.sesionesFiltradas.map(sesion => 
-                `${sesion.nombre},${sesion.instructor?.name || 'Sin asignar'},${sesion.participantes_count || 0},${sesion.duracion || '0h 0m'},${sesion.puntuacion_promedio || '0'},${sesion.estado},${this.formatDate(sesion.fecha_inicio)}`
+                `${sesion.nombre},${sesion.instructor?.name || 'Sin asignar'},${sesion.participantes_count || 0},${sesion.duracion || '0h 0m'},${sesion.puntuacion_promedio != null ? sesion.puntuacion_promedio : '—'},${sesion.estado},${this.formatDate(sesion.fecha_inicio)}`
             ).join('\n');
             
             const headers = 'Sesión,Instructor,Participantes,Duración,Puntuación Promedio,Estado,Fecha\n';

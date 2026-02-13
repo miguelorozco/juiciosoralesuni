@@ -76,20 +76,24 @@ class WebAuthMiddleware
             return $next($request);
         }
         
-        // Verificar si hay token en el header Authorization
+        // Verificar token en header Authorization o en cookie (para fetch desde estadísticas con credentials)
         $token = $request->header('Authorization');
-        Log::info('Authorization header: ' . ($token ? 'present' : 'missing'));
-        
         if ($token) {
             $token = str_replace('Bearer ', '', $token);
+        } elseif ($request->cookie('web_auth_token')) {
+            $token = $request->cookie('web_auth_token');
+            Log::info('Token tomado de cookie web_auth_token para API');
+        }
+        
+        if ($token) {
             Log::info('Token encontrado, verificando...');
-            
             try {
                 $user = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->authenticate();
-                if ($user) {
+                if ($user && $user->activo) {
                     Log::info('Token válido, usuario: ' . $user->email);
                     Auth::guard('web')->login($user);
-                    Log::info('Usuario autenticado en sesión web desde token');
+                    $request->session()->regenerate();
+                    Log::info('Usuario autenticado en sesión web desde token (API)');
                     return $next($request);
                 }
             } catch (\Exception $e) {
@@ -108,29 +112,30 @@ class WebAuthMiddleware
     
     private function handleWebAuth(Request $request, Closure $next)
     {
-        // Para rutas web, usar autenticación de sesión normal
         $isAuthenticated = Auth::check();
         $user = Auth::user();
-        
-        Log::info('=== HANDLE WEB AUTH ===');
-        Log::info('Auth::check(): ' . ($isAuthenticated ? 'true' : 'false'));
-        Log::info('Auth::user(): ' . ($user ? json_encode([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'tipo' => $user->tipo,
-            'activo' => $user->activo
-        ]) : 'null'));
-        Log::info('Has Session: ' . ($request->hasSession() ? 'true' : 'false'));
+
+        if (!$isAuthenticated && $request->cookie('web_auth_token')) {
+            try {
+                $token = $request->cookie('web_auth_token');
+                $user = \Tymon\JWTAuth\Facades\JWTAuth::setToken($token)->authenticate();
+                if ($user && $user->activo) {
+                    Auth::guard('web')->login($user, true);
+                    $request->session()->regenerate();
+                    Log::info('Usuario autenticado en ruta web desde cookie web_auth_token: ' . $user->email);
+                    return $next($request);
+                }
+            } catch (\Exception $e) {
+                Log::info('Token en cookie inválido o expirado: ' . $e->getMessage());
+            }
+        }
         
         if ($isAuthenticated && $user) {
-            // Verificar que el usuario esté activo
             if (!$user->activo) {
                 Log::warning('Usuario inactivo intentando acceder: ' . $user->email);
                 Auth::logout();
                 return redirect()->route('login')->with('error', 'Tu cuenta está inactiva');
             }
-            
             Log::info('Usuario autenticado en sesión web, continuando...');
             return $next($request);
         }

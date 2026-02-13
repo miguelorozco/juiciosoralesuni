@@ -131,7 +131,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="text-center">
-                                <div class="display-6 text-info">{{ $rol->created_at->diffInDays(now()) }}</div>
+                                <div class="display-6 text-info">{{ (int) $rol->created_at->diffInDays(now()) }}</div>
                                 <div class="text-muted">Días desde creación</div>
                             </div>
                         </div>

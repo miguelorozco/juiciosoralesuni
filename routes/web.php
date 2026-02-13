@@ -70,11 +70,13 @@ Route::middleware(['web.auth'])->group(function () {
     Route::get('/sesiones/create', [SesionController::class, 'create'])->name('sesiones.create');
     Route::post('/sesiones', [SesionController::class, 'store'])->name('sesiones.store');
     Route::get('/sesiones/{sesion}', [SesionController::class, 'show'])->name('sesiones.show');
+    Route::get('/sesiones/{sesion}/progreso', [SesionController::class, 'progreso'])->name('sesiones.progreso');
     Route::get('/sesiones/{sesion}/edit', [SesionController::class, 'edit'])->name('sesiones.edit');
     Route::put('/sesiones/{sesion}', [SesionController::class, 'update'])->name('sesiones.update');
     Route::delete('/sesiones/{sesion}', [SesionController::class, 'destroy'])->name('sesiones.destroy');
     Route::post('/sesiones/{sesion}/iniciar', [SesionController::class, 'iniciar'])->name('sesiones.iniciar');
     Route::post('/sesiones/{sesion}/finalizar', [SesionController::class, 'finalizar'])->name('sesiones.finalizar');
+    Route::post('/sesiones/{sesion}/reiniciar-dialogo', [SesionController::class, 'reiniciarDialogo'])->name('sesiones.reiniciar-dialogo');
     
     // API endpoints para sesiones
     Route::get('/api/sesiones/{sesion}/usuarios-asignados', [SesionController::class, 'getUsuariosAsignados'])->name('sesiones.usuarios-asignados');

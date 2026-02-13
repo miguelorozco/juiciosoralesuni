@@ -16,10 +16,12 @@
                     <p class="text-muted mb-0">{{ $sesion->descripcion }}</p>
                 </div>
                 <div>
+                    @if(auth()->check() && $sesion->puedeSerGestionadaPor(auth()->user()))
                     <a href="{{ route('sesiones.edit', $sesion) }}" class="btn btn-outline-primary me-2">
                         <i class="bi bi-pencil-square me-2"></i>
                         Editar
                     </a>
+                    @endif
                     <a href="{{ route('sesiones.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-2"></i>
                         Volver
@@ -127,6 +129,9 @@
                     @if($sesion->asignaciones->count() > 0)
                         <div class="row">
                             @foreach($sesion->asignaciones as $asignacion)
+                                @php
+                                    $estaConectado = $asignacion->usuario && in_array((int) $asignacion->usuario->id, $conectadosIds ?? [], true);
+                                @endphp
                                 <div class="col-md-6 col-lg-4 mb-3">
                                     <div class="card border-left-primary">
                                         <div class="card-body">
@@ -137,7 +142,7 @@
                                                 <div class="flex-grow-1 ms-3">
                                                     <h6 class="mb-1">{{ $asignacion->rolDisponible->nombre }}</h6>
                                                     @if($asignacion->usuario)
-                                                        <p class="mb-1 text-success">
+                                                        <p class="mb-1 {{ $estaConectado ? 'text-success' : 'text-body' }}">
                                                             <i class="bi bi-person-circle me-1"></i>
                                                             {{ $asignacion->usuario->name }}
                                                         </p>
@@ -150,10 +155,10 @@
                                                     @endif
                                                 </div>
                                                 <div class="flex-shrink-0">
-                                                    @if($asignacion->confirmado)
-                                                        <span class="badge bg-success">✅</span>
-                                                    @else
-                                                        <span class="badge bg-warning">⏳</span>
+                                                    @if($asignacion->usuario && $estaConectado)
+                                                        <span class="badge bg-success" title="Conectado en Unity"><i class="bi bi-wifi"></i> Conectado</span>
+                                                    @elseif($asignacion->confirmado)
+                                                        <span class="badge bg-secondary" title="Confirmado">✅ Confirmado</span>
                                                     @endif
                                                 </div>
                                             </div>
@@ -200,7 +205,7 @@
                                     <i class="bi bi-play-fill me-2"></i>
                                     Continuar
                                 </button>
-                            @elseif($sesion->estado === 'en_curso')
+                            @elseif($sesion->estado === 'en_curso' && auth()->check() && $sesion->puedeSerGestionadaPor(auth()->user()))
                                 <button type="button" class="btn btn-warning me-2" onclick="pausarSesion()">
                                     <i class="bi bi-pause-circle me-2"></i>
                                     Pausar
@@ -211,7 +216,7 @@
                                 </button>
                             @endif
                             
-                            @if($sesion->estado !== 'finalizada' && $sesion->estado !== 'cancelada')
+                            @if($sesion->estado !== 'finalizada' && $sesion->estado !== 'cancelada' && auth()->check() && $sesion->puedeSerGestionadaPor(auth()->user()))
                                 <button type="button" class="btn btn-outline-danger me-2" onclick="cancelarSesion()">
                                     <i class="bi bi-x-circle me-2"></i>
                                     Cancelar

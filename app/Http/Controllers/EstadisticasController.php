@@ -21,18 +21,53 @@ class EstadisticasController extends Controller
      */
     public function index(): View
     {
+        Log::info('[ESTADISTICAS] index() llamado', [
+            'path' => request()->path(),
+            'ajax' => request()->ajax(),
+            'full_page' => !request()->ajax(),
+            'has_session' => request()->hasSession(),
+            'session_id' => request()->hasSession() ? request()->session()->getId() : null,
+        ]);
+
         $user = Auth::user();
-        
+
         if (!$user) {
-            Log::warning('Intento de acceso a estadísticas sin autenticación');
+            Log::warning('[ESTADISTICAS] Redirección a login: usuario no autenticado');
             return redirect()->route('login')->with('error', 'Por favor inicia sesión para continuar');
         }
-        
-        Log::info('Acceso a estadísticas por usuario: ' . $user->email . ' (tipo: ' . $user->tipo . ')');
-        
+
+        Log::info('[ESTADISTICAS] Entregando vista', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'tipo' => $user->tipo,
+        ]);
+
         return view('estadisticas.index', [
             'user' => $user
         ]);
+    }
+
+    /**
+     * Registro de eventos desde el cliente para depuración (log en Laravel).
+     * Acepta GET (?event=) o POST (body JSON o form: event=).
+     */
+    public function debugLog(Request $request)
+    {
+        $event = $request->query('event')
+            ?? $request->input('event');
+        if ($event === null && $request->getContent()) {
+            $body = json_decode($request->getContent(), true);
+            $event = is_array($body) ? ($body['event'] ?? null) : null;
+        }
+        $event = $event ?? 'sin_evento';
+        $user = Auth::user();
+        Log::info('[ESTADISTICAS] Evento cliente', [
+            'event' => $event,
+            'user_id' => $user?->id,
+            'method' => $request->method(),
+            'path' => $request->path(),
+        ]);
+        return response()->noContent();
     }
 
     /**
@@ -140,6 +175,7 @@ class EstadisticasController extends Controller
     {
         try {
             $instructores = User::where('tipo', 'instructor')
+                ->whereHas('sesionesComoInstructor')
                 ->withCount(['sesionesComoInstructor'])
                 ->with(['sesionesComoInstructor' => function ($query) {
                     $query->withCount('asignaciones');
@@ -284,7 +320,7 @@ class EstadisticasController extends Controller
     }
     
     /**
-     * Obtener estadísticas del usuario
+     * Obtener estadísticas del usuario (datos reales)
      */
     public function usuario(): JsonResponse
     {
@@ -293,8 +329,27 @@ class EstadisticasController extends Controller
             
             $sesionesParticipadas = AsignacionRol::where('usuario_id', $usuario->id)->count();
             $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)->count();
-            $puntuacionPromedio = 8.2; // Simulado
-            $tiempoTotal = '45h 30m'; // Simulado
+
+            // Puntuación: % de sesiones finalizadas en las que participó (o que creó como instructor)
+            $asignaciones = AsignacionRol::where('usuario_id', $usuario->id)->with('sesion')->get();
+            $sesionesDondeParticipo = $asignaciones->pluck('sesion')->filter();
+            $finalizadas = $sesionesDondeParticipo->where('estado', 'finalizada')->count();
+            $totalParticipadas = $sesionesDondeParticipo->count();
+            $puntuacionPromedio = $totalParticipadas > 0
+                ? round(($finalizadas / $totalParticipadas) * 10, 1)
+                : 0;
+
+            // Tiempo total: suma de duración de sesiones donde participó (con fecha_inicio y fecha_fin)
+            $tiempoTotalMinutos = 0;
+            foreach ($asignaciones as $a) {
+                $s = $a->sesion;
+                if ($s && $s->fecha_inicio && $s->fecha_fin) {
+                    $tiempoTotalMinutos += $s->fecha_inicio->diffInMinutes($s->fecha_fin);
+                }
+            }
+            $horas = (int) floor($tiempoTotalMinutos / 60);
+            $min = $tiempoTotalMinutos % 60;
+            $tiempoTotal = $horas . 'h ' . $min . 'm';
             
             return response()->json([
                 'success' => true,
@@ -316,35 +371,59 @@ class EstadisticasController extends Controller
     }
     
     /**
-     * Obtener actividad del usuario
+     * Obtener actividad del usuario (datos reales)
      */
     public function actividadUsuario(): JsonResponse
     {
         try {
             $usuario = Auth::user();
-            
-            $actividad = collect([
-                [
-                    'id' => 1,
-                    'descripcion' => 'Participaste en la sesión "Juicio Civil"',
-                    'fecha' => now()->subHours(2)->toISOString()
-                ],
-                [
-                    'id' => 2,
-                    'descripcion' => 'Creaste la sesión "Juicio Penal"',
-                    'fecha' => now()->subDays(1)->toISOString()
-                ],
-                [
-                    'id' => 3,
-                    'descripcion' => 'Actualizaste tu perfil',
-                    'fecha' => now()->subDays(3)->toISOString()
-                ],
-                [
-                    'id' => 4,
-                    'descripcion' => 'Completaste el diálogo "Contrato Laboral"',
-                    'fecha' => now()->subDays(5)->toISOString()
-                ]
-            ]);
+            $actividad = collect();
+
+            // Participaciones en sesiones (asignaciones)
+            $asignaciones = AsignacionRol::where('usuario_id', $usuario->id)
+                ->with('sesion')
+                ->orderBy('fecha_asignacion', 'desc')
+                ->limit(15)
+                ->get();
+            foreach ($asignaciones as $a) {
+                $sesion = $a->sesion;
+                if ($sesion) {
+                    $actividad->push([
+                        'id' => 'asig_' . $a->id,
+                        'descripcion' => 'Participaste en la sesión "' . $sesion->nombre . '"',
+                        'fecha' => ($a->fecha_asignacion ?? $sesion->fecha_creacion)->toISOString(),
+                    ]);
+                }
+            }
+
+            // Sesiones creadas como instructor
+            $sesionesCreadas = SesionJuicio::where('instructor_id', $usuario->id)
+                ->orderBy('fecha_creacion', 'desc')
+                ->limit(10)
+                ->get();
+            foreach ($sesionesCreadas as $s) {
+                $actividad->push([
+                    'id' => 'sesion_' . $s->id,
+                    'descripcion' => 'Creaste la sesión "' . $s->nombre . '"',
+                    'fecha' => $s->fecha_creacion->toISOString(),
+                ]);
+            }
+
+            // Sesiones finalizadas donde participó
+            $finalizadas = AsignacionRol::where('usuario_id', $usuario->id)
+                ->with('sesion')
+                ->get()
+                ->pluck('sesion')
+                ->filter(fn ($s) => $s && $s->estado === 'finalizada' && $s->fecha_fin);
+            foreach ($finalizadas->take(5) as $s) {
+                $actividad->push([
+                    'id' => 'fin_' . $s->id,
+                    'descripcion' => 'Sesión "' . $s->nombre . '" finalizada',
+                    'fecha' => $s->fecha_fin->toISOString(),
+                ]);
+            }
+
+            $actividad = $actividad->sortByDesc('fecha')->take(20)->values();
             
             return response()->json([
                 'success' => true,

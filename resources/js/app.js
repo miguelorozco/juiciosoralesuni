@@ -352,14 +352,18 @@ window.errorHandler = {
         console.error('API Error:', error);
 
         if (error.status === 401) {
-            // No redirigir automáticamente para rutas de dialogos-v2 que usan sesión web
+            // No redirigir en dialogos-v2 (sesión web) ni en página de estadísticas (puede fallar una petición sin sacar al usuario)
             if (error.url && error.url.includes('/api/dialogos-v2/')) {
                 console.log('Error 401 en dialogos-v2, no redirigiendo automáticamente');
                 return;
             }
-            
+            if (typeof window !== 'undefined' && window.location.pathname === '/estadisticas') {
+                console.warn('Error 401 en estadísticas, no redirigiendo a login');
+                return;
+            }
             // Token expirado o no válido
             localStorage.removeItem('token');
+            localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
             window.location.href = '/login';
             return;

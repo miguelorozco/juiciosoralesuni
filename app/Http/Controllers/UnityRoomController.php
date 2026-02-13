@@ -167,6 +167,9 @@ class UnityRoomController extends Controller
             // Crear sala
             $room = UnityRoom::crearParaSesion($sesion, $user, $validated['configuracion'] ?? []);
 
+            // Vincular sala a la sesión para que la web muestre conectados correctamente
+            $sesion->update(['unity_room_id' => $room->room_id]);
+
             // Actualizar configuración si se proporciona
             if (isset($validated['max_participantes'])) {
                 $room->update(['max_participantes' => $validated['max_participantes']]);
