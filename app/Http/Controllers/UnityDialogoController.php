@@ -607,7 +607,20 @@ class UnityDialogoController extends Controller
                 'metadata' => 'nullable|array',
             ]);
 
-            $user = JWTAuth::parseToken()->authenticate();
+            // Usuario ya autenticado por UnityAuthMiddleware (JWT o token unity_entry). No usar solo JWTAuth::parseToken()
+            // porque el token unity_entry no es un JWT de 3 segmentos y lanza "Wrong number of segments".
+            $user = $request->get('unity_user');
+            if (!$user) {
+                try {
+                    $user = JWTAuth::parseToken()->authenticate();
+                } catch (\Throwable $e) {
+                    Log::warning('Unity enviar-decision: sin usuario en request ni JWT válido', ['error' => $e->getMessage()]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Token de autenticación inválido o expirado',
+                    ], 401);
+                }
+            }
             if ((int) $validated['usuario_id'] !== (int) $user->id && !$sesion->puedeSerGestionadaPor($user)) {
                 return response()->json([
                     'success' => false,
