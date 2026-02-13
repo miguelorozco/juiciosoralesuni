@@ -42,11 +42,11 @@ class UnityDialogoController extends Controller
                     'user_tipo' => $user->tipo ?? null,
                     'sesion_id' => $sesion->id,
                     'sesion_instructor_id' => $sesion->instructor_id,
-                    'motivo' => 'Solo instructor de la sesión, admin o usuario con rol Juez pueden iniciar.',
+                    'motivo' => 'Solo el instructor de la sesión o un administrador pueden iniciar.',
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'No tienes permisos para iniciar el diálogo en esta sesión. Solo el instructor de la sesión, un administrador o quien tenga el rol Juez puede iniciarlo.',
+                    'message' => 'No tienes permisos para iniciar el diálogo en esta sesión. Solo el instructor de la sesión o un administrador pueden iniciarlo.',
                 ], 403);
             }
 
@@ -166,7 +166,7 @@ class UnityDialogoController extends Controller
      *     )
      * )
      */
-    public function obtenerEstadoDialogo(SesionJuicio $sesionJuicio): JsonResponse
+    public function obtenerEstadoDialogo(Request $request, SesionJuicio $sesionJuicio): JsonResponse
     {
         $sesion = $sesionJuicio;
         try {
@@ -246,12 +246,15 @@ class UnityDialogoController extends Controller
             $rolHablando = $nodoActual->rol;
             $rolHablandoId = $rolHablando?->id ?? null;
 
-            // ¿El usuario actual (JWT) puede actuar en este nodo? (su turno O es instructor)
-            $userEstado = null;
-            try {
-                $userEstado = JWTAuth::parseToken()->authenticate();
-            } catch (\Exception $e) {
-                // Sin token o inválido
+            // ¿El usuario actual puede actuar en este nodo? (su turno O admin/instructor que puede actuar por cualquier rol)
+            // Usar usuario inyectado por middleware (unity_entry o JWT); no solo JWTAuth para no fallar con token unity_entry.
+            $userEstado = $request->get('unity_user');
+            if (!$userEstado) {
+                try {
+                    $userEstado = JWTAuth::parseToken()->authenticate();
+                } catch (\Exception $e) {
+                    // Sin token o inválido
+                }
             }
             $puedeActuar = false;
             if ($userEstado) {
@@ -392,7 +395,7 @@ class UnityDialogoController extends Controller
             $rolIdDelNodo = $sesionDialogo->nodoActual->rol_id;
             $esSuTurno = $asignacion && $asignacion->rol_id === $rolIdDelNodo;
 
-            // Puede ver opciones: es su turno (su rol es el del nodo) O es instructor (avanza por rol sin nadie o en nombre del rol)
+            // Puede ver opciones: es su turno (su rol es el del nodo) O es admin/instructor (siempre puede ver y ejecutar opciones para continuar la clase)
             $puedeActuar = $esSuTurno || $esInstructor;
 
             if (!$puedeActuar) {
@@ -649,7 +652,7 @@ class UnityDialogoController extends Controller
             if (!$puedeActuar) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No es tu turno. Solo el rol del nodo o el instructor pueden elegir una opción.',
+                    'message' => 'No es tu turno. Solo el rol del nodo o el instructor/admin pueden elegir una opción.',
                 ], 403);
             }
 

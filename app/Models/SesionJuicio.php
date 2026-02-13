@@ -209,18 +209,19 @@ class SesionJuicio extends Model
     }
 
     /**
-     * Verificar si un usuario puede gestionar esta sesión (iniciar diálogo, etc.).
-     * Pueden: admin, instructor (tipo o instructor de la sesión), o quien tenga el rol Juez en esta sesión.
+     * Verificar si un usuario puede gestionar esta sesión (iniciar diálogo, ver/ejecutar opciones por cualquier rol).
+     * Solo pueden: admin del sistema, o instructor (tipo instructor O asignado como instructor_id de esta sesión).
+     * No se considera gestor a un participante con rol Juez: es un rol de la simulación, no permiso de docente.
      */
     public function puedeSerGestionadaPor($user)
     {
         if ($user->tipo === 'admin') {
             return true;
         }
-        if ($user->tipo === 'instructor' || $this->instructor_id === $user->id) {
+        if ($user->tipo === 'instructor' || $this->instructor_id === (int) $user->id) {
             return true;
         }
-        return $this->tieneRolEnSesion($user, 'Juez');
+        return false;
     }
 
     /**
