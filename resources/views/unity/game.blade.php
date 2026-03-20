@@ -1772,14 +1772,8 @@
                             sessionId: data.data.session.id
                         });
 
-                        // Siempre usar http://localhost para la API (requerido por LiveKit y misma BD)
-                        let apiBaseUrl = 'http://localhost/api';
-                        if (typeof window !== 'undefined' && window.location?.origin) {
-                            const origin = window.location.origin;
-                            if (origin.startsWith('https://')) apiBaseUrl = 'https://localhost/api';
-                            else if (origin.startsWith('http://127.0.0.1') || origin.startsWith('http://localhost')) apiBaseUrl = 'http://localhost/api';
-                            else apiBaseUrl = origin + '/api';
-                        }
+                        // Usar siempre el origen real del navegador para las llamadas a la API
+                        let apiBaseUrl = window.location.origin + '/api';
                         const sessionPayload = {
                             user: data.data.user,
                             session: data.data.session,
