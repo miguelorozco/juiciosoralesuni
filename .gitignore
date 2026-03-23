@@ -85,3 +85,6 @@ coturn.log
 .livekit.pid
 .coturn.pid
 
+
+# phpMyAdmin temp files
+phpmyadmin/tmp/*
