@@ -43,6 +43,7 @@ namespace JuiciosSimulator.API
 
         private string BaseUrl => UnityBridgeConfig.BaseUrl;
         private string Token => UnityBridgeConfig.Token;
+        private long _cacheBustCounter;
 
         private void ApplyAuth(UnityWebRequest req)
         {
@@ -50,6 +51,9 @@ namespace JuiciosSimulator.API
                 req.SetRequestHeader("Authorization", "Bearer " + Token);
             req.SetRequestHeader("Accept", "application/json");
             req.SetRequestHeader("Content-Type", "application/json");
+            req.SetRequestHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            req.SetRequestHeader("Pragma", "no-cache");
+            req.SetRequestHeader("Expires", "0");
             // No establecer X-Unity-Version: en WebGL lo gestiona Unity y genera warning
             req.SetRequestHeader("X-Unity-Platform", Application.platform.ToString());
         }
@@ -159,12 +163,13 @@ namespace JuiciosSimulator.API
         }
 
         /// <summary>POST /api/unity/sesion/{sesionJuicio}/enviar-decision</summary>
-        public void EnviarDecision(int sesionJuicio, int usuarioId, int respuestaId, string decisionTexto, int tiempoRespuesta, Action<APIResponse<DecisionResponse>> onDone)
+        public void EnviarDecision(int sesionJuicio, int usuarioId, int respuestaId, int nodoActualId, string decisionTexto, int tiempoRespuesta, Action<APIResponse<DecisionResponse>> onDone)
         {
             var body = new DecisionRequest
             {
                 usuario_id = usuarioId,
                 respuesta_id = respuestaId,
+                nodo_actual_id = nodoActualId,
                 decision_texto = decisionTexto ?? "",
                 tiempo_respuesta = tiempoRespuesta,
                 metadata = new Dictionary<string, object>
@@ -324,8 +329,9 @@ namespace JuiciosSimulator.API
 
         private IEnumerator GetJson<T>(string url, object _, Action<APIResponse<T>> onDone)
         {
-            if (logRequests) Debug.Log("[UnityApiClient] GET " + url);
-            using (var req = UnityWebRequest.Get(url))
+            string requestUrl = AppendCacheBust(url);
+            if (logRequests) Debug.Log("[UnityApiClient] GET " + requestUrl);
+            using (var req = UnityWebRequest.Get(requestUrl))
             {
                 ApplyAuth(req);
                 yield return req.SendWebRequest();
@@ -380,6 +386,13 @@ namespace JuiciosSimulator.API
             {
                 onDone?.Invoke(new APIResponse<T> { success = false, message = e.Message });
             }
+        }
+
+        private string AppendCacheBust(string url)
+        {
+            _cacheBustCounter++;
+            string separator = url.Contains("?") ? "&" : "?";
+            return url + separator + "_cb=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + _cacheBustCounter;
         }
 
         #endregion

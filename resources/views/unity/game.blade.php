@@ -174,7 +174,7 @@
             display: none;
         }
         
-        /* Ventana de Logs de Debug: esquina superior derecha, discreta */
+        /* Ventana de Logs de Debug: solo visible en modo soporte */
         #debug-log-window {
           position: fixed;
           top: 10px;
@@ -187,11 +187,11 @@
           border: 1px solid rgba(76, 175, 80, 0.5);
           border-radius: 6px;
           z-index: 100000;
-          display: flex;
           flex-direction: column;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
           font-family: 'Courier New', monospace;
           font-size: 10px;
+          display: none;
         }
         
         #debug-log-header {
@@ -290,10 +290,66 @@
         #debug-log-content::-webkit-scrollbar-thumb:hover {
           background: #66bb6a;
         }
+
+        #unity-focus-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 10001;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at center, rgba(16, 37, 64, 0.28), rgba(4, 10, 18, 0.82)),
+                linear-gradient(135deg, rgba(0, 68, 130, 0.28), rgba(0, 0, 0, 0.55));
+            backdrop-filter: blur(8px);
+        }
+
+        #unity-focus-overlay.visible {
+            display: flex;
+        }
+
+        .focus-card {
+            width: min(92vw, 420px);
+            padding: 24px 28px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 18px;
+            background: rgba(9, 14, 22, 0.9);
+            color: #f5f7fa;
+            text-align: center;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        .focus-card h2 {
+            margin: 0 0 10px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .focus-card p {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.5;
+        }
+
+        .focus-card button {
+            margin-top: 18px;
+            padding: 12px 18px;
+            border: 0;
+            border-radius: 999px;
+            background: #1274ea;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .focus-card button:hover {
+            background: #0f66cf;
+        }
     </style>
 </head>
 <body>
-    <!-- Ventana de Logs de Debug (inicia minimizada en esquina superior derecha) -->
+    <!-- Ventana de Logs de Debug (solo visible con ?unity_debug=1) -->
     <div id="debug-log-window" class="minimized">
         <div id="debug-log-header">
             <div id="debug-log-title">📋 DEBUG LOGS</div>
@@ -468,6 +524,13 @@
 
     <div id="unity-container">
         <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-focus-overlay" aria-live="polite">
+            <div class="focus-card">
+                <h2>La simulación está fuera de foco</h2>
+                <p id="unity-focus-message">Haz clic para volver a capturar el cursor y reanudar la interacción.</p>
+                <button type="button" id="unity-focus-button">Reanudar simulación</button>
+            </div>
+        </div>
         
         <div id="unity-loading-bar">
             <div id="unity-logo"></div>
@@ -532,7 +595,8 @@
     </script>
     <script>
         // ===== SISTEMA DE LOGGING EN HTML (debe cargar antes de LiveKit/panel de voz) =====
-        let debugLogEnabled = true;
+        const UNITY_DEBUG_MODE = new URLSearchParams(window.location.search).get('unity_debug') === '1';
+        let debugLogEnabled = UNITY_DEBUG_MODE;
         let debugLogs = [];
         const MAX_LOG_ENTRIES = 1000;
 
@@ -592,7 +656,7 @@
           debugLogEnabled = !debugLogEnabled;
           const btn = document.getElementById('toggle-log-btn');
           if (btn) btn.textContent = debugLogEnabled ? 'Desactivar' : 'Activar';
-          addDebugLog('info', 'SYSTEM', `Logging ${debugLogEnabled ? 'activado' : 'desactivado'}`);
+          if (debugLogEnabled) addDebugLog('info', 'SYSTEM', 'Logging activado');
         }
 
         // Interceptar console
@@ -664,12 +728,16 @@
         window.toggleDebugLogWindow = toggleDebugLogWindow;
         window.toggleDebugLogEnabled = toggleDebugLogEnabled;
 
-        addDebugLog('info', 'SYSTEM', 'Sistema de logging inicializado');
-        addDebugLog('phase', 'INIT', 'Página cargada', {
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        });
+        const debugWindow = document.getElementById('debug-log-window');
+        if (debugWindow && UNITY_DEBUG_MODE) {
+          debugWindow.style.display = 'flex';
+          addDebugLog('info', 'SYSTEM', 'Sistema de logging inicializado');
+          addDebugLog('phase', 'INIT', 'Página cargada', {
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+          });
+        }
         // ===== FIN SISTEMA DE LOGGING =====
     </script>
     <script>
@@ -1429,10 +1497,87 @@
         var fullscreenButton = document.querySelector("#unity-fullscreen-button");
         var errorMessage = document.querySelector("#error-message");
         var errorText = document.querySelector("#error-text");
+        var focusOverlay = document.querySelector("#unity-focus-overlay");
+        var focusMessage = document.querySelector("#unity-focus-message");
+        var focusButton = document.querySelector("#unity-focus-button");
+        var focusState = {
+            hasInteracted: false,
+            canvasFocused: false,
+            documentFocused: document.hasFocus(),
+            pointerLocked: false
+        };
 
         // Mostrar loading
         loadingBar.style.display = "block";
         addDebugLog('phase', 'UNITY', 'Iniciando carga de Unity');
+
+        function sendUnityLifecycleMessage(methodName, value) {
+            if (!unityInstance || !unityInstance.SendMessage) return false;
+
+            try {
+                unityInstance.SendMessage('DialogoManager', methodName, value || '');
+                return true;
+            } catch (error) {
+                console.warn('No se pudo notificar a Unity:', methodName, error);
+                return false;
+            }
+        }
+
+        function updateFocusOverlay(visible, message) {
+            if (!focusOverlay) return;
+            focusOverlay.classList.toggle('visible', visible);
+            if (visible && focusMessage) focusMessage.textContent = message;
+        }
+
+        function requestUnityPointerLock() {
+            focusState.hasInteracted = true;
+            if (canvas && typeof canvas.focus === 'function') canvas.focus();
+
+            var requestLock = canvas && (canvas.requestPointerLock || canvas.mozRequestPointerLock);
+            if (requestLock && document.pointerLockElement !== canvas) {
+                requestLock.call(canvas);
+            }
+        }
+
+        function forceUnityDialogRefresh(reason) {
+            sendUnityLifecycleMessage('BrowserForceRefresh', reason || 'browser_focus');
+        }
+
+        function syncUnityFocusState(reason) {
+            focusState.documentFocused = document.hasFocus();
+            focusState.canvasFocused = document.activeElement === canvas;
+            focusState.pointerLocked = document.pointerLockElement === canvas;
+
+            var isInteractive = focusState.documentFocused && (focusState.pointerLocked || focusState.canvasFocused);
+            var shouldShowOverlay = focusState.hasInteracted && !isInteractive;
+
+            updateFocusOverlay(
+                shouldShowOverlay,
+                focusState.documentFocused
+                    ? 'Haz clic para volver a capturar el cursor y continuar.'
+                    : 'La ventana perdió el foco. Haz clic para volver a entrar a la simulación.'
+            );
+
+            if (isInteractive) {
+                sendUnityLifecycleMessage('BrowserFocusChanged', 'focus');
+                if (reason === 'focus' || reason === 'pointerlock') {
+                    forceUnityDialogRefresh(reason);
+                }
+            } else {
+                sendUnityLifecycleMessage('BrowserFocusChanged', 'blur');
+            }
+        }
+
+        if (focusButton) focusButton.addEventListener('click', requestUnityPointerLock);
+        if (canvas) {
+            canvas.addEventListener('click', requestUnityPointerLock);
+            canvas.addEventListener('focus', function() { syncUnityFocusState('canvas_focus'); });
+        }
+
+        window.addEventListener('focus', function() { syncUnityFocusState('focus'); });
+        window.addEventListener('blur', function() { syncUnityFocusState('blur'); });
+        document.addEventListener('visibilitychange', function() { syncUnityFocusState(document.hidden ? 'hidden' : 'visible'); });
+        document.addEventListener('pointerlockchange', function() { syncUnityFocusState('pointerlock'); });
 
         // Función banner (compatible con plantillas Unity)
         function unityShowBanner(msg, type) {
@@ -1587,6 +1732,7 @@
             
             // Configurar comunicación con Laravel
             setupLaravelCommunication();
+            syncUnityFocusState('unity_ready');
         };
 
         // Variable global para la instancia de Unity
@@ -1674,7 +1820,6 @@
                 unityInstance = instance;
                 isInitializing = false;
                 config.onSuccess();
-                setupLaravelCommunication();
             }).catch(function (message) {
                 addDebugLog('error', 'UNITY', `Error al crear instancia: ${message}`);
                 isInitializing = false;

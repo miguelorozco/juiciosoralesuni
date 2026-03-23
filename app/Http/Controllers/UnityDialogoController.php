@@ -21,6 +21,16 @@ use Tymon\JWTAuth\Exceptions\JWTException;
 
 class UnityDialogoController extends Controller
 {
+    private function noCacheJson(array $payload, int $status = 200): JsonResponse
+    {
+        return response()->json($payload, $status, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+            'Surrogate-Control' => 'no-store',
+        ]);
+    }
+
     /**
      * Iniciar diálogo en sesión (pasar estado de iniciado a en_curso).
      * POST /api/unity/sesion/{sesionJuicio}/iniciar-dialogo
@@ -217,7 +227,7 @@ class UnityDialogoController extends Controller
                 $message = $tieneDialogoAsignado
                     ? 'No hay un diálogo activo (configura uno en la web y pulsa "Iniciar diálogo" en Unity).'
                     : 'Esta sesión no tiene un diálogo asignado. Ve a la web → Sesiones → Editar esta sesión → elige "Diálogo a utilizar" y guarda.';
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => false,
                     'message' => $message,
                     'data' => $data,
@@ -232,7 +242,7 @@ class UnityDialogoController extends Controller
                     'sesion_dialogo_id' => $sesionDialogo->id,
                     'nodo_actual_id' => $sesionDialogo->nodo_actual_id,
                 ]);
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => false,
                     'message' => 'El diálogo tiene un nodo actual inválido o eliminado. Edita la sesión en la web y asigna de nuevo el diálogo o reinicia el diálogo.',
                     'data' => [
@@ -313,14 +323,14 @@ class UnityDialogoController extends Controller
                 'puede_actuar' => $puedeActuar,
             ];
 
-            return response()->json([
+            return $this->noCacheJson([
                 'success' => true,
                 'data' => $estadoUnity,
                 'message' => 'Estado del diálogo obtenido exitosamente'
             ]);
 
         } catch (\Exception $e) {
-            return response()->json([
+            return $this->noCacheJson([
                 'success' => false,
                 'message' => 'Error al obtener el estado del diálogo: ' . $e->getMessage()
             ], 500);
@@ -354,7 +364,7 @@ class UnityDialogoController extends Controller
                     $user = JWTAuth::parseToken()->authenticate();
                 } catch (\Throwable $e) {
                     Log::warning('Unity respuestas-usuario: sin usuario en request ni JWT válido', ['error' => $e->getMessage()]);
-                    return response()->json([
+                    return $this->noCacheJson([
                         'success' => false,
                         'message' => 'Token de autenticación inválido o expirado',
                         'data' => ['respuestas_disponibles' => false],
@@ -362,7 +372,7 @@ class UnityDialogoController extends Controller
                 }
             }
             if ((int) $usuarioId !== (int) $user->id && !$sesion->puedeSerGestionadaPor($user)) {
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => false,
                     'message' => 'No autorizado a consultar respuestas de otro usuario',
                     'data' => ['respuestas_disponibles' => false],
@@ -380,7 +390,7 @@ class UnityDialogoController extends Controller
                     'hay_sesion_dialogo' => (bool) $sesionDialogo,
                     'nodo_actual_id' => $sesionDialogo?->nodo_actual_id,
                 ]);
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => false,
                     'message' => 'No hay un diálogo activo',
                     'data' => [
@@ -399,7 +409,7 @@ class UnityDialogoController extends Controller
             $puedeActuar = $esSuTurno || $esInstructor;
 
             if (!$puedeActuar) {
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => true,
                     'data' => [
                         'respuestas_disponibles' => false,
@@ -412,7 +422,7 @@ class UnityDialogoController extends Controller
             }
 
             if (!$asignacion && !$esInstructor) {
-                return response()->json([
+                return $this->noCacheJson([
                     'success' => false,
                     'message' => 'Usuario no asignado a esta sesión',
                     'data' => ['respuestas_disponibles' => false, 'mensaje' => 'Usuario no asignado'],
@@ -447,7 +457,7 @@ class UnityDialogoController extends Controller
                 'nodo_id' => $sesionDialogo->nodoActual->id,
             ]);
 
-            return response()->json([
+            return $this->noCacheJson([
                 'success' => true,
                 'data' => [
                     'respuestas_disponibles' => true,
@@ -476,7 +486,7 @@ class UnityDialogoController extends Controller
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return response()->json([
+            return $this->noCacheJson([
                 'success' => false,
                 'message' => 'Error al obtener las respuestas: ' . $e->getMessage(),
                 'data' => ['respuestas_disponibles' => false],
@@ -605,6 +615,7 @@ class UnityDialogoController extends Controller
             $validated = $request->validate([
                 'usuario_id' => 'required|exists:users,id',
                 'respuesta_id' => 'required|exists:respuestas_dialogo_v2,id',
+                'nodo_actual_id' => 'nullable|integer|min:1',
                 'decision_texto' => 'nullable|string',
                 'tiempo_respuesta' => 'nullable|integer|min:0',
                 'metadata' => 'nullable|array',
@@ -643,6 +654,17 @@ class UnityDialogoController extends Controller
                 ], 404);
             }
 
+            if (!empty($validated['nodo_actual_id']) && (int) $validated['nodo_actual_id'] !== (int) $sesionDialogo->nodo_actual_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El diálogo cambió antes de enviar la decisión. Sincroniza el estado actual e inténtalo de nuevo.',
+                    'data' => [
+                        'codigo' => 'dialogo_desincronizado',
+                        'nodo_actual_id' => (int) $sesionDialogo->nodo_actual_id,
+                    ],
+                ], 409);
+            }
+
             $asignacion = $sesion->obtenerParticipantePorUsuario($validated['usuario_id']);
             $esInstructor = $sesion->puedeSerGestionadaPor($user);
             $rolIdDelNodo = $sesionDialogo->nodoActual->rol_id;
@@ -677,8 +699,12 @@ class UnityDialogoController extends Controller
             if (!$decision) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se pudo procesar la decisión'
-                ], 400);
+                    'message' => 'La opción enviada ya no corresponde al nodo actual. Se requiere sincronizar el diálogo.',
+                    'data' => [
+                        'codigo' => 'respuesta_fuera_de_nodo',
+                        'nodo_actual_id' => (int) $sesionDialogo->nodo_actual_id,
+                    ],
+                ], 409);
             }
 
             // Agregar metadata de Unity si existe

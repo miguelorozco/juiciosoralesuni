@@ -38,6 +38,8 @@ public class DialogoUIController : MonoBehaviour
 
     private DialogoManager _dialogoManager;
     private readonly List<Button> _botonesActuales = new List<Button>();
+    private const string LabelIniciarDialogo = "[1] Iniciar diálogo";
+    private const string MensajeDialogoCompletado = "Diálogo completado.";
 
     private void Awake()
     {
@@ -94,7 +96,7 @@ public class DialogoUIController : MonoBehaviour
         if (botonIniciarDialogo != null)
         {
             var btnLabel = botonIniciarDialogo.GetComponentInChildren<TMP_Text>(true);
-            if (btnLabel != null) btnLabel.text = "Iniciar diálogo";
+            if (btnLabel != null) btnLabel.text = LabelIniciarDialogo;
         }
         if (botonRespuestaPrefab == null && contenedorRespuestas != null)
         {
@@ -121,6 +123,7 @@ public class DialogoUIController : MonoBehaviour
         DialogoManager.OnEstadoActualizado += OnEstadoActualizado;
         DialogoManager.OnRespuestasDisponibles += OnRespuestasDisponibles;
         DialogoManager.OnError += OnError;
+        DialogoManager.OnInfo += OnInfo;
         DialogoManager.OnDialogoFinalizado += OnDialogoFinalizado;
 
         if (botonIniciarDialogo != null)
@@ -170,6 +173,7 @@ public class DialogoUIController : MonoBehaviour
         DialogoManager.OnEstadoActualizado -= OnEstadoActualizado;
         DialogoManager.OnRespuestasDisponibles -= OnRespuestasDisponibles;
         DialogoManager.OnError -= OnError;
+        DialogoManager.OnInfo -= OnInfo;
         DialogoManager.OnDialogoFinalizado -= OnDialogoFinalizado;
     }
 
@@ -185,13 +189,15 @@ public class DialogoUIController : MonoBehaviour
             // Sin diálogo activo: mostrar botón para poder iniciar (si hay diálogo configurado)
             if (botonIniciarDialogo != null) botonIniciarDialogo.gameObject.SetActive(true);
             bool sinAsignar = estado != null && estado.dialogo_configurado_id == 0 && string.IsNullOrEmpty(estado.dialogo_configurado_nombre);
+            bool dialogoFinalizado = estado != null && estado.estado == "finalizado";
             SetText(contenidoNodo, sinAsignar
                 ? "Esta sesión no tiene un diálogo asignado.\n\nVe a la web → Sesiones → Editar esta sesión → elige \"Diálogo a utilizar\" y guarda. Luego recarga Unity."
-                : "No hay diálogo activo. Pulsa \"Iniciar diálogo\" para comenzar.");
+                : (dialogoFinalizado ? MensajeDialogoCompletado : "No hay diálogo activo. Pulsa \"Iniciar diálogo\" para comenzar."));
             SetText(rolHablando, "");
             SetText(progreso, "");
             SetText(tiempo, "");
             SetText(mensajeTurno, "");
+            SetText(mensajeErrorOFinal, dialogoFinalizado ? MensajeDialogoCompletado : "");
             LimpiarRespuestas();
             return;
         }
@@ -224,7 +230,6 @@ public class DialogoUIController : MonoBehaviour
 
     private void Update()
     {
-        if (contenedorRespuestas == null || _botonesActuales.Count == 0) return;
         if (panelRoot != null && !panelRoot.activeInHierarchy) return;
 
         int index = -1;
@@ -233,11 +238,19 @@ public class DialogoUIController : MonoBehaviour
         else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) index = 2;
         else if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) index = 3;
 
-        if (index >= 0 && index < _botonesActuales.Count)
+        if (index < 0) return;
+
+        if (_botonesActuales.Count > 0 && index < _botonesActuales.Count)
         {
             var btn = _botonesActuales[index];
             if (btn != null && btn.interactable)
                 btn.onClick.Invoke();
+            return;
+        }
+
+        if (index == 0 && botonIniciarDialogo != null && botonIniciarDialogo.gameObject.activeInHierarchy && botonIniciarDialogo.interactable)
+        {
+            botonIniciarDialogo.onClick.Invoke();
         }
     }
 
@@ -444,9 +457,17 @@ public class DialogoUIController : MonoBehaviour
         SetText(mensajeErrorOFinal, mensaje ?? "Error");
     }
 
+    private void OnInfo(string mensaje)
+    {
+        ActualizarTextoSesionUsuario();
+        SetText(mensajeErrorOFinal, mensaje ?? "");
+    }
+
     private void OnDialogoFinalizado(bool _)
     {
-        SetText(mensajeTurno, "Diálogo finalizado.");
+        SetText(mensajeTurno, MensajeDialogoCompletado);
+        SetText(mensajeErrorOFinal, MensajeDialogoCompletado);
+        SetText(contenidoNodo, MensajeDialogoCompletado);
         LimpiarRespuestas();
     }
 

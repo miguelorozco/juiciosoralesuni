@@ -147,6 +147,7 @@ namespace JuiciosSimulator.API
     {
         public int usuario_id;
         public int respuesta_id;
+        public int nodo_actual_id;
         public string decision_texto;
         public int tiempo_respuesta;
         public Dictionary<string, object> metadata;

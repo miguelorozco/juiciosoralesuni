@@ -31,6 +31,18 @@ public class DialogoManager : MonoBehaviour
     private List<RespuestaUsuario> _respuestasActuales = new List<RespuestaUsuario>();
     private float _tiempoInicioRespuesta;
     private Coroutine _pollingCoroutine;
+    private int _estadoRequestVersion;
+    private int _ultimoEstadoProcesado;
+    private int _respuestasRequestVersion;
+    private int _ultimoRespuestasProcesadas;
+    private bool _estadoRequestEnCurso;
+    private bool _respuestasRequestEnCurso;
+    private bool _navegadorEnFoco = true;
+    private int _nodoIdDeRespuestasActuales = -1;
+    private int _respuestaPendienteId = -1;
+    private string _decisionPendienteTexto = "";
+    private int _decisionPendienteTiempo;
+    private bool _decisionPendienteEsReintento;
 
     /// <summary>Estado actual del diálogo (null si no hay o no se ha cargado).</summary>
     public DialogoEstado EstadoActual => _estadoActual;
@@ -53,6 +65,7 @@ public class DialogoManager : MonoBehaviour
     public static event Action<DialogoEstado> OnEstadoActualizado;
     public static event Action<List<RespuestaUsuario>> OnRespuestasDisponibles;
     public static event Action<string> OnError;
+    public static event Action<string> OnInfo;
     public static event Action<bool> OnDialogoFinalizado;
 
     private void Start()
@@ -101,17 +114,26 @@ public class DialogoManager : MonoBehaviour
     /// <summary>Obtiene el estado actual del diálogo del servidor.</summary>
     public void RefrescarEstado()
     {
-        if (UnityApiClient.Instance == null) return;
+        if (UnityApiClient.Instance == null || sesionJuicioId < 0 || usuarioId < 0) return;
 
-        UnityApiClient.Instance.GetDialogoEstado(sesionJuicioId, OnDialogoEstadoReceived);
+        int requestVersion = ++_estadoRequestVersion;
+        _estadoRequestEnCurso = true;
+        UnityApiClient.Instance.GetDialogoEstado(sesionJuicioId, response => OnDialogoEstadoReceived(requestVersion, response));
     }
 
-    private void OnDialogoEstadoReceived(APIResponse<DialogoEstado> response)
+    private void OnDialogoEstadoReceived(int requestVersion, APIResponse<DialogoEstado> response)
     {
+        if (requestVersion < _estadoRequestVersion || requestVersion <= _ultimoEstadoProcesado)
+            return;
+
+        _ultimoEstadoProcesado = requestVersion;
+        _estadoRequestEnCurso = false;
+
         if (!response.success)
         {
             _dialogoActivo = false;
             _estadoActual = response.data;
+            _nodoIdDeRespuestasActuales = -1;
             OnError?.Invoke(response.message ?? "Error al obtener estado");
             if (_estadoActual != null)
                 OnEstadoActualizado?.Invoke(_estadoActual);
@@ -121,6 +143,10 @@ public class DialogoManager : MonoBehaviour
         _estadoActual = response.data;
         _dialogoActivo = _estadoActual != null && _estadoActual.dialogo_activo;
         _estadoSesionDialogo = _estadoActual?.estado ?? "";
+        if (!_dialogoActivo)
+            _nodoIdDeRespuestasActuales = -1;
+        _miRolId = -1;
+        _esMiTurno = false;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (_estadoActual != null)
@@ -146,7 +172,7 @@ public class DialogoManager : MonoBehaviour
             OnDialogoFinalizado?.Invoke(true);
 
         bool puedeActuar = _esMiTurno || (_estadoActual?.puede_actuar ?? false);
-        if (puedeActuar && _dialogoActivo)
+        if (_navegadorEnFoco && puedeActuar && _dialogoActivo)
         {
             UnityDebugLog.ToLaravel("dialogo_solicitar_respuestas", "Solicitando respuestas (Tu turno o instructor)", new System.Collections.Generic.Dictionary<string, object> {
                 { "sesion_id", sesionJuicioId },
@@ -162,14 +188,22 @@ public class DialogoManager : MonoBehaviour
 
     private void CargarRespuestasUsuario()
     {
-        if (UnityApiClient.Instance == null) return;
+        if (UnityApiClient.Instance == null || sesionJuicioId < 0 || usuarioId < 0) return;
 
-        UnityApiClient.Instance.GetRespuestasUsuario(sesionJuicioId, usuarioId, OnRespuestasReceived);
+        int requestVersion = ++_respuestasRequestVersion;
+        _respuestasRequestEnCurso = true;
+        UnityApiClient.Instance.GetRespuestasUsuario(sesionJuicioId, usuarioId, response => OnRespuestasReceived(requestVersion, response));
     }
 
-    private void OnRespuestasReceived(APIResponse<RespuestasResponse> response)
+    private void OnRespuestasReceived(int requestVersion, APIResponse<RespuestasResponse> response)
     {
+        if (requestVersion < _respuestasRequestVersion || requestVersion <= _ultimoRespuestasProcesadas)
+            return;
+
+        _ultimoRespuestasProcesadas = requestVersion;
+        _respuestasRequestEnCurso = false;
         _respuestasActuales.Clear();
+        _nodoIdDeRespuestasActuales = -1;
 
         if (!response.success || response.data == null)
         {
@@ -193,12 +227,17 @@ public class DialogoManager : MonoBehaviour
         UnityApiTypesValidator.ValidateRespuestasResponse(response.data, logWarnings: true);
 #endif
 
-        if (!disponibles)
+        if (!_navegadorEnFoco || !disponibles)
             return;
+
+        _nodoIdDeRespuestasActuales = response.data.nodo_actual != null
+            ? response.data.nodo_actual.id
+            : (_estadoActual?.nodo_actual?.id ?? -1);
 
         if (lista != null)
             _respuestasActuales.AddRange(lista);
         OnRespuestasDisponibles?.Invoke(_respuestasActuales);
+        IntentarDecisionPendiente();
     }
 
     /// <summary>Envía la decisión elegida. Llamar cuando el usuario seleccione una respuesta.</summary>
@@ -213,31 +252,124 @@ public class DialogoManager : MonoBehaviour
             return;
         }
 
+        if (!_dialogoActivo || _estadoActual?.nodo_actual == null)
+        {
+            ProgramarDecisionPendiente(respuestaId, decisionTexto, tiempoRespuesta, false, "Sincronizando diálogo: el nodo cambió antes de enviar la decisión.");
+            return;
+        }
+
         if (tiempoRespuesta <= 0 && _tiempoInicioRespuesta > 0f)
             tiempoRespuesta = Mathf.RoundToInt(Time.time - _tiempoInicioRespuesta);
 
+        int nodoActualId = _estadoActual.nodo_actual.id;
+        if (_nodoIdDeRespuestasActuales > 0 && _nodoIdDeRespuestasActuales != nodoActualId)
+        {
+            ProgramarDecisionPendiente(respuestaId, decisionTexto, tiempoRespuesta, false, "Sincronizando diálogo: las opciones visibles ya no corresponden al nodo actual.");
+            return;
+        }
+
+        EnviarDecisionInterna(respuestaId, decisionTexto, tiempoRespuesta, false);
+    }
+
+    private void EnviarDecisionInterna(int respuestaId, string decisionTexto, int tiempoRespuesta, bool esReintento)
+    {
+        if (UnityApiClient.Instance == null || _estadoActual?.nodo_actual == null)
+            return;
+
+        int nodoActualId = _estadoActual.nodo_actual.id;
         UnityApiClient.Instance.EnviarDecision(
             sesionJuicioId,
             usuarioId,
             respuestaId,
+            nodoActualId,
             decisionTexto ?? "",
             tiempoRespuesta,
-            OnDecisionEnviada
+            response => OnDecisionEnviada(response, respuestaId, decisionTexto ?? "", tiempoRespuesta, esReintento)
         );
     }
 
-    private void OnDecisionEnviada(APIResponse<DecisionResponse> response)
+    private void OnDecisionEnviada(APIResponse<DecisionResponse> response, int respuestaId, string decisionTexto, int tiempoRespuesta, bool esReintento)
     {
         if (!response.success)
         {
+            if (!esReintento && EsErrorDeSincronizacion(response.message))
+            {
+                ProgramarDecisionPendiente(respuestaId, decisionTexto, tiempoRespuesta, true, "Sincronizando diálogo para reintentar la decisión.");
+                return;
+            }
+
+            LimpiarDecisionPendiente();
             OnError?.Invoke(response.message ?? "Error al enviar decisión");
+            RefrescarEstado();
             return;
         }
 
+        LimpiarDecisionPendiente();
         if (response.data?.nuevo_estado?.dialogo_finalizado ?? false)
             OnDialogoFinalizado?.Invoke(true);
 
         RefrescarEstado();
+    }
+
+    private void ProgramarDecisionPendiente(int respuestaId, string decisionTexto, int tiempoRespuesta, bool esReintento, string mensaje)
+    {
+        if (esReintento && _decisionPendienteEsReintento)
+        {
+            LimpiarDecisionPendiente();
+            OnInfo?.Invoke("El diálogo se sincronizó, pero la opción elegida ya no pudo reenviarse automáticamente. Elige una nueva respuesta.");
+            RefrescarEstado();
+            return;
+        }
+
+        _respuestaPendienteId = respuestaId;
+        _decisionPendienteTexto = decisionTexto ?? "";
+        _decisionPendienteTiempo = tiempoRespuesta;
+        _decisionPendienteEsReintento = esReintento;
+        OnInfo?.Invoke(mensaje);
+        RefrescarEstado();
+    }
+
+    private void IntentarDecisionPendiente()
+    {
+        if (_respuestaPendienteId <= 0)
+            return;
+
+        var respuesta = _respuestasActuales.Find(r => r.id == _respuestaPendienteId);
+        if (respuesta == null)
+        {
+            LimpiarDecisionPendiente();
+            OnInfo?.Invoke("El diálogo se sincronizó, pero la opción elegida ya no está disponible. Elige una nueva respuesta.");
+            return;
+        }
+
+        int respuestaId = _respuestaPendienteId;
+        string decisionTexto = _decisionPendienteTexto;
+        int tiempoRespuesta = _decisionPendienteTiempo;
+        bool esReintento = _decisionPendienteEsReintento;
+
+        LimpiarDecisionPendiente();
+        OnInfo?.Invoke("Estado sincronizado. Reintentando la decisión.");
+        EnviarDecisionInterna(respuestaId, decisionTexto, tiempoRespuesta, esReintento);
+    }
+
+    private void LimpiarDecisionPendiente()
+    {
+        _respuestaPendienteId = -1;
+        _decisionPendienteTexto = "";
+        _decisionPendienteTiempo = 0;
+        _decisionPendienteEsReintento = false;
+    }
+
+    private static bool EsErrorDeSincronizacion(string mensaje)
+    {
+        if (string.IsNullOrEmpty(mensaje))
+            return false;
+
+        string normalizado = mensaje.ToLowerInvariant();
+        return normalizado.Contains("sincron")
+            || normalizado.Contains("nodo actual")
+            || normalizado.Contains("cambió antes")
+            || normalizado.Contains("corresponde al nodo");
     }
 
     /// <summary>Avanza al siguiente nodo cuando el actual no tiene opciones (nodo narrativo). Llama al API y refresca estado.</summary>
@@ -277,6 +409,55 @@ public class DialogoManager : MonoBehaviour
     public void MarcarInicioRespuesta()
     {
         _tiempoInicioRespuesta = Time.time;
+    }
+
+    public void BrowserFocusChanged(string state)
+    {
+        bool hasFocus = !string.Equals(state, "blur", StringComparison.OrdinalIgnoreCase);
+        if (_navegadorEnFoco == hasFocus)
+            return;
+
+        _navegadorEnFoco = hasFocus;
+
+        if (_navegadorEnFoco)
+        {
+            OnInfo?.Invoke("Sincronizando diálogo tras recuperar el foco de la ventana.");
+            UnityDebugLog.ToLaravel("dialogo_browser_focus", "Foco del navegador recuperado; sincronizando diálogo", new Dictionary<string, object> {
+                { "session_id", sesionJuicioId },
+                { "user_id", usuarioId }
+            });
+            RefrescarEstado();
+            return;
+        }
+
+        OnInfo?.Invoke("La ventana perdió el foco. Las opciones quedarán en pausa hasta resincronizar.");
+        _respuestasActuales.Clear();
+        OnRespuestasDisponibles?.Invoke(_respuestasActuales);
+    }
+
+    public void BrowserForceRefresh(string reason)
+    {
+        OnInfo?.Invoke("Sincronizando diálogo desde la interfaz web.");
+        UnityDebugLog.ToLaravel("dialogo_browser_refresh", "Refresh forzado desde navegador", new Dictionary<string, object> {
+            { "reason", reason ?? "" },
+            { "session_id", sesionJuicioId },
+            { "user_id", usuarioId }
+        });
+        RefrescarEstado();
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        _navegadorEnFoco = hasFocus;
+        if (hasFocus && !_estadoRequestEnCurso && !_respuestasRequestEnCurso)
+            RefrescarEstado();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        _navegadorEnFoco = !pauseStatus;
+        if (!pauseStatus && !_estadoRequestEnCurso && !_respuestasRequestEnCurso)
+            RefrescarEstado();
     }
 
     /// <summary>Notifica al servidor que el usuario está hablando (para sincronizar con otros clientes).</summary>
